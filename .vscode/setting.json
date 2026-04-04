@@ -1,0 +1,10 @@
+{
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+  "github.copilot.nextEditSuggestions.enabled": true,
+  "github.copilot.chat.experimental.temporalContext.enabled": true,
+  "chat.agent.enabled": true,
+  "github.copilot.enable": {
+    "*": true,
+    "dart": true
+  }
+}
