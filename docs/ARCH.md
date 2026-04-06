@@ -1,8 +1,8 @@
 # PropOS 系统架构设计文档
 
-> **版本**: v1.0  
-> **日期**: 2026-04-04  
-> **对应 PRD**: v1.5  
+> **版本**: v1.1  
+> **日期**: 2026-04-06  
+> **对应 PRD**: v1.6  
 > **范围**: Phase 1 全模块
 
 ---
@@ -16,6 +16,20 @@
 5. [RBAC 权限矩阵代码实现](#5-rbac-权限矩阵代码实现)
 6. [二房东数据行级隔离 Repository 实现](#6-二房东数据行级隔离-repository-实现)
 7. [关键数据流说明](#7-关键数据流说明)
+
+---
+
+## 0. v1.6 对齐说明
+
+本版架构文档对齐 PRD v1.6，重点吸收以下约束：
+
+1. Phase 1 以 Must 范围交付为优先，Should 和 Could 能力不阻塞首批上线。
+2. 财务模型需支持部分收款、一次收多账单、发票状态与收款状态解耦。
+3. KPI 在 Phase 1 定位为经营分析与试运行评分，不直接承接正式绩效。
+4. 二房东门户需补充登录安全、会话失效、审核 SLA 与版本留痕。
+5. 定时任务与消息触发需具备重试、失败列表与人工补偿能力。
+
+> **交付边界**: 架构设计优先保障资产、合同、账单、收款、工单、二房东填报六条核心链路闭环；复杂 KPI 排名、二房东 API 自动推送和增强分析作为可延后能力保留扩展点。
 
 ---
 
@@ -135,6 +149,11 @@ backend/
 │   │   ├── app_config.dart            # 环境变量读取（DB_URL、JWT_SECRET 等）
 │   │   └── database.dart             # PostgreSQL 连接池初始化
 │   │
+│   ├── jobs/
+│   │   ├── job_runner.dart            # 定时任务统一入口
+│   │   ├── job_execution_log.dart     # 任务执行日志与失败列表
+│   │   └── retry_scheduler.dart       # 失败重试与人工补偿任务调度
+│   │
 │   ├── core/
 │   │   ├── middleware/
 │   │   │   ├── auth_middleware.dart   # JWT 验证，注入 RequestContext
@@ -155,7 +174,7 @@ backend/
 │   │   │   ├── repositories/
 │   │   │   │   └── user_repository.dart
 │   │   │   ├── services/
-│   │   │   │   ├── auth_service.dart  # 登录、刷新 Token
+│   │   │   │   ├── auth_service.dart  # 登录、刷新 Token、登录失败锁定
 │   │   │   │   └── token_service.dart # JWT 签发与验证
 │   │   │   └── controllers/
 │   │   │       └── auth_controller.dart
@@ -203,21 +222,25 @@ backend/
 │   │   ├── finance/                   # 模块3：财务
 │   │   │   ├── models/
 │   │   │   │   ├── invoice.dart       # @freezed Invoice（账单）
-│   │   │   │   ├── payment.dart      # @freezed Payment（收款核销）
+│   │   │   │   ├── payment.dart      # @freezed Payment（收款主记录）
+│   │   │   │   ├── payment_allocation.dart # @freezed PaymentAllocation（核销分配）
 │   │   │   │   ├── expense.dart      # @freezed Expense（运营支出）
-│   │   │   │   ├── kpi_scheme.dart   # @freezed KpiScheme（KPI 方案配置）
+│   │   │   │   ├── kpi_scheme.dart   # @freezed KpiScheme（KPI 试运行方案配置）
 │   │   │   │   └── kpi_score.dart    # @freezed KpiScore（评分快照，持久化用）
 │   │   │   ├── repositories/
 │   │   │   │   ├── invoice_repository.dart
 │   │   │   │   ├── payment_repository.dart
+│   │   │   │   ├── payment_allocation_repository.dart
 │   │   │   │   ├── expense_repository.dart
 │   │   │   │   └── kpi_repository.dart
 │   │   │   ├── services/
 │   │   │   │   ├── invoice_service.dart      # 自动账单生成（调用 RentCalculator）
+│   │   │   │   ├── receivable_service.dart   # 核销分配、部分收款、跨账单收款
 │   │   │   │   ├── noi_service.dart          # NOI 实时计算（EGI - OpEx）
-│   │   │   │   └── kpi_service.dart          # 数据聚合 + 调用 KpiScorer 打分，结果写库
+│   │   │   │   └── kpi_service.dart          # 数据聚合 + 调用 KpiScorer 打分，结果写库（试运行）
 │   │   │   └── controllers/
 │   │   │       ├── invoice_controller.dart
+│   │   │       ├── payment_controller.dart
 │   │   │       ├── noi_controller.dart
 │   │   │       └── kpi_controller.dart
 │   │   │
@@ -242,7 +265,8 @@ backend/
 │   │       ├── repositories/
 │   │       │   └── sublease_repository.dart  # 行级隔离实现（见第6节）
 │   │       ├── services/
-│   │       │   ├── sublease_service.dart     # 审核流、填报提醒
+│   │       │   ├── sublease_service.dart     # 审核流、填报提醒、版本留痕
+│   │       │   ├── portal_session_service.dart # 外部门户会话失效与单点登录控制
 │   │       │   └── sublease_import_service.dart  # Excel 批量上传
 │   │       └── controllers/
 │   │           └── sublease_controller.dart
@@ -252,6 +276,7 @@ backend/
 │   │
 │   └── shared/
 │       ├── encryption.dart            # AES-256 加解密（证件号、手机号）
+│       ├── task_outbox.dart           # 消息发送结果留痕与失败补偿
 │       └── validators.dart            # 通用校验工具
 │
 ├── test/
@@ -351,6 +376,8 @@ CREATE TYPE user_role AS ENUM (
 -- KPI 评估周期
 CREATE TYPE kpi_period_type AS ENUM ('monthly', 'quarterly', 'yearly');
 ```
+
+> **v1.6 口径说明**: KPI 相关表继续保留，但默认用于试运行评分和经营分析，不作为正式绩效的强制结算依据。
 
 ---
 
@@ -1527,6 +1554,12 @@ CREATE TRIGGER trg_freeze_sub_landlord
   EXECUTE FUNCTION freeze_sub_landlord_on_contract_expiry();
 ```
 
+```sql
+-- 登录失败锁定与会话版本控制由 users 表字段配合 AuthService 实现
+-- failed_login_attempts >= 5 时写入 locked_until = NOW() + interval '30 minutes'
+-- session_version 每次改密、强制登出或主合同冻结后 +1，旧 JWT 自动失效
+```
+
 ---
 
 ## 7. 关键数据流说明
@@ -1545,6 +1578,14 @@ CREATE TRIGGER trg_freeze_sub_landlord
             └─ RentEscalationService.computeRentForPeriod(contract, period)
                  └─ 按阶段规则计算应收租金
             └─ 写入 invoices（rent + mgmt_fee + utility）
+      └─ 写入 invoice_items（按费项拆分）
+
+收款入账
+  └─ PaymentController.createReceipt()
+    └─ ReceivableService.allocate(payment, targetInvoices)
+      ├─ 默认按“先到期先核销”生成 payment_allocations
+      ├─ 支持单笔收款分配到多张 invoice
+      └─ 回写 invoice.paid_amount / outstanding_amount / status
 ```
 
 ### 7.2 WALE 实时计算
@@ -1568,6 +1609,8 @@ ContractController
 
 ### 7.3 KPI 自动打分（线性插值）
 
+> **Phase 1 约束**: 本流程输出的是试运行评分结果，快照生成后默认冻结；补录或口径调整需显式触发重算，并保留审计日志。
+
 ```dart
 double _interpolateScore(double actual, double fullThreshold, double passThreshold) {
   if (actual >= fullThreshold) return 100.0;
@@ -1579,6 +1622,18 @@ double _interpolateScore(double actual, double fullThreshold, double passThresho
   return 60 + (actual - passThreshold) /
       (fullThreshold - passThreshold) * 40;
 }
+```
+
+### 7.4 任务可靠性与人工补偿
+
+```
+JobRunner.execute(job)
+  ├─ 写入 job_execution_log(status=running)
+  ├─ 调用业务任务（预警、催收、提醒、导入后处理）
+  ├─ 成功 → 标记 success
+  └─ 失败 → 记录 error_message / retry_count
+           ├─ RetryScheduler 按退避策略自动重试
+           └─ 后台失败任务列表支持人工重跑或补发
 ```
 
 ---

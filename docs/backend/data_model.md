@@ -1,8 +1,8 @@
 # PropOS Phase 1 数据模型文档
 
-> **版本**: v1.0
-> **日期**: 2026-04-05
-> **对应 PRD**: v1.5
+> **版本**: v1.1
+> **日期**: 2026-04-06
+> **对应 PRD**: v1.6
 > **范围**: Phase 1 五个核心模块
 
 ---
@@ -14,6 +14,7 @@
 ```
 users                                               ← 公共：认证与角色
 audit_logs                                          ← 公共：审计日志
+job_execution_logs                                  ← 公共：任务执行与补偿
 
 buildings → floors → units                          ← M1 资产
                         └── renovation_records
@@ -22,12 +23,12 @@ tenants → contracts → contract_attachments          ← M2 租务
                    └── rent_escalation_phases
                    └── alerts
                    └── invoices → invoice_items
-                                      └── payments
+                   └── payments → payment_allocations
                    └── subleases (← units)          ← M5 二房东
 
 expenses (→ buildings, units?)                      ← M3 财务支出
 kpi_metric_definitions                              ← M3 KPI 指标库
-kpi_schemes → kpi_scheme_metrics                   ← M3 KPI 方案
+kpi_schemes → kpi_scheme_metrics                   ← M3 KPI 试运行方案
 kpi_score_snapshots → kpi_score_snapshot_items     ← M3 KPI 快照
 
 suppliers                                           ← M4 工单
@@ -49,7 +50,8 @@ work_orders (→ units, buildings, floors, users)    ← M4 工单
 | `alerts` | `contract_id` | `contracts` | 预警记录归属合同 |
 | `invoices` | `contract_id` | `contracts` | 账单归属合同 |
 | `invoice_items` | `invoice_id` | `invoices` | 账单明细 |
-| `payments` | `invoice_id` | `invoices` | 收款核销 |
+| `payments` | `received_by_user_id` | `users` | 收款主记录 |
+| `payment_allocations` | `payment_id`, `invoice_id` | `payments`, `invoices` | 收款核销分配 |
 | `expenses` | `building_id`, `unit_id`? | `buildings`, `units` | 运营支出归口 |
 | `kpi_scheme_metrics` | `scheme_id`, `metric_id` | `kpi_schemes`, `kpi_metric_definitions` | 方案-指标关联 |
 | `kpi_score_snapshots` | `scheme_id`, `evaluated_user_id` | `kpi_schemes`, `users` | 打分快照 |
@@ -186,6 +188,8 @@ CREATE TYPE sublease_review_status AS ENUM (
 CREATE TYPE kpi_period_type AS ENUM ('monthly', 'quarterly', 'yearly');
 ```
 
+> **v1.6 建模约束**: KPI 表保留完整结构，但业务语义为“试运行评分”；财务核销改为“收款主记录 + 分配明细”双表，以支持部分收款和跨账单核销。
+
 ---
 
 ## 三、公共基础表
@@ -204,6 +208,11 @@ CREATE TABLE users (
     --       FOREIGN KEY (bound_contract_id) REFERENCES contracts(id);
     bound_contract_id UUID,
     is_active        BOOLEAN     NOT NULL DEFAULT TRUE,
+    failed_login_attempts SMALLINT NOT NULL DEFAULT 0,
+    locked_until     TIMESTAMPTZ,
+    password_changed_at TIMESTAMPTZ,
+    last_login_at    TIMESTAMPTZ,
+    session_version  INTEGER     NOT NULL DEFAULT 1,
     -- 主合同到期后二房东账号自动冻结
     frozen_at        TIMESTAMPTZ,
     frozen_reason    TEXT,
@@ -214,6 +223,7 @@ CREATE TABLE users (
 CREATE INDEX idx_users_role       ON users(role);
 CREATE INDEX idx_users_email      ON users(email);
 CREATE INDEX idx_users_contract   ON users(bound_contract_id) WHERE bound_contract_id IS NOT NULL;
+CREATE INDEX idx_users_locked_until ON users(locked_until) WHERE locked_until IS NOT NULL;
 ```
 
 ### 3.2 audit_logs（操作审计日志）
@@ -231,12 +241,36 @@ CREATE TABLE audit_logs (
     before_json   JSONB,
     after_json    JSONB,
     ip_address    INET,
+    retention_until TIMESTAMPTZ,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_audit_user        ON audit_logs(user_id);
 CREATE INDEX idx_audit_resource    ON audit_logs(resource_type, resource_id);
 CREATE INDEX idx_audit_created_at  ON audit_logs(created_at DESC);
+```
+
+### 3.3 job_execution_logs（任务执行日志）
+
+用于记录账单生成、预警推送、催收提醒、导入后处理等定时任务的执行结果，支持失败重试与人工补偿。
+
+```sql
+CREATE TABLE job_execution_logs (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_name         VARCHAR(100) NOT NULL,
+    job_scope        VARCHAR(100),
+    status           VARCHAR(20)  NOT NULL, -- 'running', 'success', 'failed', 'retry_scheduled'
+    retry_count      SMALLINT     NOT NULL DEFAULT 0,
+    started_at       TIMESTAMPTZ  NOT NULL,
+    finished_at      TIMESTAMPTZ,
+    error_message    TEXT,
+    payload_json     JSONB,
+    triggered_by_user_id UUID REFERENCES users(id),
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_job_logs_name_status ON job_execution_logs(job_name, status);
+CREATE INDEX idx_job_logs_started_at  ON job_execution_logs(started_at DESC);
 ```
 
 ---
@@ -556,7 +590,11 @@ CREATE TABLE invoices (
     period_end      DATE           NOT NULL,
     -- 应收总额（各费项之和）
     total_amount    NUMERIC(12,2)  NOT NULL,
+    paid_amount     NUMERIC(12,2)  NOT NULL DEFAULT 0,
+    outstanding_amount NUMERIC(12,2) NOT NULL,
     status          invoice_status NOT NULL DEFAULT 'issued',
+    billing_basis   VARCHAR(30)    NOT NULL DEFAULT 'contract', -- 'contract', 'daily_prorated', 'fixed_total'
+    tax_mode        VARCHAR(20)    NOT NULL DEFAULT 'net',      -- 'net', 'gross'
     -- 发票信息
     invoice_issued  BOOLEAN        NOT NULL DEFAULT FALSE,
     invoice_no_ext  VARCHAR(100),             -- 外部发票号
@@ -572,7 +610,10 @@ CREATE TABLE invoices (
     created_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT chk_invoice_period CHECK (period_start <= period_end)
+    CONSTRAINT chk_invoice_period CHECK (period_start <= period_end),
+    CONSTRAINT chk_invoice_amounts CHECK (
+        total_amount >= 0 AND paid_amount >= 0 AND outstanding_amount >= 0
+    )
 );
 
 CREATE INDEX idx_invoices_contract   ON invoices(contract_id);
@@ -604,22 +645,41 @@ CREATE INDEX idx_invoice_items_invoice ON invoice_items(invoice_id);
 ```sql
 CREATE TABLE payments (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    invoice_id     UUID        NOT NULL REFERENCES invoices(id),
     paid_amount    NUMERIC(12,2) NOT NULL,
     paid_at        TIMESTAMPTZ   NOT NULL, -- 实际到账时间（UTC）
     -- 核销方式：'bank_transfer', 'cash', 'online', 'offset'（冲抵）
     payment_method VARCHAR(50)  NOT NULL DEFAULT 'bank_transfer',
     reference_no   VARCHAR(100),            -- 银行流水号/交易单号
     -- 核销人
-    written_off_by UUID        REFERENCES users(id),
+    received_by_user_id UUID   REFERENCES users(id),
     notes          TEXT,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_payments_invoice ON payments(invoice_id);
+CREATE INDEX idx_payments_paid_at ON payments(paid_at DESC);
+CREATE INDEX idx_payments_reference ON payments(reference_no) WHERE reference_no IS NOT NULL;
 ```
 
-### 6.4 expenses（运营支出）
+### 6.4 payment_allocations（收款核销分配）
+
+```sql
+CREATE TABLE payment_allocations (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    payment_id     UUID NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+    invoice_id     UUID NOT NULL REFERENCES invoices(id),
+    allocated_amount NUMERIC(12,2) NOT NULL,
+    allocated_by_user_id UUID REFERENCES users(id),
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_payment_allocation_amount CHECK (allocated_amount > 0),
+    UNIQUE (payment_id, invoice_id)
+);
+
+CREATE INDEX idx_payment_allocations_payment ON payment_allocations(payment_id);
+CREATE INDEX idx_payment_allocations_invoice ON payment_allocations(invoice_id);
+```
+
+### 6.5 expenses（运营支出）
 
 支出关联楼栋（必填）和单元（可选，用于工单维修成本归口），自动汇入 NOI 运营支出端。
 
@@ -649,9 +709,9 @@ CREATE INDEX idx_expenses_category  ON expenses(category);
 CREATE INDEX idx_expenses_workorder ON expenses(work_order_id) WHERE work_order_id IS NOT NULL;
 ```
 
-### 6.5 kpi_metric_definitions（KPI 指标定义库）
+### 6.6 kpi_metric_definitions（KPI 指标定义库）
 
-系统预定义 10 个指标（K01-K10），由初始化脚本 seed，不允许用户新增。
+系统预定义 10 个指标（K01-K10），由初始化脚本 seed，不允许用户新增。Phase 1 中这些指标用于经营分析与试运行评分。
 
 ```sql
 CREATE TABLE kpi_metric_definitions (
@@ -689,7 +749,7 @@ CREATE TABLE kpi_metric_definitions (
 | K09 | 租金递增执行率 | 0.95 | 0.85 | 0.70 | TRUE |
 | K10 | 租户满意度（手动）| 90 | 75 | 60 | TRUE |
 
-### 6.6 kpi_schemes（KPI 方案）
+### 6.7 kpi_schemes（KPI 方案）
 
 ```sql
 CREATE TABLE kpi_schemes (
@@ -700,13 +760,14 @@ CREATE TABLE kpi_schemes (
     effective_from DATE          NOT NULL,
     effective_to   DATE,                   -- NULL 表示持续有效
     is_active    BOOLEAN         NOT NULL DEFAULT TRUE,
+    scoring_mode VARCHAR(20)     NOT NULL DEFAULT 'trial', -- 'trial', 'official'
     created_by   UUID            REFERENCES users(id),
     created_at   TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 ```
 
-### 6.7 kpi_scheme_metrics（方案-指标关联）
+### 6.8 kpi_scheme_metrics（方案-指标关联）
 
 **业务约束**：同一方案下所有指标 `weight` 之和必须 = 1.00，在 Service 层校验。
 
@@ -726,7 +787,7 @@ CREATE TABLE kpi_scheme_metrics (
 CREATE INDEX idx_scheme_metrics_scheme ON kpi_scheme_metrics(scheme_id);
 ```
 
-### 6.8 kpi_score_snapshots（KPI 打分快照）
+### 6.9 kpi_score_snapshots（KPI 打分快照）
 
 ```sql
 CREATE TABLE kpi_score_snapshots (
@@ -738,6 +799,7 @@ CREATE TABLE kpi_score_snapshots (
     period_end        DATE        NOT NULL,
     -- 汇总总分（0-100）
     total_score       NUMERIC(5,2) NOT NULL,
+    snapshot_status   VARCHAR(20) NOT NULL DEFAULT 'frozen', -- 'draft', 'frozen', 'recalculated'
     calculated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     created_by        UUID        REFERENCES users(id)
 );
@@ -747,7 +809,7 @@ CREATE INDEX idx_kpi_snapshots_scheme ON kpi_score_snapshots(scheme_id);
 CREATE INDEX idx_kpi_snapshots_period ON kpi_score_snapshots(period_start, period_end);
 ```
 
-### 6.9 kpi_score_snapshot_items（打分快照明细）
+### 6.10 kpi_score_snapshot_items（打分快照明细）
 
 ```sql
 CREATE TABLE kpi_score_snapshot_items (
@@ -811,6 +873,9 @@ CREATE TABLE work_orders (
     approved_at       TIMESTAMPTZ,
     started_at        TIMESTAMPTZ,
     completed_at      TIMESTAMPTZ,
+    expected_complete_at TIMESTAMPTZ,
+    on_hold_reason    TEXT,
+    reopened_from_work_order_id UUID REFERENCES work_orders(id),
     -- 成本（完工后录入）
     material_cost     NUMERIC(10,2),    -- 材料费（元）
     labor_cost        NUMERIC(10,2),    -- 人工费（元）
@@ -894,11 +959,15 @@ CREATE TABLE subleases (
     reviewer_user_id   UUID                REFERENCES users(id),
     reviewed_at        TIMESTAMPTZ,
     rejection_reason   TEXT,
+    version_no         INTEGER             NOT NULL DEFAULT 1,
+    declared_for_month DATE,
 
     -- 填报信息（双通道）
     -- 'internal'=内部录入, 'sub_landlord'=二房东自助填报, 'excel_import'=批量导入
     submission_channel VARCHAR(20)          NOT NULL DEFAULT 'internal',
     submitted_by_user_id UUID               REFERENCES users(id),
+    submitted_at       TIMESTAMPTZ,
+    truth_declared_at  TIMESTAMPTZ,
 
     notes              TEXT,
     created_at         TIMESTAMPTZ          NOT NULL DEFAULT NOW(),
@@ -970,3 +1039,13 @@ ALTER TABLE work_orders
 6. 批量导入：639 套单元（Excel 导入工具）
 7. 批量导入：楼层 CAD 转换（.dwg → svg_path/png_path）
 ```
+
+---
+
+## 十二、v1.6 建模补充说明
+
+1. 收款核销采用 payments + payment_allocations 双表建模，解决部分收款和跨账单核销场景。
+2. users 新增登录失败锁定、会话版本和改密时间字段，用于外部门户安全控制。
+3. subleases 增加 version_no、declared_for_month、truth_declared_at，满足月报制填报和版本留痕。
+4. kpi_schemes 与 kpi_score_snapshots 增加试运行与冻结状态字段，避免与正式绩效结算混淆。
+5. job_execution_logs 用于承接任务重试、失败巡检和人工补偿，不将任务可靠性散落在业务表中。
