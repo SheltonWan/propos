@@ -1,8 +1,8 @@
 # PropOS Phase 1 数据模型文档
 
-> **版本**: v1.1
+> **版本**: v1.2
 > **日期**: 2026-04-06
-> **对应 PRD**: v1.6
+> **对应 PRD**: v1.7
 > **范围**: Phase 1 五个核心模块
 
 ---
@@ -20,11 +20,17 @@ buildings → floors → units                          ← M1 资产
                         └── renovation_records
 
 tenants → contracts → contract_attachments          ← M2 租务
+                   └── contract_units (← units)     ← M2 合同-单元 M:N
                    └── rent_escalation_phases
+                   └── deposits → deposit_transactions  ← M2 押金
                    └── alerts
                    └── invoices → invoice_items
                    └── payments → payment_allocations
                    └── subleases (← units)          ← M5 二房东
+
+meter_readings (→ units)                            ← M3 水电抄表
+turnover_reports (→ contracts)                      ← M3 商铺营业额对账
+import_batches                                      ← 公共：导入批次追踪
 
 expenses (→ buildings, units?)                      ← M3 财务支出
 kpi_metric_definitions                              ← M3 KPI 指标库
@@ -43,10 +49,13 @@ work_orders (→ units, buildings, floors, users)    ← M4 工单
 | `floors` | `building_id` | `buildings` | 楼层归属楼栋 |
 | `units` | `floor_id`, `building_id` | `floors`, `buildings` | 单元归属楼层/楼栋 |
 | `renovation_records` | `unit_id` | `units` | 改造记录归属单元 |
-| `contracts` | `unit_id`, `tenant_id` | `units`, `tenants` | 合同绑定单元与租客 |
+| `contracts` | `tenant_id` | `tenants` | 合同绑定租客 |
 | `contracts` | `parent_contract_id` | `contracts` | 续签合同链 |
+| `contract_units` | `contract_id`, `unit_id` | `contracts`, `units` | 合同-单元 M:N 关联（含计费面积与单价） |
 | `contract_attachments` | `contract_id` | `contracts` | 合同附件 |
 | `rent_escalation_phases` | `contract_id` | `contracts` | 租金递增阶段 |
+| `deposits` | `contract_id` | `contracts` | 押金归属合同 |
+| `deposit_transactions` | `deposit_id` | `deposits` | 押金流水审计 |
 | `alerts` | `contract_id` | `contracts` | 预警记录归属合同 |
 | `invoices` | `contract_id` | `contracts` | 账单归属合同 |
 | `invoice_items` | `invoice_id` | `invoices` | 账单明细 |
@@ -61,6 +70,9 @@ work_orders (→ units, buildings, floors, users)    ← M4 工单
 | `work_order_photos` | `work_order_id` | `work_orders` | 工单照片 |
 | `subleases` | `master_contract_id`, `unit_id` | `contracts`, `units` | 子租赁关联主合同与单元 |
 | `subleases` | `reviewer_user_id`, `submitted_by_user_id` | `users`, `users` | 填报/审核人 |
+| `meter_readings` | `unit_id`, `recorded_by` | `units`, `users` | 水电抄表归属单元 |
+| `turnover_reports` | `contract_id`, `reviewed_by` | `contracts`, `users` | 商铺营业额申报 |
+| `import_batches` | `created_by` | `users` | 导入批次操作人 |
 | `audit_logs` | `user_id` | `users` | 操作人 |
 
 ---
@@ -186,9 +198,43 @@ CREATE TYPE sublease_review_status AS ENUM (
 
 -- KPI 评估周期
 CREATE TYPE kpi_period_type AS ENUM ('monthly', 'quarterly', 'yearly');
+
+-- 押金状态（v1.7 新增）
+CREATE TYPE deposit_status AS ENUM (
+    'collected',           -- 已收取
+    'frozen',              -- 冻结中
+    'partially_credited',  -- 部分冲抵
+    'refunded'             -- 已退还
+);
+
+-- 合同终止类型（v1.7 新增）
+CREATE TYPE termination_type AS ENUM (
+    'normal_expiry',       -- 正常到期
+    'tenant_early_exit',   -- 租户提前退租
+    'mutual_agreement',    -- 协商提前终止
+    'owner_termination'    -- 业主单方解约
+);
+
+-- 水电表类型（v1.7 新增）
+CREATE TYPE meter_type AS ENUM ('water', 'electricity', 'gas');
+
+-- 抄表周期（v1.7 新增）
+CREATE TYPE reading_cycle AS ENUM ('monthly', 'bimonthly');
+
+-- 营业额申报审核状态（v1.7 新增）
+CREATE TYPE turnover_approval_status AS ENUM ('pending', 'approved', 'rejected');
+
+-- 导入数据类别（v1.7 新增）
+CREATE TYPE import_data_type AS ENUM ('units', 'contracts', 'invoices');
+
+-- 导入回滚状态（v1.7 新增）
+CREATE TYPE import_rollback_status AS ENUM ('committed', 'rolled_back');
+
+-- 信用评级（v1.7 新增）
+CREATE TYPE credit_rating AS ENUM ('A', 'B', 'C');
 ```
 
-> **v1.6 建模约束**: KPI 表保留完整结构，但业务语义为“试运行评分”；财务核销改为“收款主记录 + 分配明细”双表，以支持部分收款和跨账单核销。
+> **v1.7 建模约束**: KPI 表保留完整结构，但业务语义为"试运行评分"；财务核销改为"收款主记录 + 分配明细"双表，以支持部分收款和跨账单核销；合同-单元改为 M:N 关联（通过 `contract_units`），每个单元独立记录计费面积与单价；新增押金独立建账、水电抄表、营业额对账、导入批次追踪。
 
 ---
 
@@ -342,6 +388,12 @@ CREATE TABLE units (
     current_contract_id UUID,
     -- QR 码标识（用于扫码报修）
     qr_code           VARCHAR(100) UNIQUE,
+    -- 参考市场租金（元/m²/月），由运营定期维护，用于空置损失测算与 PGI 估算（v1.7 新增）
+    market_rent_reference NUMERIC(10,2),
+    -- 前序单元 ID 列表，记录单元拆分/合并/停租/转非可租的历史（v1.7 新增）
+    predecessor_unit_ids  UUID[],
+    -- 归档时间，旧单元标记为 archived 而非物理删除（v1.7 新增）
+    archived_at       TIMESTAMPTZ,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     UNIQUE (building_id, unit_number)
@@ -413,6 +465,14 @@ CREATE TABLE tenants (
     -- 信用评级（系统自动计算：A/B/C）
     credit_rating   CHAR(1) CHECK (credit_rating IN ('A','B','C')),
     overdue_count   SMALLINT NOT NULL DEFAULT 0, -- 历史逾期次数（用于信用计算）
+    -- 信用评级计算辅助字段（v1.7 新增）
+    -- 评级规则：A（优质）= 12 个月内逾期 ≤1 次且单次 ≤3 天；
+    --          B（一般）= 12 个月内逾期 2~3 次或单次 4~15 天；
+    --          C（风险）= 12 个月内逾期 ≥4 次或单次 >15 天
+    -- 每月 1 日自动重算；新租户默认 B 级；签约满 3 个月后首次评级
+    last_rating_date          DATE,             -- 最近一次评级日期
+    times_overdue_past_12m    SMALLINT NOT NULL DEFAULT 0, -- 12 个月内逾期次数
+    max_single_overdue_days   SMALLINT NOT NULL DEFAULT 0, -- 单次最长逾期天数
     notes           TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -428,7 +488,6 @@ CREATE TABLE contracts (
     id                UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
     -- 合同编号（业务可读编号，格式如 'C-2026-001'）
     contract_no       VARCHAR(50)    UNIQUE NOT NULL,
-    unit_id           UUID           NOT NULL REFERENCES units(id),
     tenant_id         UUID           NOT NULL REFERENCES tenants(id),
     status            contract_status NOT NULL DEFAULT 'pending_sign',
     property_type     property_type  NOT NULL, -- 冗余，与单元业态一致，便于聚合查询
@@ -450,6 +509,10 @@ CREATE TABLE contracts (
     deposit_months       SMALLINT     NOT NULL DEFAULT 2,
     deposit_amount       NUMERIC(12,2) NOT NULL,
 
+    -- 税费口径（v1.7 新增）
+    tax_inclusive     BOOLEAN        NOT NULL DEFAULT TRUE,  -- 含税/不含税标识
+    applicable_tax_rate NUMERIC(5,4) NOT NULL DEFAULT 0,    -- 适用税率（如 0.09 = 9%，0.05 = 5%）
+
     -- 商铺营业额分成（revenue_share_enabled=true 时有效）
     revenue_share_enabled  BOOLEAN    NOT NULL DEFAULT FALSE,
     min_guarantee_rent     NUMERIC(12,2),       -- 保底租金（元/月）
@@ -463,12 +526,13 @@ CREATE TABLE contracts (
     -- 详见 contract_attachments 表
     signed_pdf_path  TEXT,
 
-    -- 合同终止信息
-    terminated_at    TIMESTAMPTZ,
-    termination_reason TEXT,
-    -- 押金退还
-    deposit_refunded_at TIMESTAMPTZ,
-    deposit_refund_amount NUMERIC(12,2),
+    -- 合同终止信息（v1.7 增强：四种终止类型）
+    termination_type       termination_type,     -- 正常到期/租户提前退租/协商提前终止/业主单方解约
+    terminated_at          TIMESTAMPTZ,
+    termination_date       DATE,                 -- 实际终止日期
+    termination_reason     TEXT,                 -- 解约依据/补偿方案
+    penalty_amount         NUMERIC(12,2),        -- 违约金（元）
+    deposit_deduction_details TEXT,              -- 押金扣除明细
 
     created_by       UUID           REFERENCES users(id),
     created_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
@@ -477,7 +541,6 @@ CREATE TABLE contracts (
     CONSTRAINT chk_contract_dates CHECK (start_date <= end_date)
 );
 
-CREATE INDEX idx_contracts_unit     ON contracts(unit_id);
 CREATE INDEX idx_contracts_tenant   ON contracts(tenant_id);
 CREATE INDEX idx_contracts_status   ON contracts(status);
 CREATE INDEX idx_contracts_end_date ON contracts(end_date) WHERE status IN ('active','expiring_soon');
@@ -503,7 +566,72 @@ CREATE TABLE contract_attachments (
 CREATE INDEX idx_attachments_contract ON contract_attachments(contract_id);
 ```
 
-### 5.4 rent_escalation_phases（租金递增阶段）
+### 5.4 contract_units（合同-单元 M:N 关联）
+
+**v1.7 变更**：合同与单元由 1:1 改为 M:N 关系。每个关联记录独立记录计费面积与单价，WALE 计算中多单元合同**按单元拆分后分别计入**，避免重复加权。
+
+```sql
+CREATE TABLE contract_units (
+    contract_id   UUID         NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+    unit_id       UUID         NOT NULL REFERENCES units(id),
+    -- 该单元计费面积（m²），可能与建筑面积不同
+    billing_area  NUMERIC(10,2) NOT NULL,
+    -- 该单元租金单价（元/m²/月）
+    unit_price    NUMERIC(10,2) NOT NULL,
+    PRIMARY KEY (contract_id, unit_id)
+);
+
+CREATE INDEX idx_contract_units_unit ON contract_units(unit_id);
+```
+
+### 5.5 deposits（押金）
+
+**v1.7 新增**：押金独立建账，不计入 NOI 收入。每次状态变更需记录原因和审批人，所有变更写入 `deposit_transactions` 审计表。续签时押金可整体转移至新合同（无需先退后收）。
+
+**状态机**: `collected → frozen → partially_credited → refunded`
+
+```sql
+CREATE TABLE deposits (
+    id                UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+    contract_id       UUID           NOT NULL REFERENCES contracts(id),
+    amount            NUMERIC(12,2)  NOT NULL, -- 押金金额（元）
+    collection_date   DATE           NOT NULL, -- 收取日期
+    status            deposit_status NOT NULL DEFAULT 'collected',
+    last_status_change_at TIMESTAMPTZ,
+    -- 转移至新合同（续签时整体转移）
+    transferred_to_contract_id UUID  REFERENCES contracts(id),
+    notes             TEXT,
+    created_by        UUID           REFERENCES users(id),
+    created_at        TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_deposits_contract ON deposits(contract_id);
+CREATE INDEX idx_deposits_status   ON deposits(status);
+```
+
+### 5.6 deposit_transactions（押金流水审计）
+
+```sql
+CREATE TABLE deposit_transactions (
+    id              UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+    deposit_id      UUID           NOT NULL REFERENCES deposits(id) ON DELETE CASCADE,
+    -- 流水类型：收取/冻结/扣除/退还/转移
+    transaction_type VARCHAR(20)   NOT NULL CHECK (transaction_type IN
+                       ('collection','freeze','deduction','refund','transfer')),
+    amount          NUMERIC(12,2)  NOT NULL, -- 本次操作金额
+    previous_status deposit_status NOT NULL, -- 变更前状态
+    new_status      deposit_status NOT NULL, -- 变更后状态
+    reason          TEXT           NOT NULL, -- 状态变更原因
+    approved_by     UUID           REFERENCES users(id), -- 审批人
+    created_by      UUID           NOT NULL REFERENCES users(id), -- 操作人
+    created_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_deposit_tx_deposit ON deposit_transactions(deposit_id);
+```
+
+### 5.7 rent_escalation_phases（租金递增阶段）
 
 每份合同可配置多个递增阶段，顺序执行。对应 `rent_escalation_engine` package 的输入结构。
 
@@ -551,7 +679,7 @@ CREATE INDEX idx_escalation_contract ON rent_escalation_phases(contract_id);
 { "base_monthly_rent": 7500 }
 ```
 
-### 5.5 alerts（预警记录）
+### 5.8 alerts（预警记录）
 
 ```sql
 CREATE TABLE alerts (
@@ -709,7 +837,81 @@ CREATE INDEX idx_expenses_category  ON expenses(category);
 CREATE INDEX idx_expenses_workorder ON expenses(work_order_id) WHERE work_order_id IS NOT NULL;
 ```
 
-### 6.6 kpi_metric_definitions（KPI 指标定义库）
+### 6.6 meter_readings（水电抄表记录）
+
+**v1.7 新增**：支持水/电/气三种表计。业态差异：写字楼/商铺独立分表；公寓视合同约定（含于租金或独立）。录入抄表数据后自动生成水电费账单（附带用量明细）。支持阶梯水电价（按用量分段配价）和公共区域公摊（按面积比例分摊）。
+
+```sql
+CREATE TABLE meter_readings (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    unit_id          UUID        NOT NULL REFERENCES units(id),
+    meter_type       meter_type  NOT NULL,             -- water / electricity / gas
+    reading_cycle    reading_cycle NOT NULL DEFAULT 'monthly',
+    -- 读数
+    current_reading  NUMERIC(12,2) NOT NULL,           -- 本期读数
+    previous_reading NUMERIC(12,2) NOT NULL,           -- 上期读数
+    consumption      NUMERIC(12,2) NOT NULL,           -- 用量 = current - previous
+    -- 计费
+    unit_price       NUMERIC(10,4) NOT NULL,           -- 元/度 或 元/吨
+    cost_amount      NUMERIC(12,2) NOT NULL,           -- 费用 = consumption × unit_price
+    -- 阶梯计价明细（可选，用于阶梯水电价）
+    tiered_details   JSONB,                            -- [{"from":0,"to":100,"price":0.5,"amount":50}, ...]
+    -- 抄表信息
+    reading_date     DATE        NOT NULL,
+    recorded_by      UUID        REFERENCES users(id),
+    -- 是否已生成对应账单
+    invoice_generated BOOLEAN    NOT NULL DEFAULT FALSE,
+    generated_invoice_id UUID    REFERENCES invoices(id),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_meter_unit       ON meter_readings(unit_id);
+CREATE INDEX idx_meter_date       ON meter_readings(reading_date DESC);
+CREATE INDEX idx_meter_type       ON meter_readings(meter_type);
+CREATE INDEX idx_meter_uninvoiced ON meter_readings(invoice_generated) WHERE invoice_generated = FALSE;
+```
+
+### 6.7 turnover_reports（商铺营业额申报）
+
+**v1.7 新增**：商铺营业额分成对账流程。商户按月提交营业额 → 财务审核 → 系统自动生成分成账单。支持补报/修正（差额账单自动生成）和争议处理记录。
+
+```sql
+CREATE TABLE turnover_reports (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    contract_id      UUID        NOT NULL REFERENCES contracts(id),
+    -- 申报月份
+    report_month     DATE        NOT NULL,             -- 月份（yyyy-mm-01）
+    -- 营业额数据
+    reported_revenue NUMERIC(12,2) NOT NULL,           -- 申报营业额
+    revenue_share_rate NUMERIC(5,4) NOT NULL,          -- 分成比例
+    base_rent        NUMERIC(12,2) NOT NULL,           -- 保底租金
+    calculated_share NUMERIC(12,2) NOT NULL,           -- 计算分成额 = MAX(reported_revenue × rate - base_rent, 0)
+    -- 审核
+    approval_status  turnover_approval_status NOT NULL DEFAULT 'pending',
+    reviewed_by      UUID        REFERENCES users(id),
+    reviewed_at      TIMESTAMPTZ,
+    rejection_reason TEXT,
+    -- 附件（POS 流水或审计报表）
+    attachment_paths TEXT[],
+    -- 是否为补报/修正
+    is_amendment     BOOLEAN     NOT NULL DEFAULT FALSE,
+    original_report_id UUID     REFERENCES turnover_reports(id),
+    -- 生成的账单
+    generated_invoice_id UUID   REFERENCES invoices(id),
+    -- 争议记录
+    dispute_note     TEXT,
+    submitted_by     UUID        REFERENCES users(id),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (contract_id, report_month) -- 同一合同同一月份仅一条正式记录
+);
+
+CREATE INDEX idx_turnover_contract ON turnover_reports(contract_id);
+CREATE INDEX idx_turnover_month    ON turnover_reports(report_month);
+CREATE INDEX idx_turnover_status   ON turnover_reports(approval_status);
+```
+
+### 6.8 kpi_metric_definitions（KPI 指标定义库）
 
 系统预定义 10 个指标（K01-K10），由初始化脚本 seed，不允许用户新增。Phase 1 中这些指标用于经营分析与试运行评分。
 
@@ -725,6 +927,11 @@ CREATE TABLE kpi_metric_definitions (
     default_fail_threshold        NUMERIC(10,4) NOT NULL, -- 不及格红线（0分起点）
     -- 指标值越大越好（TRUE）还是越小越好（FALSE，如逾期率、空置周转天数）
     higher_is_better    BOOLEAN     NOT NULL DEFAULT TRUE,
+    -- 指标方向标识（v1.7 新增，与 higher_is_better 语义一致，便于前端展示）
+    -- 'positive'=数值越高越好（K01/K02/K04/K07/K09/K10）
+    -- 'negative'=数值越低越好（K03/K05/K06/K08），线性插值逻辑翻转
+    direction           VARCHAR(10) NOT NULL DEFAULT 'positive'
+                        CHECK (direction IN ('positive', 'negative')),
     -- 数据来源模块
     source_module       VARCHAR(50) NOT NULL, -- 'assets', 'contracts', 'finance', 'workorders'
     -- 是否允许手动录入（K10 租户满意度）
@@ -736,20 +943,20 @@ CREATE TABLE kpi_metric_definitions (
 
 **初始化数据（Seed）**
 
-| code | name | full_score | pass | fail | higher_is_better |
-|------|------|-----------|------|------|-----------------|
-| K01 | 出租率 | 0.95 | 0.80 | 0.60 | TRUE |
-| K02 | 收款及时率 | 0.95 | 0.85 | 0.70 | TRUE |
-| K03 | 租户集中度 | 0.40 | 0.55 | 0.70 | FALSE |
-| K04 | 续约率 | 0.80 | 0.60 | 0.40 | TRUE |
-| K05 | 工单响应时效（小时） | 24 | 48 | 72 | FALSE |
-| K06 | 空置周转天数 | 30 | 60 | 90 | FALSE |
-| K07 | NOI 达成率 | 1.00 | 0.85 | 0.70 | TRUE |
-| K08 | 逾期率 | 0.05 | 0.10 | 0.20 | FALSE |
-| K09 | 租金递增执行率 | 0.95 | 0.85 | 0.70 | TRUE |
-| K10 | 租户满意度（手动）| 90 | 75 | 60 | TRUE |
+| code | name | full_score | pass | fail | higher_is_better | direction |
+|------|------|-----------|------|------|-----------------|-----------|
+| K01 | 出租率 | 0.95 | 0.80 | 0.60 | TRUE | positive |
+| K02 | 收款及时率 | 0.95 | 0.85 | 0.70 | TRUE | positive |
+| K03 | 租户集中度 | 0.40 | 0.55 | 0.70 | FALSE | negative |
+| K04 | 续约率 | 0.80 | 0.60 | 0.40 | TRUE | positive |
+| K05 | 工单响应时效（小时） | 24 | 48 | 72 | FALSE | negative |
+| K06 | 空置周转天数 | 30 | 60 | 90 | FALSE | negative |
+| K07 | NOI 达成率 | 1.00 | 0.85 | 0.70 | TRUE | positive |
+| K08 | 逾期率 | 0.05 | 0.10 | 0.20 | FALSE | negative |
+| K09 | 租金递增执行率 | 0.95 | 0.85 | 0.70 | TRUE | positive |
+| K10 | 租户满意度（手动）| 90 | 75 | 60 | TRUE | positive |
 
-### 6.7 kpi_schemes（KPI 方案）
+### 6.9 kpi_schemes（KPI 方案）
 
 ```sql
 CREATE TABLE kpi_schemes (
@@ -767,7 +974,7 @@ CREATE TABLE kpi_schemes (
 );
 ```
 
-### 6.8 kpi_scheme_metrics（方案-指标关联）
+### 6.10 kpi_scheme_metrics（方案-指标关联）
 
 **业务约束**：同一方案下所有指标 `weight` 之和必须 = 1.00，在 Service 层校验。
 
@@ -787,7 +994,7 @@ CREATE TABLE kpi_scheme_metrics (
 CREATE INDEX idx_scheme_metrics_scheme ON kpi_scheme_metrics(scheme_id);
 ```
 
-### 6.9 kpi_score_snapshots（KPI 打分快照）
+### 6.11 kpi_score_snapshots（KPI 打分快照）
 
 ```sql
 CREATE TABLE kpi_score_snapshots (
@@ -809,7 +1016,7 @@ CREATE INDEX idx_kpi_snapshots_scheme ON kpi_score_snapshots(scheme_id);
 CREATE INDEX idx_kpi_snapshots_period ON kpi_score_snapshots(period_start, period_end);
 ```
 
-### 6.10 kpi_score_snapshot_items（打分快照明细）
+### 6.12 kpi_score_snapshot_items（打分快照明细）
 
 ```sql
 CREATE TABLE kpi_score_snapshot_items (
@@ -987,7 +1194,38 @@ CREATE INDEX idx_subleases_occupancy       ON subleases(occupancy_status);
 
 ---
 
-## 九、延迟建立的外键约束
+## 九、公共：导入批次追踪
+
+### 9.1 import_batches（导入批次）
+
+**v1.7 新增**：用于记录 Excel 批量导入的每个批次。单元台账（主数据）采用**整批回滚**策略（一条出错全部不导入）；历史合同和未结账单采用**部分导入**策略（成功入库，失败返回错误明细）。支持试导入模式（仅校验不入库）、按批次回滚、批量修正。
+
+```sql
+CREATE TABLE import_batches (
+    id              UUID              PRIMARY KEY DEFAULT gen_random_uuid(),
+    batch_name      VARCHAR(200)      NOT NULL,        -- 导入批次名称/编号
+    data_type       import_data_type  NOT NULL,        -- units / contracts / invoices
+    total_records   INTEGER           NOT NULL,
+    success_count   INTEGER           NOT NULL DEFAULT 0,
+    failure_count   INTEGER           NOT NULL DEFAULT 0,
+    rollback_status import_rollback_status NOT NULL DEFAULT 'committed',
+    -- 错误明细：[{"row":5,"field":"gross_area","error":"面积必须为正数"}, ...]
+    error_details   JSONB,
+    -- 是否为试导入（仅校验不入库）
+    is_dry_run      BOOLEAN           NOT NULL DEFAULT FALSE,
+    -- 导入文件路径
+    source_file_path TEXT,
+    created_by      UUID              REFERENCES users(id),
+    created_at      TIMESTAMPTZ       NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_import_batches_type   ON import_batches(data_type);
+CREATE INDEX idx_import_batches_status ON import_batches(rollback_status);
+```
+
+---
+
+## 十、延迟建立的外键约束
 
 以下 FK 存在循环依赖或建表顺序约束，需在所有表创建完成后执行：
 
@@ -1028,24 +1266,34 @@ ALTER TABLE work_orders
 
 ---
 
-## 十一、数据初始化顺序
+## 十二、数据初始化顺序
 
 ```
-1. 创建所有 ENUM 类型
+1. 创建所有 ENUM 类型（含 v1.7 新增：deposit_status, termination_type, meter_type 等）
 2. buildings → floors → units
 3. users（第一个超级管理员）
-4. kpi_metric_definitions（seed K01~K10）
+4. kpi_metric_definitions（seed K01~K10，含 direction 字段）
 5. 延迟 FK 约束（ALTER TABLE）
-6. 批量导入：639 套单元（Excel 导入工具）
+6. 批量导入：639 套单元（Excel 导入工具，经 import_batches 追踪）
 7. 批量导入：楼层 CAD 转换（.dwg → svg_path/png_path）
 ```
 
 ---
 
-## 十二、v1.6 建模补充说明
+## 十三、v1.7 建模补充说明
 
 1. 收款核销采用 payments + payment_allocations 双表建模，解决部分收款和跨账单核销场景。
 2. users 新增登录失败锁定、会话版本和改密时间字段，用于外部门户安全控制。
 3. subleases 增加 version_no、declared_for_month、truth_declared_at，满足月报制填报和版本留痕。
 4. kpi_schemes 与 kpi_score_snapshots 增加试运行与冻结状态字段，避免与正式绩效结算混淆。
 5. job_execution_logs 用于承接任务重试、失败巡检和人工补偿，不将任务可靠性散落在业务表中。
+6. **合同-单元改为 M:N**：移除 contracts.unit_id 单外键，通过 contract_units 中间表实现多单元关联，每条记录独立记录 billing_area 与 unit_price。
+7. **押金独立建账**：新增 deposits + deposit_transactions 表，押金不计入 NOI 收入，状态机流转全程审计。
+8. **水电抴表**：新增 meter_readings 表，支持水/电/气三种表计，阶梯计价与公摆分摊。
+9. **商铺营业额对账**：新增 turnover_reports 表，管理申报→审核→生成分成账单流程。
+10. **导入批次追踪**：新增 import_batches 表，支持整批回滚与部分导入两种策略。
+11. **合同税费口径**：新增 tax_inclusive、applicable_tax_rate 字段，NOI 计算统一使用不含税口径。
+12. **合同提前终止**：新增 termination_type 枚举及违约金、押金扣除明细等字段，WALE 中该合同剩余租期归零。
+13. **信用评级量化**： tenants 表新增评级计算辅助字段（last_rating_date、times_overdue_past_12m、max_single_overdue_days），每月 1 日自动重算。
+14. **KPI 反向指标**：kpi_metric_definitions 新增 direction 字段（positive/negative），反向指标线性插值逻辑翻转。
+15. **单元参考市场租金**：units 新增 market_rent_reference、predecessor_unit_ids、archived_at 字段。

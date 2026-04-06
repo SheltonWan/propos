@@ -1,8 +1,8 @@
 # PropOS 系统架构设计文档
 
-> **版本**: v1.1  
+> **版本**: v1.2  
 > **日期**: 2026-04-06  
-> **对应 PRD**: v1.6  
+> **对应 PRD**: v1.7  
 > **范围**: Phase 1 全模块
 
 ---
@@ -19,15 +19,25 @@
 
 ---
 
-## 0. v1.6 对齐说明
+## 0. v1.7 对齐说明
 
-本版架构文档对齐 PRD v1.6，重点吸收以下约束：
+本版架构文档对齐 PRD v1.7，重点吸收以下约束：
 
 1. Phase 1 以 Must 范围交付为优先，Should 和 Could 能力不阻塞首批上线。
 2. 财务模型需支持部分收款、一次收多账单、发票状态与收款状态解耦。
 3. KPI 在 Phase 1 定位为经营分析与试运行评分，不直接承接正式绩效。
 4. 二房东门户需补充登录安全、会话失效、审核 SLA 与版本留痕。
 5. 定时任务与消息触发需具备重试、失败列表与人工补偿能力。
+6. 合同-单元关系改为 M:N（通过 `contract_units` 中间表，含计费面积与单价）。
+7. 押金独立建账（`deposits` + `deposit_transactions`），不计入 NOI 收入，状态机全程审计。
+8. WALE 双口径计算（收入加权 + 面积加权），精确到天。
+9. 合同新增税费口径字段（`tax_inclusive` / `applicable_tax_rate`），NOI 统一使用不含税口径。
+10. 合同提前终止四种类型（`termination_type` 枚举），终止后未来账单自动取消、WALE 剩余租期归零。
+11. 新增水电抴表（`meter_readings`）、商铺营业额对账（`turnover_reports`）、导入批次追踪（`import_batches`）。
+12. KPI 新增反向指标方向字段（`direction`），线性插值逻辑翻转。
+13. 租客信用评级量化（A/B/C 三级），每月自动重算。
+14. PIPL 合规：脱敏还原需记录完整审计日志，合同终止后个人信息保留不超过 3 年。
+15. 外部门户强制 HTTPS/TLS 1.2+，密码复杂度要求 8 位以上含大小写字母+数字。
 
 > **交付边界**: 架构设计优先保障资产、合同、账单、收款、工单、二房东填报六条核心链路闭环；复杂 KPI 排名、二房东 API 自动推送和增强分析作为可延后能力保留扩展点。
 
@@ -203,20 +213,25 @@ backend/
 │   │   │   │   ├── tenant.dart        # @freezed Tenant（证件号标注加密）
 │   │   │   │   ├── contract.dart     # @freezed Contract（含状态机枚举）
 │   │   │   │   ├── contract_status.dart  # ContractStatus 枚举
+│   │   │   │   ├── deposit.dart      # @freezed Deposit（押金状态机）
 │   │   │   │   └── alert.dart        # Alert 预警记录
 │   │   │   │   # ↑ RentEscalationRule 已移入 packages/rent_escalation_engine
 │   │   │   ├── repositories/
 │   │   │   │   ├── tenant_repository.dart
 │   │   │   │   ├── contract_repository.dart
+│   │   │   │   ├── deposit_repository.dart    # 押金 CRUD + 状态流转
 │   │   │   │   └── alert_repository.dart
 │   │   │   ├── services/
-│   │   │   │   ├── contract_service.dart     # 合同 CRUD + 状态机转换
-│   │   │   │   ├── wale_service.dart         # WALE 计算（调用 RentCalculator 获取年化租金）
+│   │   │   │   ├── contract_service.dart     # 合同 CRUD + 状态机转换 + 提前终止
+│   │   │   │   ├── deposit_service.dart      # 押金收取/冻结/冲抵/退还/转移 + 审计
+│   │   │   │   ├── wale_service.dart         # WALE 双口径计算（收入加权 + 面积加权）
 │   │   │   │   ├── rent_escalation_service.dart  # 持久化递增规则配置，调用 rent_escalation_engine
+│   │   │   │   ├── credit_rating_service.dart    # 租户信用评级自动计算（A/B/C）
 │   │   │   │   └── alert_service.dart        # 预警触发调度（定时任务钩子）
 │   │   │   └── controllers/
 │   │   │       ├── tenant_controller.dart
 │   │   │       ├── contract_controller.dart
+│   │   │       ├── deposit_controller.dart   # 押金管理 API
 │   │   │       └── wale_controller.dart
 │   │   │
 │   │   ├── finance/                   # 模块3：财务
@@ -225,6 +240,8 @@ backend/
 │   │   │   │   ├── payment.dart      # @freezed Payment（收款主记录）
 │   │   │   │   ├── payment_allocation.dart # @freezed PaymentAllocation（核销分配）
 │   │   │   │   ├── expense.dart      # @freezed Expense（运营支出）
+│   │   │   │   ├── meter_reading.dart # @freezed MeterReading（水电抄表记录）
+│   │   │   │   ├── turnover_report.dart # @freezed TurnoverReport（商铺营业额申报）
 │   │   │   │   ├── kpi_scheme.dart   # @freezed KpiScheme（KPI 试运行方案配置）
 │   │   │   │   └── kpi_score.dart    # @freezed KpiScore（评分快照，持久化用）
 │   │   │   ├── repositories/
@@ -232,16 +249,22 @@ backend/
 │   │   │   │   ├── payment_repository.dart
 │   │   │   │   ├── payment_allocation_repository.dart
 │   │   │   │   ├── expense_repository.dart
+│   │   │   │   ├── meter_reading_repository.dart
+│   │   │   │   ├── turnover_report_repository.dart
 │   │   │   │   └── kpi_repository.dart
 │   │   │   ├── services/
 │   │   │   │   ├── invoice_service.dart      # 自动账单生成（调用 RentCalculator）
 │   │   │   │   ├── receivable_service.dart   # 核销分配、部分收款、跨账单收款
-│   │   │   │   ├── noi_service.dart          # NOI 实时计算（EGI - OpEx）
-│   │   │   │   └── kpi_service.dart          # 数据聚合 + 调用 KpiScorer 打分，结果写库（试运行）
+│   │   │   │   ├── noi_service.dart          # NOI 实时计算（EGI - OpEx），统一不含税口径
+│   │   │   │   ├── meter_reading_service.dart # 抄表录入 + 自动生成水电费账单
+│   │   │   │   ├── turnover_service.dart     # 营业额申报审核 + 分成账单生成
+│   │   │   │   └── kpi_service.dart          # 数据聚合 + 调用 KpiScorer 打分（含反向指标处理）
 │   │   │   └── controllers/
 │   │   │       ├── invoice_controller.dart
 │   │   │       ├── payment_controller.dart
 │   │   │       ├── noi_controller.dart
+│   │   │       ├── meter_reading_controller.dart
+│   │   │       ├── turnover_controller.dart
 │   │   │       └── kpi_controller.dart
 │   │   │
 │   │   ├── workorders/                # 模块4：工单
@@ -276,8 +299,9 @@ backend/
 │   │
 │   └── shared/
 │       ├── encryption.dart            # AES-256 加解密（证件号、手机号）
+│       ├── import_batch_service.dart   # 导入批次追踪（整批回滚/部分导入 + 试导入模式）
 │       ├── task_outbox.dart           # 消息发送结果留痕与失败补偿
-│       └── validators.dart            # 通用校验工具
+│       └── validators.dart            # 通用校验工具（含密码复杂度校验）
 │
 ├── test/
 │   ├── unit/
@@ -293,7 +317,11 @@ backend/
 │   ├── 003_create_contracts.sql
 │   ├── 004_create_finance.sql
 │   ├── 005_create_workorders.sql
-│   └── 006_create_subleases.sql
+│   ├── 006_create_subleases.sql
+│   ├── 007_create_deposits.sql           # v1.7: 押金独立建账
+│   ├── 008_create_meter_readings.sql     # v1.7: 水电抄表
+│   ├── 009_create_turnover_reports.sql   # v1.7: 营业额对账
+│   └── 010_create_import_batches.sql     # v1.7: 导入批次追踪
 │
 └── pubspec.yaml                       # path 依赖本地两个 package
 ```
@@ -375,9 +403,28 @@ CREATE TYPE user_role AS ENUM (
 
 -- KPI 评估周期
 CREATE TYPE kpi_period_type AS ENUM ('monthly', 'quarterly', 'yearly');
+
+-- 押金状态（v1.7 新增）
+CREATE TYPE deposit_status AS ENUM (
+  'collected', 'frozen', 'partially_credited', 'refunded'
+);
+
+-- 合同终止类型（v1.7 新增）
+CREATE TYPE termination_type AS ENUM (
+  'normal_expiry', 'tenant_early_exit', 'mutual_agreement', 'owner_termination'
+);
+
+-- 水电表类型（v1.7 新增）
+CREATE TYPE meter_type AS ENUM ('water', 'electricity', 'gas');
+
+-- 营业额申报审核状态（v1.7 新增）
+CREATE TYPE turnover_approval_status AS ENUM ('pending', 'approved', 'rejected');
+
+-- 导入数据类别（v1.7 新增）
+CREATE TYPE import_data_type AS ENUM ('units', 'contracts', 'invoices');
 ```
 
-> **v1.6 口径说明**: KPI 相关表继续保留，但默认用于试运行评分和经营分析，不作为正式绩效的强制结算依据。
+> **v1.7 口径说明**: 合同-单元改为 M:N 关联；KPI 相关表继续保留试运行语义；新增押金独立建账、水电抄表、营业额对账、合同终止类型等。
 
 ---
 
@@ -436,6 +483,13 @@ CREATE TABLE units (
   -- 公寓扩展字段（property_type = 'apartment' 时有值）
   bedroom_count       SMALLINT,
   private_bathroom    BOOLEAN,
+
+  -- 参考市场租金（v1.7 新增）
+  market_rent_reference NUMERIC(10, 2),             -- 元/m²/月，用于空置损失测算、PGI 估算
+  -- 前序单元 ID（v1.7 新增）
+  predecessor_unit_ids  UUID[],                     -- 拆分/合并/停租历史
+  -- 归档时间（v1.7 新增）
+  archived_at         TIMESTAMPTZ,                  -- 旧单元标记归档，不物理删除
 
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -528,6 +582,10 @@ CREATE TABLE tenants (
   emergency_phone_encrypted BYTEA,
   credit_rating   CHAR(1) CHECK (credit_rating IN ('A', 'B', 'C')),
   overdue_count   SMALLINT NOT NULL DEFAULT 0,      -- 历史逾期次数（系统自动累计）
+  -- 信用评级计算辅助字段（v1.7 新增）
+  last_rating_date        DATE,                     -- 最近一次评级日期
+  times_overdue_past_12m  SMALLINT NOT NULL DEFAULT 0,
+  max_single_overdue_days SMALLINT NOT NULL DEFAULT 0,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -547,6 +605,9 @@ CREATE TABLE contracts (
   base_rent           NUMERIC(12, 2) NOT NULL,         -- 签约基准月租金（元）
   deposit             NUMERIC(12, 2),                  -- 押金（元）
   payment_cycle_days  SMALLINT NOT NULL DEFAULT 30,    -- 付款周期（天），通常30/90/180
+  -- 税费口径（v1.7 新增）
+  tax_inclusive        BOOLEAN NOT NULL DEFAULT TRUE,   -- 含税/不含税标识
+  applicable_tax_rate  NUMERIC(5, 4) NOT NULL DEFAULT 0, -- 适用税率（如 0.09 = 9%）
   -- 商铺营业额分成（property_type = 'retail' 时有效）
   turnover_rent_pct   NUMERIC(5, 4),                   -- 分成比例（0.05 = 5%）
   min_rent_guarantee  NUMERIC(12, 2),                  -- 保底租金（元/月）
@@ -555,6 +616,13 @@ CREATE TABLE contracts (
   -- 附件
   pdf_url             TEXT,
   notes               TEXT,
+  -- 合同终止信息（v1.7 增强：四种终止类型）
+  termination_type     termination_type,               -- 正常到期/租户提前退租/协商终止/业主解约
+  terminated_at        TIMESTAMPTZ,
+  termination_date     DATE,                           -- 实际终止日期
+  termination_reason   TEXT,                           -- 解约依据/补偿方案
+  penalty_amount       NUMERIC(12, 2),                 -- 违约金（元）
+  deposit_deduction_details TEXT,                      -- 押金扣除明细
   created_by          UUID NOT NULL REFERENCES users(id),
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -565,12 +633,50 @@ CREATE INDEX idx_contracts_status ON contracts(status);
 CREATE INDEX idx_contracts_end_date ON contracts(end_date);
 CREATE INDEX idx_contracts_property_type ON contracts(property_type);
 
--- 合同-单元关联表（一份合同可覆盖多个单元，如二房东整层包租）
+-- 合同-单元关联表（M:N，v1.7 增强：含计费面积与单价）
 CREATE TABLE contract_units (
   contract_id UUID NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
   unit_id     UUID NOT NULL REFERENCES units(id),
+  billing_area NUMERIC(10, 2) NOT NULL,            -- 该单元计费面积（m²）
+  unit_price   NUMERIC(10, 2) NOT NULL,            -- 该单元租金单价（元/m²/月）
   PRIMARY KEY (contract_id, unit_id)
 );
+
+CREATE INDEX idx_contract_units_unit ON contract_units(unit_id);
+
+-- 押金表（v1.7 新增：独立建账，不计入 NOI 收入）
+-- 状态机: collected → frozen → partially_credited → refunded
+CREATE TABLE deposits (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  contract_id      UUID NOT NULL REFERENCES contracts(id),
+  amount           NUMERIC(12, 2) NOT NULL,         -- 押金金额（元）
+  collection_date  DATE NOT NULL,
+  status           deposit_status NOT NULL DEFAULT 'collected',
+  last_status_change_at TIMESTAMPTZ,
+  transferred_to_contract_id UUID REFERENCES contracts(id), -- 续签转移
+  notes            TEXT,
+  created_by       UUID REFERENCES users(id),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_deposits_contract ON deposits(contract_id);
+
+-- 押金流水审计表（v1.7 新增）
+CREATE TABLE deposit_transactions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  deposit_id      UUID NOT NULL REFERENCES deposits(id) ON DELETE CASCADE,
+  transaction_type VARCHAR(20) NOT NULL,            -- 'collection','freeze','deduction','refund','transfer'
+  amount          NUMERIC(12, 2) NOT NULL,
+  previous_status deposit_status NOT NULL,
+  new_status      deposit_status NOT NULL,
+  reason          TEXT NOT NULL,
+  approved_by     UUID REFERENCES users(id),
+  created_by      UUID NOT NULL REFERENCES users(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_deposit_tx_deposit ON deposit_transactions(deposit_id);
 
 -- 租金递增规则阶段表（一份合同多个阶段）
 CREATE TABLE rent_escalation_stages (
@@ -676,6 +782,52 @@ CREATE TABLE expenses (
 
 CREATE INDEX idx_expenses_building ON expenses(building_id);
 CREATE INDEX idx_expenses_date ON expenses(expense_date);
+
+-- 水电抄表记录表（v1.7 新增）
+CREATE TABLE meter_readings (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  unit_id          UUID NOT NULL REFERENCES units(id),
+  meter_type       meter_type NOT NULL,             -- water / electricity / gas
+  current_reading  NUMERIC(12, 2) NOT NULL,
+  previous_reading NUMERIC(12, 2) NOT NULL,
+  consumption      NUMERIC(12, 2) NOT NULL,         -- = current - previous
+  unit_price       NUMERIC(10, 4) NOT NULL,         -- 元/度 或 元/吨
+  cost_amount      NUMERIC(12, 2) NOT NULL,         -- = consumption × unit_price
+  tiered_details   JSONB,                           -- 阶梯计价明细
+  reading_date     DATE NOT NULL,
+  recorded_by      UUID REFERENCES users(id),
+  invoice_generated BOOLEAN NOT NULL DEFAULT FALSE,
+  generated_invoice_id UUID REFERENCES invoices(id),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_meter_unit ON meter_readings(unit_id);
+CREATE INDEX idx_meter_date ON meter_readings(reading_date DESC);
+
+-- 商铺营业额申报表（v1.7 新增）
+CREATE TABLE turnover_reports (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  contract_id      UUID NOT NULL REFERENCES contracts(id),
+  report_month     DATE NOT NULL,                   -- yyyy-mm-01
+  reported_revenue NUMERIC(12, 2) NOT NULL,
+  revenue_share_rate NUMERIC(5, 4) NOT NULL,
+  base_rent        NUMERIC(12, 2) NOT NULL,
+  calculated_share NUMERIC(12, 2) NOT NULL,
+  approval_status  turnover_approval_status NOT NULL DEFAULT 'pending',
+  reviewed_by      UUID REFERENCES users(id),
+  reviewed_at      TIMESTAMPTZ,
+  rejection_reason TEXT,
+  attachment_paths TEXT[],
+  is_amendment     BOOLEAN NOT NULL DEFAULT FALSE,
+  original_report_id UUID REFERENCES turnover_reports(id),
+  generated_invoice_id UUID REFERENCES invoices(id),
+  dispute_note     TEXT,
+  submitted_by     UUID REFERENCES users(id),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (contract_id, report_month)
+);
+
+CREATE INDEX idx_turnover_contract ON turnover_reports(contract_id);
 
 -- KPI 方案表
 CREATE TABLE kpi_schemes (
@@ -950,6 +1102,9 @@ final appRouter = GoRouter(
                 GoRoute(path: 'subleases',     builder: (ctx, s) => SubleaseListPage(masterContractId: s.pathParameters['contractId']!)),
                 GoRoute(path: 'subleases/new', builder: (ctx, s) => SubleaseFormPage(masterContractId: s.pathParameters['contractId']!)),
                 GoRoute(path: 'renew',         builder: (ctx, s) => ContractRenewPage(parentId: s.pathParameters['contractId']!)),
+                GoRoute(path: 'terminate',     builder: (ctx, s) => ContractTerminatePage(contractId: s.pathParameters['contractId']!)),
+                GoRoute(path: 'deposits',      builder: (ctx, s) => DepositListPage(contractId: s.pathParameters['contractId']!)),
+                GoRoute(path: 'deposits/new',  builder: (ctx, s) => DepositFormPage(contractId: s.pathParameters['contractId']!)),
               ],
             ),
           ],
@@ -979,6 +1134,10 @@ final appRouter = GoRouter(
             ),
             GoRoute(path: 'expenses',     builder: (ctx, s) => const ExpenseListPage()),
             GoRoute(path: 'expenses/new', builder: (ctx, s) => const ExpenseFormPage()),
+            GoRoute(path: 'meter-readings',     builder: (ctx, s) => const MeterReadingListPage()),
+            GoRoute(path: 'meter-readings/new', builder: (ctx, s) => const MeterReadingFormPage()),
+            GoRoute(path: 'turnover-reports',     builder: (ctx, s) => const TurnoverReportListPage()),
+            GoRoute(path: 'turnover-reports/:reportId', builder: (ctx, s) => TurnoverReportDetailPage(id: s.pathParameters['reportId']!)),
           ],
         ),
 
@@ -1096,7 +1255,13 @@ enum Permission {
   financeRead,
   financeWrite,
   invoiceVerify,         // 账单核销
-  noiBuild Read,
+  noiRead,
+  meterReadingWrite,     // 水电抄表录入（v1.7）
+  turnoverReviewApprove, // 营业额申报审核（v1.7）
+
+  // 押金管理（v1.7）
+  depositRead,
+  depositWrite,
 
   // 工单模块
   workOrderCreate,
@@ -1137,6 +1302,10 @@ const Map<UserRole, Set<Permission>> rolePermissions = {
     Permission.tenantsWrite,
     Permission.financeRead,
     Permission.noiRead,
+    Permission.depositRead,
+    Permission.depositWrite,
+    Permission.meterReadingWrite,
+    Permission.turnoverReviewApprove,
     Permission.workOrderRead,
     Permission.workOrderApprove,
     Permission.subleaseRead,
@@ -1153,6 +1322,8 @@ const Map<UserRole, Set<Permission>> rolePermissions = {
     Permission.tenantsRead,
     Permission.tenantsWrite,
     Permission.financeRead,     // 只读，用于查看账单
+    Permission.depositRead,
+    Permission.depositWrite,
     Permission.subleaseRead,
     Permission.subleaseWrite,
     Permission.kpiSchemeView,
@@ -1166,6 +1337,10 @@ const Map<UserRole, Set<Permission>> rolePermissions = {
     Permission.financeWrite,
     Permission.invoiceVerify,
     Permission.noiRead,
+    Permission.depositRead,
+    Permission.depositWrite,
+    Permission.meterReadingWrite,
+    Permission.turnoverReviewApprove,
     Permission.kpiSchemeView,
   },
 
@@ -1586,33 +1761,77 @@ CREATE TRIGGER trg_freeze_sub_landlord
       ├─ 默认按“先到期先核销”生成 payment_allocations
       ├─ 支持单笔收款分配到多张 invoice
       └─ 回写 invoice.paid_amount / outstanding_amount / status
+
+水电抄表录入（v1.7 新增）
+  └─ MeterReadingController.create()
+    └─ MeterReadingService.recordAndBill(reading)
+      ├─ 校验 current_reading > previous_reading
+      ├─ 计算用量与费用（支持阶梯计价）
+      └─ 自动生成水电费账单（invoice_type = 'utility'）
+
+营业额申报审核（v1.7 新增）
+  └─ TurnoverController.submitReport()
+    └─ TurnoverService.processReport(report)
+      ├─ 商户提交 → 财务审核（pending → approved/rejected）
+      ├─ 审核通过后自动生成分成账单 = MAX(revenue × rate - base_rent, 0)
+      └─ 支持补报/修正（差额账单自动生成）
 ```
 
-### 7.2 WALE 实时计算
+### 7.2 WALE 双口径实时计算（v1.7 增强）
+
+> **v1.7 变更**：WALE 由单一收入加权改为收入加权 + 面积加权双口径；剩余租期精确到天（单位：年）；多单元合同按 `contract_units` 拆分后分别计入，避免重复加权。已终止合同（`termination_type IS NOT NULL`）剩余租期归零，不参与 WALE 计算。
 
 ```
 GET /api/contracts/wale?groupBy=property_type
 
 ContractController
   └─ WaleService.compute(groupBy: 'property_type', ctx)
-       └─ SQL:
+       └─ 收入加权 WALE SQL:
             SELECT
-              property_type,
-              SUM(
-                EXTRACT(EPOCH FROM (c.end_date - NOW())) / 86400 / 365
-                * RentEscalationService.annualizedRent(c)
-              ) / SUM(RentEscalationService.annualizedRent(c)) AS wale
+              cu.unit_id,
+              c.property_type,
+              GREATEST(EXTRACT(EPOCH FROM (c.end_date - NOW())) / 86400.0 / 365.25, 0)
+                AS remaining_years,
+              cu.billing_area * cu.unit_price * 12
+                AS annualized_rent,
+              cu.billing_area
             FROM contracts c
-            WHERE c.status = 'active'
-            GROUP BY property_type
+            JOIN contract_units cu ON cu.contract_id = c.id
+            WHERE c.status IN ('active', 'expiring_soon')
+              AND c.termination_type IS NULL
+
+       └─ WALE_收入 = Σ(remaining_years × annualized_rent) / Σ(annualized_rent)
+       └─ WALE_面积 = Σ(remaining_years × billing_area) / Σ(billing_area)
+
+       └─ 展示维度：组合级 / 楼栋级 / 业态级 + WALE 趋势图 + 到期瀑布图
 ```
 
-### 7.3 KPI 自动打分（线性插值）
+### 7.3 KPI 自动打分（线性插值，含反向指标）
 
 > **Phase 1 约束**: 本流程输出的是试运行评分结果，快照生成后默认冻结；补录或口径调整需显式触发重算，并保留审计日志。
 
+> **v1.7 增强**: 新增 `direction` 字段区分正向/反向指标（`positive` / `negative`）。反向指标（K03 租户集中度、K05 工单响应时效、K06 空置周转天数、K08 逾期率）线性插值逻辑翻转：数值越低得分越高。
+
 ```dart
-double _interpolateScore(double actual, double fullThreshold, double passThreshold) {
+double _interpolateScore(double actual, KpiMetric metric) {
+  final fullThreshold = metric.fullScoreThreshold;
+  final passThreshold = metric.passThreshold;
+
+  if (metric.direction == 'negative') {
+    // 反向指标：数值越低越好
+    if (actual <= fullThreshold) return 100.0;
+    if (actual >= passThreshold) {
+      // 超过及格线：按比例递减 0~60
+      final failThreshold = metric.failThreshold;
+      return (1 - (actual - passThreshold) / (failThreshold - passThreshold))
+          .clamp(0, 1) * 60;
+    }
+    // 满分线~及格线之间：线性插值 60~100
+    return 100 - (actual - fullThreshold) /
+        (passThreshold - fullThreshold) * 40;
+  }
+
+  // 正向指标：数值越高越好
   if (actual >= fullThreshold) return 100.0;
   if (actual < passThreshold) {
     // 低于及格线：按比例 0~60
