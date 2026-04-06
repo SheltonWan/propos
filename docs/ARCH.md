@@ -112,6 +112,22 @@ class PlatformUtils {
 
 ```
 backend/
+├── packages/                          # 独立 Dart package（零外部依赖，纯计算库）
+│   ├── rent_escalation_engine/        # 租金递增计算引擎
+│   │   ├── lib/src/
+│   │   │   ├── escalation_rule.dart   # RentEscalationRule sealed class（6种子类型）
+│   │   │   └── rent_calculator.dart   # RentCalculator.compute(rules, date) → Money
+│   │   ├── test/
+│   │   │   └── rent_escalation_test.dart  # 覆盖：固定/阶梯/CPI/混合分段
+│   │   └── pubspec.yaml               # name: rent_escalation_engine（无业务依赖）
+│   └── kpi_scorer/                    # KPI 线性插值打分引擎
+│       ├── lib/src/
+│       │   ├── kpi_metric.dart        # KpiMetric（指标定义 + 满分/及格/不及格阈值）
+│       │   └── kpi_scorer.dart        # KpiScorer.score(metric, actual) → 0~100
+│       ├── test/
+│       │   └── kpi_scorer_test.dart   # 覆盖：满分/及格/零分/边界值
+│       └── pubspec.yaml               # name: kpi_scorer（无业务依赖）
+│
 ├── bin/
 │   └── server.dart                    # 入口：启动 Shelf HTTP 服务
 ├── lib/
@@ -168,16 +184,16 @@ backend/
 │   │   │   │   ├── tenant.dart        # @freezed Tenant（证件号标注加密）
 │   │   │   │   ├── contract.dart     # @freezed Contract（含状态机枚举）
 │   │   │   │   ├── contract_status.dart  # ContractStatus 枚举
-│   │   │   │   ├── rent_escalation_rule.dart  # 递增规则（多态 sealed class）
 │   │   │   │   └── alert.dart        # Alert 预警记录
+│   │   │   │   # ↑ RentEscalationRule 已移入 packages/rent_escalation_engine
 │   │   │   ├── repositories/
 │   │   │   │   ├── tenant_repository.dart
 │   │   │   │   ├── contract_repository.dart
 │   │   │   │   └── alert_repository.dart
 │   │   │   ├── services/
 │   │   │   │   ├── contract_service.dart     # 合同 CRUD + 状态机转换
-│   │   │   │   ├── wale_service.dart         # WALE 计算（组合/楼栋/业态）
-│   │   │   │   ├── rent_escalation_service.dart  # 递增规则计算引擎
+│   │   │   │   ├── wale_service.dart         # WALE 计算（调用 RentCalculator 获取年化租金）
+│   │   │   │   ├── rent_escalation_service.dart  # 持久化递增规则配置，调用 rent_escalation_engine
 │   │   │   │   └── alert_service.dart        # 预警触发调度（定时任务钩子）
 │   │   │   └── controllers/
 │   │   │       ├── tenant_controller.dart
@@ -189,17 +205,17 @@ backend/
 │   │   │   │   ├── invoice.dart       # @freezed Invoice（账单）
 │   │   │   │   ├── payment.dart      # @freezed Payment（收款核销）
 │   │   │   │   ├── expense.dart      # @freezed Expense（运营支出）
-│   │   │   │   ├── kpi_scheme.dart   # @freezed KpiScheme（KPI 方案）
-│   │   │   │   └── kpi_score.dart    # @freezed KpiScore（评分快照）
+│   │   │   │   ├── kpi_scheme.dart   # @freezed KpiScheme（KPI 方案配置）
+│   │   │   │   └── kpi_score.dart    # @freezed KpiScore（评分快照，持久化用）
 │   │   │   ├── repositories/
 │   │   │   │   ├── invoice_repository.dart
 │   │   │   │   ├── payment_repository.dart
 │   │   │   │   ├── expense_repository.dart
 │   │   │   │   └── kpi_repository.dart
 │   │   │   ├── services/
-│   │   │   │   ├── invoice_service.dart      # 自动账单生成（调用递增规则引擎）
+│   │   │   │   ├── invoice_service.dart      # 自动账单生成（调用 RentCalculator）
 │   │   │   │   ├── noi_service.dart          # NOI 实时计算（EGI - OpEx）
-│   │   │   │   └── kpi_service.dart          # KPI 自动打分（线性插值）
+│   │   │   │   └── kpi_service.dart          # 数据聚合 + 调用 KpiScorer 打分，结果写库
 │   │   │   └── controllers/
 │   │   │       ├── invoice_controller.dart
 │   │   │       ├── noi_controller.dart
@@ -240,10 +256,9 @@ backend/
 │
 ├── test/
 │   ├── unit/
-│   │   ├── wale_service_test.dart     # WALE 计算单元测试
-│   │   ├── noi_service_test.dart      # NOI 计算单元测试
-│   │   ├── rent_escalation_test.dart  # 递增规则计算单元测试
-│   │   └── kpi_service_test.dart      # KPI 打分单元测试
+│   │   ├── wale_service_test.dart     # WALE 计算单元测试（调用 RentCalculator mock）
+│   │   └── noi_service_test.dart      # NOI 计算单元测试
+│   │   # ↑ 递增规则/KPI 打分的纯函数测试已移入各自 package 的 test/ 目录
 │   └── integration/
 │       └── contract_lifecycle_test.dart
 │
@@ -255,17 +270,36 @@ backend/
 │   ├── 005_create_workorders.sql
 │   └── 006_create_subleases.sql
 │
-└── pubspec.yaml
+└── pubspec.yaml                       # path 依赖本地两个 package
+```
+
+`pubspec.yaml` 本地依赖声明：
+
+```yaml
+dependencies:
+  rent_escalation_engine:
+    path: ./packages/rent_escalation_engine
+  kpi_scorer:
+    path: ./packages/kpi_scorer
 ```
 
 ### 核心分层原则
 
 | 层 | 职责 | 禁止 |
 |----|------|------|
+| `packages/` | 零副作用纯计算库，无 IO、无 DB、无 HTTP | 不依赖业务模块 |
 | `controllers/` | HTTP 请求解析、参数校验、响应序列化 | 不含业务逻辑 |
-| `services/` | 业务规则、状态机、计算逻辑 | 不含 SQL |
+| `services/` | 业务规则、状态机、数据编排；调用 `packages/` 中的计算函数 | 不含 SQL |
 | `repositories/` | 所有 SQL 查询，行级隔离在此层强制 | 不含业务规则 |
-| `models/` | `freezed` 不可变数据类 | 不含副作用 |
+| `models/` | `freezed` 不可变数据类；含实体模型与 Command 对象 | 不含副作用 |
+
+**Controller → Service 传递约定**（消除 JSON 与内部模型的歧义）：
+
+- Controller 负责将 HTTP 请求 JSON body 解析为强类型 **Command 对象**（如 `CreateContractCommand`、`UpdateUnitCommand`），再传入 Service；**Service 方法签名只接受强类型参数，禁止接受 `Map<String, dynamic>`**
+- **格式校验**（字段存在性、类型转换、枚举合法性）在 Controller 层完成，校验失败直接抛 `AppException('INVALID_REQUEST', ..., 400)`
+- **业务校验**（如合同结束日必须晚于起始日、单元不可重复签约）属于 Service 层，Controller 不做业务判断
+- Command 对象定义在所属模块的 `models/` 目录下（与实体模型并列），命名规则：`动词 + 资源名 + Command`，例如 `CreateContractCommand`、`WriteOffInvoiceCommand`
+- GET 请求的 Query 参数（分页、筛选）直接以具名参数传入 Service，无需封装 Command 对象
 
 ---
 
