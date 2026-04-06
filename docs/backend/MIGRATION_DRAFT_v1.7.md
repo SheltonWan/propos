@@ -31,10 +31,13 @@
 | 008 | 008_create_meter_readings.sql | **meter_readings**（水电抄表记录，含阶梯计价字段） |
 | 009 | 009_create_turnover_reports.sql | **turnover_reports**（商铺营业额申报，含审批状态） |
 | 010 | 010_create_subleases.sql | subleases |
-| 011 | 011_create_kpi.sql | kpi_metric_definitions（含 `direction` 字段）、kpi_schemes、kpi_scheme_metrics、kpi_score_snapshots、kpi_score_snapshot_items |
+| 011 | 011_create_kpi.sql | kpi_metric_definitions（含 `direction` 字段）、kpi_schemes（`scoring_mode` 默认 `'official'`）、kpi_scheme_metrics、kpi_score_snapshots、kpi_score_snapshot_items |
 | 012 | 012_create_import_batches.sql | **import_batches**（批量导入跟踪，含 `dry_run`、回滚支持） |
-| 013 | 013_add_deferred_foreign_keys.sql | users.bound_contract_id、expenses.work_order_id、work_orders.expense_id |
-| 014 | 014_seed_reference_data.sql | 超级管理员、KPI 指标库（含 `direction`）、基础字典数据 |
+| 013 | 013_add_deferred_foreign_keys.sql | users.bound_contract_id、users.department_id、expenses.work_order_id、work_orders.expense_id |
+| 014 | 014_seed_reference_data.sql | 超级管理员、KPI 指标库（含 `direction`）、初始部门（租务部/财务部/物业运营部）、基础字典数据 |
+| 015 | **015_create_departments.sql** | **departments**（三级组织树：公司→部门→组） |
+| 016 | **016_create_user_managed_scopes.sql** | **user_managed_scopes**（管辖范围，支持部门默认 + 个人覆盖） |
+| 017 | **017_create_kpi_targets_and_appeals.sql** | **kpi_scheme_targets**（方案绑定部门/员工）、**kpi_appeals**（KPI 申诉） |
 
 ---
 
@@ -63,6 +66,7 @@ v1.7 新增：
 
 1. `failed_login_attempts`
 2. `locked_until`
+3. `department_id`（UUID FK → departments，延迟建约，员工归属部门）
 3. `password_changed_at`
 4. `last_login_at`
 5. `session_version`
@@ -240,6 +244,7 @@ CHECK: `direction IN ('positive', 'negative')`
 | 类别 | 内容 |
 |------|------|
 | 账号 | 初始化一个 super_admin |
+| 部门 | 初始化三个部门：租务部、财务部、物业运营部 |
 | KPI 指标库 | 写入 K01 ~ K10（含 `direction` 字段） |
 | ENUM | 全部 v1.7 枚举类型 |
 | 业务常量 | 预警阈值、逾期节点等可放配置表或应用常量 |
@@ -269,6 +274,10 @@ CHECK: `direction IN ('positive', 'negative')`
 | 核销双表完整 | 插入 payment + allocations 验证账单回写逻辑 |
 | 二房东安全字段完整 | 检查 users / subleases 列结构 |
 | KPI direction 字段 | 查询 K03/K05/K06/K08 确认 direction = 'negative' |
+| 组织架构表 | 插入 3 级部门验证 parent_id 层级约束，level CHECK(1~3) |
+| 管辖范围表 | 插入部门默认范围 + 个人覆盖范围，验证 CHECK 约束 |
+| KPI 方案绑定 | 插入 kpi_scheme_targets 验证部门/员工绑定 |
+| KPI 申诉表 | 插入 kpi_appeals 验证状态流转 + 审计日志 |
 | 导入批次表 | 插入 import_batch 验证 dry_run 与 rollback_status 字段 |
 | 索引齐全 | `pg_indexes` 查询 |
 
@@ -276,10 +285,11 @@ CHECK: `direction IN ('positive', 'negative')`
 
 ## 七、建议后续动作
 
-1. 先按本草案创建空 migration 文件骨架（001 ~ 014）。
+1. 先按本草案创建空 migration 文件骨架（001 ~ 017）。
 2. 再优先实现 001 ~ 005，先打通用户、资产、合同、财务主链路。
 3. 然后实现 007 ~ 009（押金、抄表、营业额），与合同/财务联调。
-4. 最后补工单、穿透、KPI、导入批次和 deferred FK。
+4. 实现 015 ~ 016（组织架构 + 管辖范围），为 KPI 正式考核做就绪。
+5. 最后补工单、穿透、KPI（011 + 017）、导入批次和 deferred FK。
 
 ---
 
@@ -296,5 +306,11 @@ CHECK: `direction IN ('positive', 'negative')`
 | 新增 meter_readings 表 | 008（新） |
 | 新增 turnover_reports 表 | 009（新） |
 | kpi_metric_definitions 新增 direction 列 | 011 |
+| kpi_schemes scoring_mode 默认改为 'official' | 011 |
 | 新增 import_batches 表 | 012（新） |
-| 迁移序列从 10 扩展到 14 步 | 全局 |
+| 新增 departments 三级组织树表 | 015（新） |
+| 新增 user_managed_scopes 管辖范围表 | 016（新） |
+| users 新增 department_id 列 | 013（延迟 FK） |
+| 新增 kpi_scheme_targets 方案绑定表 | 017（新） |
+| 新增 kpi_appeals 申诉表 | 017（新） |
+| 迁移序列从 14 扩展到 17 步 | 全局 |

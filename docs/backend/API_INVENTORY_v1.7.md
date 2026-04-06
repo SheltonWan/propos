@@ -19,6 +19,7 @@
 | POST | /api/users | 创建后台账号或二房东账号 | super_admin |
 | PATCH | /api/users/:id/status | 启停用账号 | super_admin |
 | PATCH | /api/users/:id/role | 变更角色 | super_admin |
+| PATCH | /api/users/:id/department | 变更员工所属部门 | super_admin |
 
 ### 认证接口备注
 
@@ -26,6 +27,25 @@
 2. 二房东账号首次登录需触发强制改密流程。
 3. 主合同冻结或改密后，旧 token 应因 `session_version` 失效。
 4. 密码复杂度：最少 8 位，必须含大小写字母 + 数字，禁止与用户名相同（v1.7）。
+
+---
+
+## 一-A、组织架构管理
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET | /api/departments | 部门树列表（返回嵌套结构，最多 3 级） | org.read |
+| POST | /api/departments | 创建部门 | org.manage |
+| PATCH | /api/departments/:id | 更新部门（名称、排序、父级） | org.manage |
+| DELETE | /api/departments/:id | 停用部门（逻辑删除，设 `is_active = false`） | org.manage |
+| GET | /api/managed-scopes | 查询管辖范围（支持按 `department_id` 或 `user_id` 过滤） | org.read |
+| PUT | /api/managed-scopes | 设置管辖范围（批量覆写某部门或某用户的范围配置） | org.manage |
+
+### 组织架构接口备注
+
+1. 部门树最多 3 级（公司→部门→组），创建时校验 `level` 不超过 3。
+2. 停用部门前需检查是否有在职员工，若有则返回 `DEPARTMENT_HAS_ACTIVE_USERS`。
+3. 管辖范围支持绑定到部门（默认范围）或个人（覆盖范围），KPI 取数时个人范围优先于部门默认。
 
 ---
 
@@ -126,10 +146,16 @@
 | GET | /api/noi/summary | NOI 汇总卡片（不含税口径） | finance.read |
 | GET | /api/noi/trend | NOI 趋势 | finance.read |
 | GET | /api/noi/breakdown | 按楼栋或业态拆分 NOI | finance.read |
-| GET | /api/kpi/schemes | KPI 试运行方案列表 | kpi.view |
-| POST | /api/kpi/schemes | 创建 KPI 试运行方案 | kpi.manage |
+| GET | /api/kpi/schemes | KPI 考核方案列表 | kpi.view |
+| POST | /api/kpi/schemes | 创建 KPI 考核方案 | kpi.manage |
 | GET | /api/kpi/scores | KPI 快照列表 | kpi.view |
 | POST | /api/kpi/scores/recalculate | 手工重算 KPI 快照 | kpi.manage |
+| GET | /api/kpi/rankings | KPI 排名榜（按方案+周期+维度） | kpi.view |
+| GET | /api/kpi/trends | KPI 历史趋势 + 同比环比 | kpi.view |
+| GET | /api/kpi/export | 导出 KPI 评分报告（Excel） | kpi.manage |
+| POST | /api/kpi/appeals | 提交 KPI 申诉 | kpi.appeal |
+| GET | /api/kpi/appeals | 申诉列表（支持按状态过滤） | kpi.view |
+| PATCH | /api/kpi/appeals/:id/review | 审核申诉（批准/驳回） | kpi.manage |
 
 ### 财务接口备注
 
@@ -137,6 +163,9 @@
 2. `PATCH /api/payments/:id/allocations` 仅允许在未结账或未锁账期间调整。
 3. NOI 默认返回不含税经营口径（v1.7 明确），需通过查询参数区分 `receivable` 和 `received` 视角。
 4. KPI 方案中指标新增 `direction` 字段（`positive` / `negative`），反向指标线性插值逻辑翻转（v1.7）。
+5. KPI 已升级为正式考核模块，`scoring_mode` 默认为 `'official'`。
+6. 申诉窗口为快照冻结后 7 个自然日，超时返回 `APPEAL_WINDOW_CLOSED`。
+7. Excel 导出包含方案名、周期、各指标实际值/得分/加权得分详细明细。
 
 ---
 
@@ -266,6 +295,8 @@
 9. WorkOrderDetail
 10. SubleasePortalUnit / SubleaseDetail / SubleaseReviewRequest
 11. ImportBatchDetail / ImportErrorReport
+12. DepartmentTree / ManagedScopeConfig
+13. KpiRankingResponse / KpiTrendResponse / KpiAppealCreateRequest / KpiAppealReviewRequest
 
 ---
 
@@ -282,6 +313,11 @@
 | 导入批次管理 | 新增 §七 全部端点 |
 | WALE 双口径 | `GET /api/contracts/wale` 响应增加 `wale_area_weighted` |
 | KPI 指标方向 | `POST /api/kpi/schemes` 请求体增加 `direction` |
+| KPI 升级为正式考核 | KPI 接口从“试运行”改为“考核”，`scoring_mode` 默认 `'official'` |
+| KPI 排名/趋势/导出 | 新增 `GET /api/kpi/rankings`、`GET /api/kpi/trends`、`GET /api/kpi/export` |
+| KPI 申诉 | 新增 `POST /api/kpi/appeals`、`GET /api/kpi/appeals`、`PATCH /api/kpi/appeals/:id/review` |
+| 组织架构管理 | 新增 §一-A 全部端点（部门与管辖范围） |
+| 员工部门变更 | 新增 `PATCH /api/users/:id/department` |
 | 租户信用评级 | `GET /api/tenants/:id` 响应增加 `credit_rating` 及统计字段 |
 | 密码复杂度 | 登录/改密接口增强校验 |
 | HTTPS 强制 | 二房东门户强制 TLS 1.2+ |

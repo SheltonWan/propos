@@ -25,7 +25,7 @@
 
 1. Phase 1 以 Must 范围交付为优先，Should 和 Could 能力不阻塞首批上线。
 2. 财务模型需支持部分收款、一次收多账单、发票状态与收款状态解耦。
-3. KPI 在 Phase 1 定位为经营分析与试运行评分，不直接承接正式绩效。
+3. KPI 在 Phase 1 定位为正式考核模块（含方案配置/自动冻结/排名/申诉/同比环比/Excel 导出），评分结果为独立考核报告，不对接薪酬系统。
 4. 二房东门户需补充登录安全、会话失效、审核 SLA 与版本留痕。
 5. 定时任务与消息触发需具备重试、失败列表与人工补偿能力。
 6. 合同-单元关系改为 M:N（通过 `contract_units` 中间表，含计费面积与单价）。
@@ -39,7 +39,7 @@
 14. PIPL 合规：脱敏还原需记录完整审计日志，合同终止后个人信息保留不超过 3 年。
 15. 外部门户强制 HTTPS/TLS 1.2+，密码复杂度要求 8 位以上含大小写字母+数字。
 
-> **交付边界**: 架构设计优先保障资产、合同、账单、收款、工单、二房东填报六条核心链路闭环；复杂 KPI 排名、二房东 API 自动推送和增强分析作为可延后能力保留扩展点。
+> **交付边界**: 架构设计优先保障资产、合同、账单、收款、工单、二房东填报六条核心链路闭环；KPI 正式考核（含排名/申诉/导出）在 Phase 1 Must 范围内交付；二房东 API 自动推送和增强分析作为可延后能力保留扩展点。
 
 ---
 
@@ -189,6 +189,18 @@ backend/
 │   │   │   └── controllers/
 │   │   │       └── auth_controller.dart
 │   │   │
+│   │   ├── organization/              # 组织架构模块（v1.7 新增）
+│   │   │   ├── models/
+│   │   │   │   ├── department.dart    # @freezed Department（三级组织树）
+│   │   │   │   └── managed_scope.dart # @freezed ManagedScope（管辖范围）
+│   │   │   ├── repositories/
+│   │   │   │   ├── department_repository.dart
+│   │   │   │   └── managed_scope_repository.dart
+│   │   │   ├── services/
+│   │   │   │   └── organization_service.dart  # 组织树 CRUD + 管辖范围配置
+│   │   │   └── controllers/
+│   │   │       └── organization_controller.dart
+│   │   │
 │   │   ├── assets/                    # 模块1：资产与空间
 │   │   │   ├── models/
 │   │   │   │   ├── building.dart      # @freezed Building
@@ -242,8 +254,9 @@ backend/
 │   │   │   │   ├── expense.dart      # @freezed Expense（运营支出）
 │   │   │   │   ├── meter_reading.dart # @freezed MeterReading（水电抄表记录）
 │   │   │   │   ├── turnover_report.dart # @freezed TurnoverReport（商铺营业额申报）
-│   │   │   │   ├── kpi_scheme.dart   # @freezed KpiScheme（KPI 试运行方案配置）
-│   │   │   │   └── kpi_score.dart    # @freezed KpiScore（评分快照，持久化用）
+│   │   │   │   ├── kpi_scheme.dart   # @freezed KpiScheme（KPI 考核方案配置）
+│   │   │   │   ├── kpi_score.dart    # @freezed KpiScore（评分快照，持久化用）
+│   │   │   │   └── kpi_appeal.dart   # @freezed KpiAppeal（考核申诉记录）
 │   │   │   ├── repositories/
 │   │   │   │   ├── invoice_repository.dart
 │   │   │   │   ├── payment_repository.dart
@@ -251,21 +264,26 @@ backend/
 │   │   │   │   ├── expense_repository.dart
 │   │   │   │   ├── meter_reading_repository.dart
 │   │   │   │   ├── turnover_report_repository.dart
-│   │   │   │   └── kpi_repository.dart
+│   │   │   │   ├── kpi_repository.dart
+│   │   │   │   └── kpi_appeal_repository.dart
 │   │   │   ├── services/
 │   │   │   │   ├── invoice_service.dart      # 自动账单生成（调用 RentCalculator）
 │   │   │   │   ├── receivable_service.dart   # 核销分配、部分收款、跨账单收款
 │   │   │   │   ├── noi_service.dart          # NOI 实时计算（EGI - OpEx），统一不含税口径
 │   │   │   │   ├── meter_reading_service.dart # 抄表录入 + 自动生成水电费账单
 │   │   │   │   ├── turnover_service.dart     # 营业额申报审核 + 分成账单生成
-│   │   │   │   └── kpi_service.dart          # 数据聚合 + 调用 KpiScorer 打分（含反向指标处理）
+│   │   │   │   ├── kpi_service.dart          # 数据聚合 + 调用 KpiScorer 打分（含反向指标处理）
+│   │   │   │   ├── kpi_ranking_service.dart  # KPI 排名 + 同比环比趋势（v1.7 新增）
+│   │   │   │   └── kpi_export_service.dart   # KPI 考核结果 Excel 导出（v1.7 新增）
 │   │   │   └── controllers/
 │   │   │       ├── invoice_controller.dart
 │   │   │       ├── payment_controller.dart
 │   │   │       ├── noi_controller.dart
 │   │   │       ├── meter_reading_controller.dart
 │   │   │       ├── turnover_controller.dart
-│   │   │       └── kpi_controller.dart
+│   │   │       ├── kpi_controller.dart
+│   │   │       ├── kpi_appeal_controller.dart   # KPI 申诉提交与审核（v1.7 新增）
+│   │   │       └── kpi_export_controller.dart   # KPI 导出端点（v1.7 新增）
 │   │   │
 │   │   ├── workorders/                # 模块4：工单
 │   │   │   ├── models/
@@ -424,7 +442,7 @@ CREATE TYPE turnover_approval_status AS ENUM ('pending', 'approved', 'rejected')
 CREATE TYPE import_data_type AS ENUM ('units', 'contracts', 'invoices');
 ```
 
-> **v1.7 口径说明**: 合同-单元改为 M:N 关联；KPI 相关表继续保留试运行语义；新增押金独立建账、水电抄表、营业额对账、合同终止类型等。
+> **v1.7 口径说明**: 合同-单元改为 M:N 关联；KPI 升级为正式考核模块，新增组织架构（departments 三级组织树）、管辖范围（user_managed_scopes）、方案-目标绑定（kpi_scheme_targets 按 department_id FK）、申诉（kpi_appeals）；新增押金独立建账、水电抄表、营业额对账、合同终止类型等。
 
 ---
 
@@ -843,24 +861,62 @@ CREATE TABLE kpi_schemes (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- KPI 方案-用户绑定表
-CREATE TABLE kpi_scheme_targets (
-  scheme_id   UUID NOT NULL REFERENCES kpi_schemes(id) ON DELETE CASCADE,
-  user_id     UUID REFERENCES users(id),
-  department  VARCHAR(100),
-  PRIMARY KEY (scheme_id, COALESCE(user_id::TEXT, department))
+-- 组织架构表（三级组织树，v1.7 新增）
+CREATE TABLE departments (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        VARCHAR(100) NOT NULL,
+  parent_id   UUID REFERENCES departments(id),
+  level       SMALLINT NOT NULL CHECK (level BETWEEN 1 AND 3),
+  sort_order  SMALLINT NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE INDEX idx_departments_parent ON departments(parent_id);
+
+-- 管辖范围表（部门默认 + 个人覆盖，v1.7 新增）
+CREATE TABLE user_managed_scopes (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  department_id   UUID NOT NULL REFERENCES departments(id),
+  scope_type      VARCHAR(20) NOT NULL CHECK (scope_type IN ('default', 'override')),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, department_id)
+);
+
+-- KPI 方案-目标绑定表（v1.7 改用 department_id FK）
+CREATE TABLE kpi_scheme_targets (
+  scheme_id       UUID NOT NULL REFERENCES kpi_schemes(id) ON DELETE CASCADE,
+  user_id         UUID REFERENCES users(id),
+  department_id   UUID REFERENCES departments(id),
+  PRIMARY KEY (scheme_id, COALESCE(user_id::TEXT, department_id::TEXT))
+);
+
+-- KPI 考核申诉表（v1.7 新增）
+CREATE TABLE kpi_appeals (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  score_id        UUID NOT NULL REFERENCES kpi_scores(id),
+  appellant_id    UUID NOT NULL REFERENCES users(id),
+  reason          TEXT NOT NULL,
+  status          VARCHAR(20) NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending', 'approved', 'rejected')),
+  reviewer_id     UUID REFERENCES users(id),
+  review_comment  TEXT,
+  reviewed_at     TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_kpi_appeals_score ON kpi_appeals(score_id);
 
 -- KPI 打分快照表（定期计算后持久化，避免重复计算）
 CREATE TABLE kpi_scores (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   scheme_id       UUID NOT NULL REFERENCES kpi_schemes(id),
   user_id         UUID REFERENCES users(id),
-  department      VARCHAR(100),
+  department_id   UUID REFERENCES departments(id),
   period_start    DATE NOT NULL,
   period_end      DATE NOT NULL,
   total_score     NUMERIC(5, 2) NOT NULL,
   indicator_scores JSONB NOT NULL,                  -- {"K01":95.0,"K02":88.5,...}
+  frozen          BOOLEAN NOT NULL DEFAULT FALSE,   -- 自动冻结标记（v1.7）
   calculated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (scheme_id, COALESCE(user_id::TEXT, ''), period_start, period_end)
 );
@@ -1274,6 +1330,15 @@ enum Permission {
   subleaseWrite,         // 内部人工录入/审核
   subleasePortalAccess,  // 二房东自助录入入口
 
+  // 组织架构（v1.7 新增）
+  orgRead,
+  orgManage,
+
+  // KPI 申诉（v1.7 新增）
+  kpiAppealSubmit,       // 员工提交申诉
+  kpiAppealReview,       // 管理者审核申诉
+  kpiExport,             // KPI 考核结果导出
+
   // 系统管理
   userManage,
   kpiSchemeManage,
@@ -1312,6 +1377,10 @@ const Map<UserRole, Set<Permission>> rolePermissions = {
     Permission.subleaseWrite,
     Permission.kpiSchemeManage,
     Permission.kpiSchemeView,
+    Permission.kpiAppealReview,
+    Permission.kpiExport,
+    Permission.orgRead,
+    Permission.orgManage,
     Permission.auditLogRead,
   },
 
@@ -1327,6 +1396,8 @@ const Map<UserRole, Set<Permission>> rolePermissions = {
     Permission.subleaseRead,
     Permission.subleaseWrite,
     Permission.kpiSchemeView,
+    Permission.kpiAppealSubmit,
+    Permission.orgRead,
   },
 
   UserRole.financeStaff: {
@@ -1342,6 +1413,8 @@ const Map<UserRole, Set<Permission>> rolePermissions = {
     Permission.meterReadingWrite,
     Permission.turnoverReviewApprove,
     Permission.kpiSchemeView,
+    Permission.kpiExport,
+    Permission.orgRead,
   },
 
   UserRole.frontline: {
@@ -1350,6 +1423,8 @@ const Map<UserRole, Set<Permission>> rolePermissions = {
     Permission.workOrderCreate,
     Permission.workOrderRead,
     Permission.workOrderComplete,
+    Permission.kpiAppealSubmit,
+    Permission.orgRead,
   },
 
   UserRole.subLandlord: {

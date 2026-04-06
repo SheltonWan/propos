@@ -12,7 +12,9 @@
 ### 1.1 实体关系层级
 
 ```
-users                                               ← 公共：认证与角色
+users (→ departments)                               ← 公共：认证与角色
+departments                                         ← 公共：三级组织树（公司→部门→组）
+user_managed_scopes (→ departments, users, buildings, floors) ← 公共：管辖范围
 audit_logs                                          ← 公共：审计日志
 job_execution_logs                                  ← 公共：任务执行与补偿
 
@@ -34,8 +36,10 @@ import_batches                                      ← 公共：导入批次追
 
 expenses (→ buildings, units?)                      ← M3 财务支出
 kpi_metric_definitions                              ← M3 KPI 指标库
-kpi_schemes → kpi_scheme_metrics                   ← M3 KPI 试运行方案
+kpi_schemes → kpi_scheme_metrics                   ← M3 KPI 考核方案
+            → kpi_scheme_targets (→ departments, users) ← M3 KPI 方案绑定对象
 kpi_score_snapshots → kpi_score_snapshot_items     ← M3 KPI 快照
+                    → kpi_appeals                   ← M3 KPI 申诉
 
 suppliers                                           ← M4 工单
 work_orders (→ units, buildings, floors, users)    ← M4 工单
@@ -74,6 +78,12 @@ work_orders (→ units, buildings, floors, users)    ← M4 工单
 | `turnover_reports` | `contract_id`, `reviewed_by` | `contracts`, `users` | 商铺营业额申报 |
 | `import_batches` | `created_by` | `users` | 导入批次操作人 |
 | `audit_logs` | `user_id` | `users` | 操作人 |
+| `departments` | `parent_id` | `departments` | 组织树父级 |
+| `users` | `department_id` | `departments` | 员工归属部门 |
+| `user_managed_scopes` | `department_id`, `user_id` | `departments`, `users` | 管辖范围归属 |
+| `user_managed_scopes` | `building_id`, `floor_id` | `buildings`, `floors` | 管辖资产引用 |
+| `kpi_scheme_targets` | `scheme_id`, `user_id`, `department_id` | `kpi_schemes`, `users`, `departments` | 方案绑定对象 |
+| `kpi_appeals` | `snapshot_id`, `appellant_id`, `reviewer_id` | `kpi_score_snapshots`, `users`, `users` | KPI 申诉 |
 
 ---
 
@@ -262,6 +272,8 @@ CREATE TABLE users (
     -- 主合同到期后二房东账号自动冻结
     frozen_at        TIMESTAMPTZ,
     frozen_reason    TEXT,
+    -- 员工归属部门（KPI 正式考核依赖）
+    department_id    UUID,                           -- FK → departments(id)，延迟建约
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -270,6 +282,7 @@ CREATE INDEX idx_users_role       ON users(role);
 CREATE INDEX idx_users_email      ON users(email);
 CREATE INDEX idx_users_contract   ON users(bound_contract_id) WHERE bound_contract_id IS NOT NULL;
 CREATE INDEX idx_users_locked_until ON users(locked_until) WHERE locked_until IS NOT NULL;
+CREATE INDEX idx_users_department ON users(department_id) WHERE department_id IS NOT NULL;
 ```
 
 ### 3.2 audit_logs（操作审计日志）
@@ -913,7 +926,7 @@ CREATE INDEX idx_turnover_status   ON turnover_reports(approval_status);
 
 ### 6.8 kpi_metric_definitions（KPI 指标定义库）
 
-系统预定义 10 个指标（K01-K10），由初始化脚本 seed，不允许用户新增。Phase 1 中这些指标用于经营分析与试运行评分。
+系统预定义 10 个指标（K01-K10），由初始化脚本 seed，不允许用户新增。Phase 1 中这些指标用于正式 KPI 考核评分。
 
 ```sql
 CREATE TABLE kpi_metric_definitions (
@@ -967,7 +980,7 @@ CREATE TABLE kpi_schemes (
     effective_from DATE          NOT NULL,
     effective_to   DATE,                   -- NULL 表示持续有效
     is_active    BOOLEAN         NOT NULL DEFAULT TRUE,
-    scoring_mode VARCHAR(20)     NOT NULL DEFAULT 'trial', -- 'trial', 'official'
+    scoring_mode VARCHAR(20)     NOT NULL DEFAULT 'official', -- 'trial', 'official'
     created_by   UUID            REFERENCES users(id),
     created_at   TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMPTZ     NOT NULL DEFAULT NOW()
@@ -1031,6 +1044,86 @@ CREATE TABLE kpi_score_snapshot_items (
 );
 
 CREATE INDEX idx_snapshot_items_snapshot ON kpi_score_snapshot_items(snapshot_id);
+```
+
+### 6.13 kpi_scheme_targets（KPI 方案绑定对象）
+
+将 KPI 方案绑定到具体部门或员工，一个方案可绑定多个对象。
+
+```sql
+CREATE TABLE kpi_scheme_targets (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    scheme_id     UUID NOT NULL REFERENCES kpi_schemes(id) ON DELETE CASCADE,
+    user_id       UUID REFERENCES users(id),
+    department_id UUID REFERENCES departments(id),
+    CHECK (user_id IS NOT NULL OR department_id IS NOT NULL),
+    UNIQUE (scheme_id, COALESCE(user_id, '00000000-0000-0000-0000-000000000000'), COALESCE(department_id, '00000000-0000-0000-0000-000000000000'))
+);
+
+CREATE INDEX idx_scheme_targets_scheme ON kpi_scheme_targets(scheme_id);
+CREATE INDEX idx_scheme_targets_dept   ON kpi_scheme_targets(department_id) WHERE department_id IS NOT NULL;
+```
+
+### 6.14 kpi_appeals（KPI 申诉）
+
+员工可在快照冻结后 7 个自然日内提交申诉，管理层审核后决定是否重算。
+
+```sql
+CREATE TABLE kpi_appeals (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    snapshot_id     UUID         NOT NULL REFERENCES kpi_score_snapshots(id),
+    appellant_id    UUID         NOT NULL REFERENCES users(id),
+    reason          TEXT         NOT NULL,
+    status          VARCHAR(20)  NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'approved', 'rejected')),
+    reviewer_id     UUID         REFERENCES users(id),
+    review_comment  TEXT,
+    reviewed_at     TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_kpi_appeals_snapshot ON kpi_appeals(snapshot_id);
+CREATE INDEX idx_kpi_appeals_status   ON kpi_appeals(status) WHERE status = 'pending';
+```
+
+### 6.15 departments（组织架构）
+
+三级组织树：公司 → 部门 → 组，通过 `parent_id` 自引用实现层级嵌套。
+
+```sql
+CREATE TABLE departments (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        VARCHAR(100) NOT NULL,
+    parent_id   UUID REFERENCES departments(id),  -- NULL = 顶级（公司级）
+    level       SMALLINT NOT NULL CHECK (level BETWEEN 1 AND 3),
+    sort_order  INTEGER  NOT NULL DEFAULT 0,
+    is_active   BOOLEAN  NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_departments_parent ON departments(parent_id);
+```
+
+### 6.16 user_managed_scopes（管辖范围）
+
+管辖范围支持部门默认 + 个人覆盖双机制。KPI 数据归集时取个人范围（优先）或继承部门范围。
+
+```sql
+CREATE TABLE user_managed_scopes (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    -- 可绑定到部门（默认范围）或个人（覆盖范围）
+    department_id UUID REFERENCES departments(id),
+    user_id       UUID REFERENCES users(id),
+    -- 管辖维度（至少指定一项）
+    building_id   UUID REFERENCES buildings(id),
+    floor_id      UUID REFERENCES floors(id),
+    property_type property_type,
+    CHECK (department_id IS NOT NULL OR user_id IS NOT NULL)
+);
+
+CREATE INDEX idx_managed_scopes_dept ON user_managed_scopes(department_id) WHERE department_id IS NOT NULL;
+CREATE INDEX idx_managed_scopes_user ON user_managed_scopes(user_id) WHERE user_id IS NOT NULL;
 ```
 
 ---
@@ -1270,12 +1363,14 @@ ALTER TABLE work_orders
 
 ```
 1. 创建所有 ENUM 类型（含 v1.7 新增：deposit_status, termination_type, meter_type 等）
-2. buildings → floors → units
-3. users（第一个超级管理员）
-4. kpi_metric_definitions（seed K01~K10，含 direction 字段）
-5. 延迟 FK 约束（ALTER TABLE）
-6. 批量导入：639 套单元（Excel 导入工具，经 import_batches 追踪）
-7. 批量导入：楼层 CAD 转换（.dwg → svg_path/png_path）
+2. departments（组织架构，KPI 正式考核依赖）
+3. buildings → floors → units
+4. users（第一个超级管理员，含 department_id）
+5. user_managed_scopes（部门默认管辖范围）
+6. kpi_metric_definitions（seed K01~K10，含 direction 字段）
+7. 延迟 FK 约束（ALTER TABLE）
+8. 批量导入：639 套单元（Excel 导入工具，经 import_batches 追踪）
+9. 批量导入：楼层 CAD 转换（.dwg → svg_path/png_path）
 ```
 
 ---
@@ -1285,9 +1380,12 @@ ALTER TABLE work_orders
 1. 收款核销采用 payments + payment_allocations 双表建模，解决部分收款和跨账单核销场景。
 2. users 新增登录失败锁定、会话版本和改密时间字段，用于外部门户安全控制。
 3. subleases 增加 version_no、declared_for_month、truth_declared_at，满足月报制填报和版本留痕。
-4. kpi_schemes 与 kpi_score_snapshots 增加试运行与冻结状态字段，避免与正式绩效结算混淆。
+4. kpi_schemes 与 kpi_score_snapshots 增加考核模式与冻结状态字段，`scoring_mode` 默认为 `'official'`（正式考核），保留 `'trial'` 向后兼容。
 5. job_execution_logs 用于承接任务重试、失败巡检和人工补偿，不将任务可靠性散落在业务表中。
 6. **合同-单元改为 M:N**：移除 contracts.unit_id 单外键，通过 contract_units 中间表实现多单元关联，每条记录独立记录 billing_area 与 unit_price。
+7. **组织架构与管辖范围**：departments 三级组织树 + user_managed_scopes 管辖范围，支持部门默认 + 个人覆盖，为 KPI 正式考核提供数据归集依据。
+8. **KPI 申诉机制**：kpi_appeals 表支持员工申诉 → 管理层审核 → 重算全流程，全程写审计日志。
+9. **KPI 方案绑定**：kpi_scheme_targets 将方案与部门/员工关联，取代原 ARCH.md 中的 VARCHAR department 粗略方案。
 7. **押金独立建账**：新增 deposits + deposit_transactions 表，押金不计入 NOI 收入，状态机流转全程审计。
 8. **水电抴表**：新增 meter_readings 表，支持水/电/气三种表计，阶梯计价与公摆分摊。
 9. **商铺营业额对账**：新增 turnover_reports 表，管理申报→审核→生成分成账单流程。
