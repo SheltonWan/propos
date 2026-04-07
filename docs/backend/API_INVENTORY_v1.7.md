@@ -123,7 +123,7 @@
 ### 押金接口备注
 
 1. 押金不计入 NOI 收入，独立于租金账单体系。
-2. 状态流转：`collected → frozen → partially_deducted → refunded`，每次变更记录到 `deposit_transactions`。
+2. 状态流转：`collected → frozen → partially_credited → refunded`，每次变更记录到 `deposit_transactions`。
 3. 押金退还触发前，系统需校验合同无未结账单。
 4. 每次状态变更均写入审计日志。
 

@@ -207,12 +207,12 @@ backend/
 | 3 | `config/database.dart` | PostgreSQL 连接池初始化（`postgres` 包 `Pool`） |
 | 4 | `core/errors/app_exception.dart` | 统一异常基类（`AppException`、`NotFoundEx`、`ForbiddenEx`） |
 | 5 | `core/errors/error_handler.dart` | Shelf 中间件：捕获异常 → HTTP 状态码 + JSON 响应体 |
-| 6 | `core/request_context.dart` | 请求上下文 PODO：`userId`、`role`、`masterContractId` |
+| 6 | `core/request_context.dart` | 请求上下文 PODO：`userId`、`role`、`boundContractId`（二房东专用，对应 JWT claim `bound_contract_id`） |
 | 7 | `shared/encryption.dart` | AES-256-GCM 加解密工具（`encryptField` / `decryptField`） |
 | 8 | `core/middleware/auth_middleware.dart` | JWT 验证 → 注入 `RequestContext` 到 `Request` |
 | 9 | `core/middleware/rbac_middleware.dart` | 接受 `List<UserRole>` 参数，校验当前角色权限 |
 | 10 | `core/middleware/audit_middleware.dart` | 写入 `audit_logs` 表：操作人、路由、方法、时间 |
-| 11 | `bin/server.dart` | 启动入口，管道组装：`error → auth → rbac → router` |
+| 11 | `bin/server.dart` | 启动入口，管道组装：`rate_limit → error_handler → auth → rbac → audit → router` |
 
 > **安全提醒**：`.env` 必须加入 `.gitignore`。`JWT_SECRET` 最短 32 字节随机字符串。`AES_KEY` 使用 256-bit（32 字节）随机密钥，存储在环境变量或密钥管理服务，不硬编码。
 
@@ -222,29 +222,41 @@ backend/
 
 ### 4.1 执行迁移文件
 
-按顺序执行 `ARCH.md §3` 中的 SQL（与文件编号严格对应）：
+按顺序执行 [`docs/backend/MIGRATION_DRAFT_v1.7.md`](../backend/MIGRATION_DRAFT_v1.7.md) 中列出的 SQL（详细字段定义见 [`docs/backend/data_model.md`](../backend/data_model.md)）：
 
 ```bash
-psql propos_dev -f migrations/001_create_users.sql
-psql propos_dev -f migrations/002_create_assets.sql
-psql propos_dev -f migrations/003_create_contracts.sql
-psql propos_dev -f migrations/004_create_finance.sql
-psql propos_dev -f migrations/005_create_workorders.sql
-psql propos_dev -f migrations/006_create_subleases.sql
+psql propos_dev -f migrations/001_create_enums.sql
+psql propos_dev -f migrations/002_create_users_and_audit.sql
+psql propos_dev -f migrations/003_create_assets.sql
+psql propos_dev -f migrations/004_create_contracts.sql
+psql propos_dev -f migrations/005_create_finance.sql
+psql propos_dev -f migrations/006_create_workorders.sql
+psql propos_dev -f migrations/007_create_deposits.sql
+psql propos_dev -f migrations/008_create_meter_readings.sql
+psql propos_dev -f migrations/009_create_turnover_reports.sql
+psql propos_dev -f migrations/010_create_subleases.sql
+psql propos_dev -f migrations/011_create_kpi.sql
+psql propos_dev -f migrations/012_create_import_batches.sql
+psql propos_dev -f migrations/013_add_deferred_foreign_keys.sql
+psql propos_dev -f migrations/014_seed_reference_data.sql
+psql propos_dev -f migrations/015_create_departments.sql
+psql propos_dev -f migrations/016_create_user_managed_scopes.sql
+psql propos_dev -f migrations/017_create_kpi_targets_and_appeals.sql
 ```
 
 ### 4.2 编写迁移文件
 
-将 `ARCH.md §3` 完整 SQL 按编号拆分写入各 `.sql` 文件。注意：
+将 [`data_model.md`](../backend/data_model.md) 完整 SQL 按照 [`MIGRATION_DRAFT_v1.7.md`](../backend/MIGRATION_DRAFT_v1.7.md) 的编号拆分写入各 `.sql` 文件。注意：
 
-- `001_create_users.sql`：先建 `users` 表（无外键依赖）
-- `002_create_assets.sql`：`buildings → floors → units → renovation_records`
-- `003_create_contracts.sql`：`tenants → contracts → contract_units → rent_escalation_rules`
-- `004_create_finance.sql`：`invoices → payments → expenses → kpi_*`
-- `005_create_workorders.sql`：`work_orders → suppliers`
-- `006_create_subleases.sql`：`subleases → sublease_audit_logs`
+- `001_create_enums.sql`：所有 PostgreSQL ENUM 类型
+- `002_create_users_and_audit.sql`：`users`、`audit_logs`、`job_execution_logs`、`refresh_tokens`
+- `003_create_assets.sql`：`buildings → floors → floor_plans → units → renovation_records`
+- `004_create_contracts.sql`：`tenants → contracts → contract_units → rent_escalation_phases → escalation_templates → alerts`
+- `005_create_finance.sql`：`invoices → payments → expenses → kpi_*`
+- `006_create_workorders.sql`：`suppliers → work_orders → work_order_photos`
+- `010_create_subleases.sql`：`subleases`（含 `data_retention_until`）
 
-> **循环依赖说明**：`users.master_contract_id` 引用 `contracts.id`，但 `contracts.created_by` 引用 `users.id`。解决方法：先建 `users` 表（不含 `master_contract_id` 外键约束），建完 `contracts` 后用 `ALTER TABLE` 追加约束，或在 `001` 中先建列但延迟外键（`DEFERRABLE`）。
+> **循环依赖说明**：`users.bound_contract_id` 引用 `contracts.id`，但 `contracts.created_by` 引用 `users.id`。解决方法：先建 `users` 表（不含 `bound_contract_id` 外键约束），建完 `contracts` 后用 `ALTER TABLE` 添加，即 `013_add_deferred_foreign_keys.sql`。
 
 ### 4.3 验证 Schema
 
@@ -454,17 +466,17 @@ submitted → approved → in_progress → pending_acceptance → completed
 
 ### 9.1 行级数据隔离（最高安全优先级）
 
-`sublease_repository.dart` 所有查询方法必须强制注入 `masterContractId` 过滤：
+`sublease_repository.dart` 所有查询方法必须强制注入 `boundContractId` 过滤：
 
 ```dart
 Future<List<SubLease>> findByMasterContract(
   String masterContractId,
-  RequestContext ctx,  // 含 ctx.masterContractId
+  RequestContext ctx,  // 含 ctx.boundContractId
 ) async {
-  // 双重校验：参数 masterContractId == ctx.masterContractId
+  // 双重校验：参数 masterContractId == ctx.boundContractId
   // 防止 IDOR（不安全的直接对象引用）
   if (ctx.role == UserRole.subLandlord &&
-      masterContractId != ctx.masterContractId) {
+      masterContractId != ctx.boundContractId) {
     throw ForbiddenException();
   }
   return pool.execute(
@@ -799,7 +811,7 @@ Auth（登录/Token 刷新）
 | 约束 | 说明 |
 |------|------|
 | 所有 API 必须经过 RBAC | 不允许跳过 `rbac_middleware` 的 API 端点 |
-| 行级隔离在 Repository 层强制 | `sublease_repository` 所有方法入参必须含 `masterContractId` |
+| 行级隔离在 Repository 层强制 | `sublease_repository` 所有方法内部必须从 `ctx.boundContractId` 提取隔离条件，不依赖调用方主动传入 |
 | 证件号落库前必须加密 | 调用 `encryption.encryptField()`，任何 Service 层不存储明文 |
 | API 响应默认脱敏 | Controller 序列化时，`certNo` 只输出 `certNoHint`（后4位）|
 | 核心计算必须有单元测试 | WALE、NOI、KPI、租金递增，无测试不视为完成 |
