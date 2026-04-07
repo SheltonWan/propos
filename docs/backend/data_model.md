@@ -201,6 +201,7 @@ CREATE TYPE sublease_occupancy_status AS ENUM (
 
 -- 子租赁审核状态
 CREATE TYPE sublease_review_status AS ENUM (
+    'draft',     -- 草稿（二房东填报未提交）
     'pending',   -- 待审核
     'approved',  -- 已通过
     'rejected'   -- 已退回
@@ -309,7 +310,27 @@ CREATE INDEX idx_audit_resource    ON audit_logs(resource_type, resource_id);
 CREATE INDEX idx_audit_created_at  ON audit_logs(created_at DESC);
 ```
 
-### 3.3 job_execution_logs（任务执行日志）
+### 3.3 refresh_tokens（刷新令牌）
+
+JWT access token 过期后通过 refresh token 续签，支持单设备吊销和会话版本校验。
+
+```sql
+CREATE TABLE refresh_tokens (
+    id             UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id        UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash     TEXT          NOT NULL UNIQUE,  -- SHA-256 hash 存储，不保留明文
+    device_info    VARCHAR(200),                   -- 设备标识（User-Agent 摘要）
+    session_version INTEGER      NOT NULL,          -- 签发时的 users.session_version，改密/冻结后旧 token 失效
+    expires_at     TIMESTAMPTZ   NOT NULL,
+    revoked_at     TIMESTAMPTZ,                    -- 非 NULL 表示已吊销
+    created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_refresh_tokens_user    ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_expires ON refresh_tokens(expires_at) WHERE revoked_at IS NULL;
+```
+
+### 3.4 job_execution_logs（任务执行日志）
 
 用于记录账单生成、预警推送、催收提醒、导入后处理等定时任务的执行结果，支持失败重试与人工补偿。
 
@@ -371,6 +392,30 @@ CREATE TABLE floors (
 );
 
 CREATE INDEX idx_floors_building ON floors(building_id);
+```
+
+### 4.2.1 floor_plans（楼层图纸版本管理）
+
+支持同一楼层保留多个版本图纸（改造前/后），`floors.svg_path` / `png_path` 始终指向当前生效版本。
+
+```sql
+CREATE TABLE floor_plans (
+    id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    floor_id      UUID          NOT NULL REFERENCES floors(id) ON DELETE CASCADE,
+    version_label VARCHAR(50)   NOT NULL,           -- 如 '原始图纸', '2026年改造后'
+    svg_path      TEXT          NOT NULL,           -- floors/{building_id}/{floor_id}_v{n}.svg
+    png_path      TEXT,
+    is_current    BOOLEAN       NOT NULL DEFAULT FALSE,
+    uploaded_by   UUID          REFERENCES users(id),
+    created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+-- 同一楼层仅一个版本为当前生效
+CREATE UNIQUE INDEX uq_floor_plan_current
+    ON floor_plans(floor_id)
+    WHERE is_current = TRUE;
+
+CREATE INDEX idx_floor_plans_floor ON floor_plans(floor_id);
 ```
 
 ### 4.3 units（单元/房源）
@@ -487,11 +532,14 @@ CREATE TABLE tenants (
     times_overdue_past_12m    SMALLINT NOT NULL DEFAULT 0, -- 12 个月内逾期次数
     max_single_overdue_days   SMALLINT NOT NULL DEFAULT 0, -- 单次最长逾期天数
     notes           TEXT,
+    -- PIPL 合规：合同终止后个人信息保留不超过 3 年，过期后脱敏处理
+    data_retention_until TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_tenants_type ON tenants(tenant_type);
+CREATE INDEX idx_tenants_retention ON tenants(data_retention_until) WHERE data_retention_until IS NOT NULL;
 ```
 
 ### 5.2 contracts（合同）
@@ -502,7 +550,7 @@ CREATE TABLE contracts (
     -- 合同编号（业务可读编号，格式如 'C-2026-001'）
     contract_no       VARCHAR(50)    UNIQUE NOT NULL,
     tenant_id         UUID           NOT NULL REFERENCES tenants(id),
-    status            contract_status NOT NULL DEFAULT 'pending_sign',
+    status            contract_status NOT NULL DEFAULT 'quoting',
     property_type     property_type  NOT NULL, -- 冗余，与单元业态一致，便于聚合查询
 
     -- 合同期限
@@ -692,6 +740,27 @@ CREATE INDEX idx_escalation_contract ON rent_escalation_phases(contract_id);
 { "base_monthly_rent": 7500 }
 ```
 
+### 5.7.1 escalation_templates（递增规则模板）
+
+PRD 要求支持"保存为模板"和"从模板快速应用"，减少重复配置。模板独立于合同存在，合同签约时可从模板复制递增阶段。
+
+```sql
+CREATE TABLE escalation_templates (
+    id              UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_name   VARCHAR(100)   NOT NULL,
+    property_type   property_type  NOT NULL,       -- 三业态标识，便于筛选
+    description     TEXT,
+    -- 模板包含的递增阶段（JSONB 数组，结构同 rent_escalation_phases.params）
+    phases          JSONB          NOT NULL,        -- [{"phase_order":1, "escalation_type":"fixed_rate", "params":{...}}, ...]
+    is_active       BOOLEAN        NOT NULL DEFAULT TRUE,
+    created_by      UUID           REFERENCES users(id),
+    created_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_escalation_tpl_type ON escalation_templates(property_type);
+```
+
 ### 5.8 alerts（预警记录）
 
 ```sql
@@ -701,6 +770,8 @@ CREATE TABLE alerts (
     alert_type   alert_type NOT NULL,
     -- 预警触发日期（调度任务写入）
     triggered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- 目标用户（NULL 表示按角色广播，非 NULL 表示定向推送）
+    target_user_id UUID     REFERENCES users(id),
     -- 是否已读/处理
     is_read      BOOLEAN    NOT NULL DEFAULT FALSE,
     read_by      UUID       REFERENCES users(id),
@@ -710,8 +781,9 @@ CREATE TABLE alerts (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_alerts_contract ON alerts(contract_id);
-CREATE INDEX idx_alerts_unread   ON alerts(is_read, triggered_at DESC) WHERE is_read = FALSE;
+CREATE INDEX idx_alerts_contract   ON alerts(contract_id);
+CREATE INDEX idx_alerts_target     ON alerts(target_user_id) WHERE target_user_id IS NOT NULL;
+CREATE INDEX idx_alerts_unread     ON alerts(is_read, triggered_at DESC) WHERE is_read = FALSE;
 ```
 
 ---
@@ -915,9 +987,13 @@ CREATE TABLE turnover_reports (
     dispute_note     TEXT,
     submitted_by     UUID        REFERENCES users(id),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (contract_id, report_month) -- 同一合同同一月份仅一条正式记录
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- 同一合同同一月份仅一条正式记录（补报/修正记录不受此约束）
+CREATE UNIQUE INDEX uq_turnover_original
+    ON turnover_reports(contract_id, report_month)
+    WHERE is_amendment = FALSE;
 
 CREATE INDEX idx_turnover_contract ON turnover_reports(contract_id);
 CREATE INDEX idx_turnover_month    ON turnover_reports(report_month);
@@ -1056,9 +1132,16 @@ CREATE TABLE kpi_scheme_targets (
     scheme_id     UUID NOT NULL REFERENCES kpi_schemes(id) ON DELETE CASCADE,
     user_id       UUID REFERENCES users(id),
     department_id UUID REFERENCES departments(id),
-    CHECK (user_id IS NOT NULL OR department_id IS NOT NULL),
-    UNIQUE (scheme_id, COALESCE(user_id, '00000000-0000-0000-0000-000000000000'), COALESCE(department_id, '00000000-0000-0000-0000-000000000000'))
+    CHECK (user_id IS NOT NULL OR department_id IS NOT NULL)
 );
+
+-- 同一方案内每个具体绑定目标唯一（用户级 / 部门级分别约束）
+CREATE UNIQUE INDEX uq_scheme_target_user
+    ON kpi_scheme_targets(scheme_id, user_id)
+    WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX uq_scheme_target_dept
+    ON kpi_scheme_targets(scheme_id, department_id)
+    WHERE department_id IS NOT NULL;
 
 CREATE INDEX idx_scheme_targets_scheme ON kpi_scheme_targets(scheme_id);
 CREATE INDEX idx_scheme_targets_dept   ON kpi_scheme_targets(department_id) WHERE department_id IS NOT NULL;
@@ -1179,8 +1262,7 @@ CREATE TABLE work_orders (
     -- 成本（完工后录入）
     material_cost     NUMERIC(10,2),    -- 材料费（元）
     labor_cost        NUMERIC(10,2),    -- 人工费（元）
-    -- 成本是否已汇入 NOI 支出（由 expense 记录追踪）
-    expense_id        UUID,             -- FK: REFERENCES expenses(id)
+    -- 成本关联通过 expenses.work_order_id 反向引用，无需在此冗余 expense_id
     -- 验收
     inspection_note   TEXT,
     rejected_reason   TEXT,
@@ -1246,7 +1328,8 @@ CREATE TABLE subleases (
     end_date           DATE                NOT NULL,
     -- 实际月租金（终端租客支付给二房东的）
     monthly_rent       NUMERIC(12,2)       NOT NULL,
-    -- 租金单价（元/m²/月），系统根据单元面积自动反算
+    -- 租金单价（元/m²/月），由应用层根据单元面积反算，不使用 GENERATED COLUMN
+    -- 公式：rent_per_sqm = monthly_rent / unit.billing_area
     rent_per_sqm       NUMERIC(8,4),
 
     -- 入住状态
@@ -1270,14 +1353,19 @@ CREATE TABLE subleases (
     truth_declared_at  TIMESTAMPTZ,
 
     notes              TEXT,
+    -- PIPL 合规：子租赁终止后终端租客个人信息保留不超过 3 年
+    data_retention_until TIMESTAMPTZ,
     created_at         TIMESTAMPTZ          NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMPTZ          NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT chk_sublease_dates CHECK (start_date <= end_date),
-    -- 同一单元不可有两条在租记录
-    CONSTRAINT uq_sublease_active_unit UNIQUE (unit_id, review_status)
-        DEFERRABLE INITIALLY DEFERRED
+    CONSTRAINT chk_sublease_dates CHECK (start_date <= end_date)
 );
+
+-- 同一单元同一时间只能有一条已审核的在租记录
+CREATE UNIQUE INDEX uq_sublease_active_unit
+    ON subleases(unit_id)
+    WHERE occupancy_status IN ('occupied', 'signed_not_moved')
+      AND review_status = 'approved';
 
 CREATE INDEX idx_subleases_master_contract ON subleases(master_contract_id);
 CREATE INDEX idx_subleases_unit            ON subleases(unit_id);
@@ -1334,28 +1422,24 @@ ALTER TABLE expenses
     ADD CONSTRAINT fk_expenses_work_order
     FOREIGN KEY (work_order_id) REFERENCES work_orders(id)
     DEFERRABLE INITIALLY DEFERRED;
-
--- work_orders.expense_id → expenses（工单关联支出记录）
-ALTER TABLE work_orders
-    ADD CONSTRAINT fk_work_orders_expense
-    FOREIGN KEY (expense_id) REFERENCES expenses(id)
-    DEFERRABLE INITIALLY DEFERRED;
 ```
 
 ---
 
-## 十、索引策略汇总
+## 十一、索引策略汇总
 
 | 场景 | 关键索引 |
 |------|---------|
 | 楼层色块渲染 | `units(floor_id, current_status)` |
 | WALE 计算 | `contracts(status, end_date)` covering index |
-| 逾期账单催收 | `invoices(status, due_date)` WHERE overdue |
+| 逾期账单催收 | `invoices(status, due_date) WHERE status IN ('issued','overdue')` |
 | 二房东数据隔离 | `subleases(master_contract_id)` |
 | 工单状态监控 | `work_orders(status, submitted_at DESC)` |
 | KPI 快照历史 | `kpi_score_snapshots(evaluated_user_id, period_start)` |
 | 审计日志查询 | `audit_logs(resource_type, resource_id)` |
 | 单元扩展字段 | `units.ext_fields` GIN 索引（按业态过滤） |
+| 楼层图纸版本 | `floor_plans(floor_id) WHERE is_current = TRUE` |
+| PIPL 数据保留 | `tenants(data_retention_until)` WHERE NOT NULL |
 
 ---
 
@@ -1364,11 +1448,13 @@ ALTER TABLE work_orders
 ```
 1. 创建所有 ENUM 类型（含 v1.7 新增：deposit_status, termination_type, meter_type 等）
 2. departments（组织架构，KPI 正式考核依赖）
-3. buildings → floors → units
+3. buildings → floors → floor_plans → units
 4. users（第一个超级管理员，含 department_id）
-5. user_managed_scopes（部门默认管辖范围）
-6. kpi_metric_definitions（seed K01~K10，含 direction 字段）
-7. 延迟 FK 约束（ALTER TABLE）
+5. refresh_tokens
+6. user_managed_scopes（部门默认管辖范围）
+7. kpi_metric_definitions（seed K01~K10，含 direction 字段）
+8. escalation_templates（递增规则模板）
+9. 延迟 FK 约束（ALTER TABLE）
 8. 批量导入：639 套单元（Excel 导入工具，经 import_batches 追踪）
 9. 批量导入：楼层 CAD 转换（.dwg → svg_path/png_path）
 ```
@@ -1387,7 +1473,7 @@ ALTER TABLE work_orders
 8. **KPI 申诉机制**：kpi_appeals 表支持员工申诉 → 管理层审核 → 重算全流程，全程写审计日志。
 9. **KPI 方案绑定**：kpi_scheme_targets 将方案与部门/员工关联，取代原 ARCH.md 中的 VARCHAR department 粗略方案。
 7. **押金独立建账**：新增 deposits + deposit_transactions 表，押金不计入 NOI 收入，状态机流转全程审计。
-8. **水电抴表**：新增 meter_readings 表，支持水/电/气三种表计，阶梯计价与公摆分摊。
+8. **水电抄表**：新增 meter_readings 表，支持水/电/气三种表计，阶梯计价与公摊分摊。
 9. **商铺营业额对账**：新增 turnover_reports 表，管理申报→审核→生成分成账单流程。
 10. **导入批次追踪**：新增 import_batches 表，支持整批回滚与部分导入两种策略。
 11. **合同税费口径**：新增 tax_inclusive、applicable_tax_rate 字段，NOI 计算统一使用不含税口径。
@@ -1395,3 +1481,10 @@ ALTER TABLE work_orders
 13. **信用评级量化**： tenants 表新增评级计算辅助字段（last_rating_date、times_overdue_past_12m、max_single_overdue_days），每月 1 日自动重算。
 14. **KPI 反向指标**：kpi_metric_definitions 新增 direction 字段（positive/negative），反向指标线性插值逻辑翻转。
 15. **单元参考市场租金**：units 新增 market_rent_reference、predecessor_unit_ids、archived_at 字段。
+16. **刷新令牌**：新增 refresh_tokens 表，支持 JWT 续签、设备吊销、会话版本校验。
+17. **递增规则模板**：新增 escalation_templates 表，支持递增规则保存为模板并从模板快速应用。
+18. **楼层图纸版本管理**：新增 floor_plans 表，支持同一楼层多版本图纸（改造前/后），`is_current` 标识当前生效版本。
+19. **PIPL 合规字段**：tenants 和 subleases 新增 `data_retention_until`，合同终止后个人信息保留不超过 3 年。
+20. **预警定向推送**：alerts 新增 `target_user_id`，支持按用户级定向推送，不仅限于角色广播。
+21. **子租赁审核草稿**：sublease_review_status 枚举新增 `'draft'` 状态，支持二房东填报暂存。
+22. **合同初始状态**：contracts.status 默认值改为 `'quoting'`（报价中），与 PRD 合同生命周期一致。

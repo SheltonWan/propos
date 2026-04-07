@@ -168,6 +168,7 @@ backend/
 │   │   ├── middleware/
 │   │   │   ├── auth_middleware.dart   # JWT 验证，注入 RequestContext
 │   │   │   ├── rbac_middleware.dart   # RBAC 权限检查（见第5节）
+│   │   │   ├── rate_limit_middleware.dart # 接口限流（令牌桶，默认 60 req/min/IP）
 │   │   │   └── audit_middleware.dart  # 操作审计日志写入
 │   │   ├── errors/
 │   │   │   ├── app_exception.dart     # 统一异常基类
@@ -376,695 +377,44 @@ dependencies:
 
 ## 3. PostgreSQL 数据库 Schema
 
-### 3.1 枚举类型定义
-
-```sql
--- 三业态枚举
-CREATE TYPE property_type AS ENUM ('office', 'retail', 'apartment');
-
--- 单元出租状态
-CREATE TYPE unit_status AS ENUM ('vacant', 'leased', 'expiring_soon', 'non_leasable');
-
--- 合同状态机
-CREATE TYPE contract_status AS ENUM (
-  'quoting', 'pending_sign', 'active', 'expiring_soon', 'expired', 'renewed', 'terminated'
-);
-
--- 租金递增类型
-CREATE TYPE escalation_type AS ENUM (
-  'fixed_percent', 'fixed_amount', 'stepped', 'cpi_linked', 'every_n_years', 'post_free_rent'
-);
-
--- 账单状态
-CREATE TYPE invoice_status AS ENUM ('pending', 'paid', 'overdue', 'cancelled', 'waived');
-
--- 工单状态
-CREATE TYPE work_order_status AS ENUM (
-  'submitted', 'approved', 'in_progress', 'pending_acceptance', 'completed', 'rejected', 'on_hold'
-);
-
--- 工单紧急程度
-CREATE TYPE urgency_level AS ENUM ('normal', 'urgent', 'critical');
-
--- 子租赁入住状态
-CREATE TYPE occupancy_status AS ENUM (
-  'occupied', 'signed_not_moved_in', 'moved_out', 'vacant'
-);
-
--- 子租赁审核状态
-CREATE TYPE review_status AS ENUM ('draft', 'pending_review', 'approved', 'rejected');
-
--- 用户角色
-CREATE TYPE user_role AS ENUM (
-  'super_admin', 'ops_manager', 'leasing_agent', 'finance_staff', 'frontline', 'sub_landlord'
-);
-
--- KPI 评估周期
-CREATE TYPE kpi_period_type AS ENUM ('monthly', 'quarterly', 'yearly');
-
--- 押金状态（v1.7 新增）
-CREATE TYPE deposit_status AS ENUM (
-  'collected', 'frozen', 'partially_credited', 'refunded'
-);
-
--- 合同终止类型（v1.7 新增）
-CREATE TYPE termination_type AS ENUM (
-  'normal_expiry', 'tenant_early_exit', 'mutual_agreement', 'owner_termination'
-);
-
--- 水电表类型（v1.7 新增）
-CREATE TYPE meter_type AS ENUM ('water', 'electricity', 'gas');
-
--- 营业额申报审核状态（v1.7 新增）
-CREATE TYPE turnover_approval_status AS ENUM ('pending', 'approved', 'rejected');
-
--- 导入数据类别（v1.7 新增）
-CREATE TYPE import_data_type AS ENUM ('units', 'contracts', 'invoices');
-```
-
-> **v1.7 口径说明**: 合同-单元改为 M:N 关联；KPI 升级为正式考核模块，新增组织架构（departments 三级组织树）、管辖范围（user_managed_scopes）、方案-目标绑定（kpi_scheme_targets 按 department_id FK）、申诉（kpi_appeals）；新增押金独立建账、水电抄表、营业额对账、合同终止类型等。
-
----
-
-### 3.2 资产模块（M1）
-
-```sql
--- 楼栋表
-CREATE TABLE buildings (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name          VARCHAR(100) NOT NULL,             -- 'A座', '商铺区', '公寓楼'
-  property_type property_type NOT NULL,
-  total_floors  SMALLINT NOT NULL,
-  gfa           NUMERIC(10, 2) NOT NULL,           -- 总建筑面积（m²）
-  nla           NUMERIC(10, 2),                    -- 净可租面积（m²）
-  address       TEXT,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 楼层表
-CREATE TABLE floors (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  building_id   UUID NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
-  floor_number  SMALLINT NOT NULL,                 -- 负数表示地下层
-  floor_name    VARCHAR(50),                       -- '1F', 'B1' 等展示名
-  svg_path      TEXT,                              -- 转换后 SVG 存储路径
-  png_path      TEXT,                              -- 备用 PNG 路径
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (building_id, floor_number)
-);
-
--- 单元表（核心资产底座）
-CREATE TABLE units (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  floor_id            UUID NOT NULL REFERENCES floors(id) ON DELETE CASCADE,
-  building_id         UUID NOT NULL REFERENCES buildings(id),  -- 冗余方便查询
-  unit_no             VARCHAR(50) NOT NULL,
-  property_type       property_type NOT NULL,
-  gross_area          NUMERIC(8, 2) NOT NULL,       -- 建筑面积（m²）
-  net_area            NUMERIC(8, 2),                -- 套内面积（m²）
-  floor_height        NUMERIC(4, 2),                -- 层高（m）
-  orientation         VARCHAR(20),                  -- 朝向
-  decoration_status   VARCHAR(50),                  -- 装修状态
-  status              unit_status NOT NULL DEFAULT 'vacant',
-  svg_hotzone_coords  JSONB,                        -- 热区多边形坐标 [{x,y}]
-
-  -- 写字楼扩展字段（property_type = 'office' 时有值）
-  workstation_count   SMALLINT,
-  partition_count     SMALLINT,
-
-  -- 商铺扩展字段（property_type = 'retail' 时有值）
-  frontage_width      NUMERIC(6, 2),               -- 门面宽度（m）
-  street_facing       BOOLEAN,                      -- 是否临街
-  retail_floor_height NUMERIC(4, 2),               -- 商铺层高（m）
-
-  -- 公寓扩展字段（property_type = 'apartment' 时有值）
-  bedroom_count       SMALLINT,
-  private_bathroom    BOOLEAN,
-
-  -- 参考市场租金（v1.7 新增）
-  market_rent_reference NUMERIC(10, 2),             -- 元/m²/月，用于空置损失测算、PGI 估算
-  -- 前序单元 ID（v1.7 新增）
-  predecessor_unit_ids  UUID[],                     -- 拆分/合并/停租历史
-  -- 归档时间（v1.7 新增）
-  archived_at         TIMESTAMPTZ,                  -- 旧单元标记归档，不物理删除
-
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (floor_id, unit_no)
-);
-
-CREATE INDEX idx_units_building_id ON units(building_id);
-CREATE INDEX idx_units_property_type ON units(property_type);
-CREATE INDEX idx_units_status ON units(status);
-
--- 改造记录表
-CREATE TABLE renovation_records (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  unit_id         UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
-  renovation_type VARCHAR(100) NOT NULL,
-  start_date      DATE NOT NULL,
-  end_date        DATE,
-  cost            NUMERIC(12, 2),                   -- 施工造价（元）
-  contractor      VARCHAR(200),
-  notes           TEXT,
-  created_by      UUID NOT NULL REFERENCES users(id),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 改造照片表
-CREATE TABLE renovation_photos (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  renovation_id     UUID NOT NULL REFERENCES renovation_records(id) ON DELETE CASCADE,
-  photo_url         TEXT NOT NULL,
-  photo_type        VARCHAR(20) NOT NULL CHECK (photo_type IN ('before', 'after')),
-  uploaded_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
-
----
-
-### 3.3 认证与用户模块
-
-```sql
--- 用户表
-CREATE TABLE users (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email           VARCHAR(255) NOT NULL UNIQUE,
-  password_hash   VARCHAR(255) NOT NULL,            -- bcrypt hash
-  full_name       VARCHAR(100) NOT NULL,
-  role            user_role NOT NULL,
-  is_active       BOOLEAN NOT NULL DEFAULT TRUE,
-  -- 二房东专用字段：绑定主合同（为 NULL 表示非二房东角色）
-  master_contract_id UUID REFERENCES contracts(id), -- 行级隔离锚点
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_master_contract ON users(master_contract_id)
-  WHERE master_contract_id IS NOT NULL;
-
--- 刷新令牌表（支持多设备登录 + 强制下线）
-CREATE TABLE refresh_tokens (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token_hash  VARCHAR(255) NOT NULL UNIQUE,
-  device_info TEXT,
-  expires_at  TIMESTAMPTZ NOT NULL,
-  revoked     BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
-
----
-
-### 3.4 租务与合同模块（M2）
-
-```sql
--- 租客表
-CREATE TABLE tenants (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_type     VARCHAR(20) NOT NULL CHECK (tenant_type IN ('company', 'individual')),
-  name            VARCHAR(200) NOT NULL,            -- 企业名或个人姓名
-  -- 证件号加密存储（AES-256-GCM），API 层默认脱敏展示后4位
-  cert_no_encrypted    BYTEA,                       -- 加密存储
-  cert_no_hint         VARCHAR(10),                 -- 脱敏展示（后4位）
-  unified_social_code  VARCHAR(50),                 -- 统一社会信用代码（企业）
-  contact_name    VARCHAR(100),
-  -- 手机号加密存储
-  phone_encrypted BYTEA,
-  phone_hint      VARCHAR(10),                      -- 后4位
-  email           VARCHAR(255),
-  emergency_contact     VARCHAR(100),
-  emergency_phone_encrypted BYTEA,
-  credit_rating   CHAR(1) CHECK (credit_rating IN ('A', 'B', 'C')),
-  overdue_count   SMALLINT NOT NULL DEFAULT 0,      -- 历史逾期次数（系统自动累计）
-  -- 信用评级计算辅助字段（v1.7 新增）
-  last_rating_date        DATE,                     -- 最近一次评级日期
-  times_overdue_past_12m  SMALLINT NOT NULL DEFAULT 0,
-  max_single_overdue_days SMALLINT NOT NULL DEFAULT 0,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 合同表
-CREATE TABLE contracts (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  contract_no         VARCHAR(100) NOT NULL UNIQUE,
-  tenant_id           UUID NOT NULL REFERENCES tenants(id),
-  is_sub_landlord     BOOLEAN NOT NULL DEFAULT FALSE,  -- 是否为二房东主合同
-  status              contract_status NOT NULL DEFAULT 'quoting',
-  property_type       property_type NOT NULL,          -- 冗余 便于 WALE 业态分组
-  start_date          DATE NOT NULL,
-  end_date            DATE NOT NULL,
-  free_rent_days      SMALLINT NOT NULL DEFAULT 0,     -- 免租天数
-  fit_out_days        SMALLINT NOT NULL DEFAULT 0,     -- 装修期天数（免收费用，不计逾期）
-  base_rent           NUMERIC(12, 2) NOT NULL,         -- 签约基准月租金（元）
-  deposit             NUMERIC(12, 2),                  -- 押金（元）
-  payment_cycle_days  SMALLINT NOT NULL DEFAULT 30,    -- 付款周期（天），通常30/90/180
-  -- 税费口径（v1.7 新增）
-  tax_inclusive        BOOLEAN NOT NULL DEFAULT TRUE,   -- 含税/不含税标识
-  applicable_tax_rate  NUMERIC(5, 4) NOT NULL DEFAULT 0, -- 适用税率（如 0.09 = 9%）
-  -- 商铺营业额分成（property_type = 'retail' 时有效）
-  turnover_rent_pct   NUMERIC(5, 4),                   -- 分成比例（0.05 = 5%）
-  min_rent_guarantee  NUMERIC(12, 2),                  -- 保底租金（元/月）
-  -- 续签关联
-  parent_contract_id  UUID REFERENCES contracts(id),   -- 续签时关联原合同
-  -- 附件
-  pdf_url             TEXT,
-  notes               TEXT,
-  -- 合同终止信息（v1.7 增强：四种终止类型）
-  termination_type     termination_type,               -- 正常到期/租户提前退租/协商终止/业主解约
-  terminated_at        TIMESTAMPTZ,
-  termination_date     DATE,                           -- 实际终止日期
-  termination_reason   TEXT,                           -- 解约依据/补偿方案
-  penalty_amount       NUMERIC(12, 2),                 -- 违约金（元）
-  deposit_deduction_details TEXT,                      -- 押金扣除明细
-  created_by          UUID NOT NULL REFERENCES users(id),
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_contracts_tenant_id ON contracts(tenant_id);
-CREATE INDEX idx_contracts_status ON contracts(status);
-CREATE INDEX idx_contracts_end_date ON contracts(end_date);
-CREATE INDEX idx_contracts_property_type ON contracts(property_type);
-
--- 合同-单元关联表（M:N，v1.7 增强：含计费面积与单价）
-CREATE TABLE contract_units (
-  contract_id UUID NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
-  unit_id     UUID NOT NULL REFERENCES units(id),
-  billing_area NUMERIC(10, 2) NOT NULL,            -- 该单元计费面积（m²）
-  unit_price   NUMERIC(10, 2) NOT NULL,            -- 该单元租金单价（元/m²/月）
-  PRIMARY KEY (contract_id, unit_id)
-);
-
-CREATE INDEX idx_contract_units_unit ON contract_units(unit_id);
-
--- 押金表（v1.7 新增：独立建账，不计入 NOI 收入）
--- 状态机: collected → frozen → partially_credited → refunded
-CREATE TABLE deposits (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  contract_id      UUID NOT NULL REFERENCES contracts(id),
-  amount           NUMERIC(12, 2) NOT NULL,         -- 押金金额（元）
-  collection_date  DATE NOT NULL,
-  status           deposit_status NOT NULL DEFAULT 'collected',
-  last_status_change_at TIMESTAMPTZ,
-  transferred_to_contract_id UUID REFERENCES contracts(id), -- 续签转移
-  notes            TEXT,
-  created_by       UUID REFERENCES users(id),
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_deposits_contract ON deposits(contract_id);
-
--- 押金流水审计表（v1.7 新增）
-CREATE TABLE deposit_transactions (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  deposit_id      UUID NOT NULL REFERENCES deposits(id) ON DELETE CASCADE,
-  transaction_type VARCHAR(20) NOT NULL,            -- 'collection','freeze','deduction','refund','transfer'
-  amount          NUMERIC(12, 2) NOT NULL,
-  previous_status deposit_status NOT NULL,
-  new_status      deposit_status NOT NULL,
-  reason          TEXT NOT NULL,
-  approved_by     UUID REFERENCES users(id),
-  created_by      UUID NOT NULL REFERENCES users(id),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_deposit_tx_deposit ON deposit_transactions(deposit_id);
-
--- 租金递增规则阶段表（一份合同多个阶段）
-CREATE TABLE rent_escalation_stages (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  contract_id     UUID NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
-  stage_order     SMALLINT NOT NULL,               -- 阶段序号（1, 2, 3...）
-  stage_start     DATE NOT NULL,
-  stage_end       DATE,
-  escalation_type escalation_type NOT NULL,
-  -- 参数（根据类型约定字段语义）
-  percent_rate    NUMERIC(6, 4),                   -- 固定比例（0.05 = 5%）
-  fixed_amount    NUMERIC(10, 2),                  -- 固定金额递增（元/m²）
-  n_years         SMALLINT,                        -- 每 N 年递增一次
-  stepped_table   JSONB,                           -- 阶梯表 [{from_year,to_year,rent}]
-  cpi_year        SMALLINT,                        -- CPI 挂钩年份
-  cpi_rate        NUMERIC(6, 4),                   -- 手工录入的 CPI 涨幅
-  base_rent_override NUMERIC(12, 2),               -- 免租后基准价（override）
-  UNIQUE (contract_id, stage_order)
-);
-
--- 递增规则模板表
-CREATE TABLE escalation_templates (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name            VARCHAR(200) NOT NULL,
-  property_type   property_type,                   -- NULL 表示通用模板
-  is_default      BOOLEAN NOT NULL DEFAULT FALSE,
-  stages_config   JSONB NOT NULL,                  -- 模板阶段配置 JSON
-  created_by      UUID NOT NULL REFERENCES users(id),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 预警记录表
-CREATE TABLE alerts (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  alert_type      VARCHAR(50) NOT NULL,            -- 'expiry_90d', 'overdue_1d' 等
-  contract_id     UUID REFERENCES contracts(id),
-  invoice_id      UUID REFERENCES invoices(id),
-  triggered_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  is_read         BOOLEAN NOT NULL DEFAULT FALSE,
-  target_roles    user_role[] NOT NULL              -- 接收角色数组
-);
-
-CREATE INDEX idx_alerts_contract ON alerts(contract_id);
-CREATE INDEX idx_alerts_triggered ON alerts(triggered_at DESC);
-```
-
----
-
-### 3.5 财务模块（M3）
-
-```sql
--- 账单表
-CREATE TABLE invoices (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  invoice_no      VARCHAR(100) NOT NULL UNIQUE,
-  contract_id     UUID NOT NULL REFERENCES contracts(id),
-  unit_id         UUID REFERENCES units(id),        -- 费项归口单元
-  invoice_type    VARCHAR(50) NOT NULL,             -- 'rent', 'mgmt_fee', 'utility', 'parking'
-  period_start    DATE NOT NULL,
-  period_end      DATE NOT NULL,
-  amount          NUMERIC(12, 2) NOT NULL,          -- 应收金额（元）
-  tax_rate        NUMERIC(5, 4) NOT NULL DEFAULT 0,
-  status          invoice_status NOT NULL DEFAULT 'pending',
-  due_date        DATE NOT NULL,
-  fapiao_no       VARCHAR(100),                     -- 发票号
-  fapiao_status   VARCHAR(20) DEFAULT 'not_issued', -- 'not_issued', 'issued'
-  notes           TEXT,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_invoices_contract_id ON invoices(contract_id);
-CREATE INDEX idx_invoices_status ON invoices(status);
-CREATE INDEX idx_invoices_due_date ON invoices(due_date);
-CREATE INDEX idx_invoices_period ON invoices(period_start, period_end);
-
--- 收款核销表
-CREATE TABLE payments (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  invoice_id      UUID NOT NULL REFERENCES invoices(id),
-  amount_paid     NUMERIC(12, 2) NOT NULL,
-  payment_date    DATE NOT NULL,
-  payment_method  VARCHAR(50),                      -- 'bank_transfer', 'cash' 等
-  bank_ref        VARCHAR(200),                     -- 银行流水号
-  verified_by     UUID NOT NULL REFERENCES users(id),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 运营支出表
-CREATE TABLE expenses (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  expense_type    VARCHAR(100) NOT NULL,            -- 'utility', 'cleaning', 'repair', 'insurance', 'tax'
-  building_id     UUID REFERENCES buildings(id),
-  unit_id         UUID REFERENCES units(id),        -- 精确到单元则填
-  floor_id        UUID REFERENCES floors(id),       -- 精确到楼层则填
-  amount          NUMERIC(12, 2) NOT NULL,
-  expense_date    DATE NOT NULL,
-  description     TEXT,
-  work_order_id   UUID REFERENCES work_orders(id),  -- 工单关联（维修费自动归入）
-  created_by      UUID NOT NULL REFERENCES users(id),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_expenses_building ON expenses(building_id);
-CREATE INDEX idx_expenses_date ON expenses(expense_date);
-
--- 水电抄表记录表（v1.7 新增）
-CREATE TABLE meter_readings (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  unit_id          UUID NOT NULL REFERENCES units(id),
-  meter_type       meter_type NOT NULL,             -- water / electricity / gas
-  current_reading  NUMERIC(12, 2) NOT NULL,
-  previous_reading NUMERIC(12, 2) NOT NULL,
-  consumption      NUMERIC(12, 2) NOT NULL,         -- = current - previous
-  unit_price       NUMERIC(10, 4) NOT NULL,         -- 元/度 或 元/吨
-  cost_amount      NUMERIC(12, 2) NOT NULL,         -- = consumption × unit_price
-  tiered_details   JSONB,                           -- 阶梯计价明细
-  reading_date     DATE NOT NULL,
-  recorded_by      UUID REFERENCES users(id),
-  invoice_generated BOOLEAN NOT NULL DEFAULT FALSE,
-  generated_invoice_id UUID REFERENCES invoices(id),
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_meter_unit ON meter_readings(unit_id);
-CREATE INDEX idx_meter_date ON meter_readings(reading_date DESC);
-
--- 商铺营业额申报表（v1.7 新增）
-CREATE TABLE turnover_reports (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  contract_id      UUID NOT NULL REFERENCES contracts(id),
-  report_month     DATE NOT NULL,                   -- yyyy-mm-01
-  reported_revenue NUMERIC(12, 2) NOT NULL,
-  revenue_share_rate NUMERIC(5, 4) NOT NULL,
-  base_rent        NUMERIC(12, 2) NOT NULL,
-  calculated_share NUMERIC(12, 2) NOT NULL,
-  approval_status  turnover_approval_status NOT NULL DEFAULT 'pending',
-  reviewed_by      UUID REFERENCES users(id),
-  reviewed_at      TIMESTAMPTZ,
-  rejection_reason TEXT,
-  attachment_paths TEXT[],
-  is_amendment     BOOLEAN NOT NULL DEFAULT FALSE,
-  original_report_id UUID REFERENCES turnover_reports(id),
-  generated_invoice_id UUID REFERENCES invoices(id),
-  dispute_note     TEXT,
-  submitted_by     UUID REFERENCES users(id),
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (contract_id, report_month)
-);
-
-CREATE INDEX idx_turnover_contract ON turnover_reports(contract_id);
-
--- KPI 方案表
-CREATE TABLE kpi_schemes (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name            VARCHAR(200) NOT NULL,
-  period_type     kpi_period_type NOT NULL,
-  valid_from      DATE NOT NULL,
-  valid_to        DATE,
-  indicators      JSONB NOT NULL,
-  -- 格式: [{"code":"K01","weight":0.2,"full_score_threshold":0.95,"pass_threshold":0.8,"enabled":true}]
-  created_by      UUID NOT NULL REFERENCES users(id),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 组织架构表（三级组织树，v1.7 新增）
-CREATE TABLE departments (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        VARCHAR(100) NOT NULL,
-  parent_id   UUID REFERENCES departments(id),
-  level       SMALLINT NOT NULL CHECK (level BETWEEN 1 AND 3),
-  sort_order  SMALLINT NOT NULL DEFAULT 0,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_departments_parent ON departments(parent_id);
-
--- 管辖范围表（部门默认 + 个人覆盖，v1.7 新增）
-CREATE TABLE user_managed_scopes (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  department_id   UUID NOT NULL REFERENCES departments(id),
-  scope_type      VARCHAR(20) NOT NULL CHECK (scope_type IN ('default', 'override')),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (user_id, department_id)
-);
-
--- KPI 方案-目标绑定表（v1.7 改用 department_id FK）
-CREATE TABLE kpi_scheme_targets (
-  scheme_id       UUID NOT NULL REFERENCES kpi_schemes(id) ON DELETE CASCADE,
-  user_id         UUID REFERENCES users(id),
-  department_id   UUID REFERENCES departments(id),
-  PRIMARY KEY (scheme_id, COALESCE(user_id::TEXT, department_id::TEXT))
-);
-
--- KPI 考核申诉表（v1.7 新增）
-CREATE TABLE kpi_appeals (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  score_id        UUID NOT NULL REFERENCES kpi_scores(id),
-  appellant_id    UUID NOT NULL REFERENCES users(id),
-  reason          TEXT NOT NULL,
-  status          VARCHAR(20) NOT NULL DEFAULT 'pending'
-                  CHECK (status IN ('pending', 'approved', 'rejected')),
-  reviewer_id     UUID REFERENCES users(id),
-  review_comment  TEXT,
-  reviewed_at     TIMESTAMPTZ,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_kpi_appeals_score ON kpi_appeals(score_id);
-
--- KPI 打分快照表（定期计算后持久化，避免重复计算）
-CREATE TABLE kpi_scores (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  scheme_id       UUID NOT NULL REFERENCES kpi_schemes(id),
-  user_id         UUID REFERENCES users(id),
-  department_id   UUID REFERENCES departments(id),
-  period_start    DATE NOT NULL,
-  period_end      DATE NOT NULL,
-  total_score     NUMERIC(5, 2) NOT NULL,
-  indicator_scores JSONB NOT NULL,                  -- {"K01":95.0,"K02":88.5,...}
-  frozen          BOOLEAN NOT NULL DEFAULT FALSE,   -- 自动冻结标记（v1.7）
-  calculated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (scheme_id, COALESCE(user_id::TEXT, ''), period_start, period_end)
-);
-```
-
----
-
-### 3.6 工单模块（M4）
-
-```sql
--- 工单表
-CREATE TABLE work_orders (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_no        VARCHAR(100) NOT NULL UNIQUE,
-  building_id     UUID NOT NULL REFERENCES buildings(id),
-  floor_id        UUID REFERENCES floors(id),
-  unit_id         UUID REFERENCES units(id),
-  reported_by     UUID NOT NULL REFERENCES users(id),
-  assigned_to     UUID REFERENCES users(id),
-  status          work_order_status NOT NULL DEFAULT 'submitted',
-  urgency         urgency_level NOT NULL DEFAULT 'normal',
-  issue_type      VARCHAR(100) NOT NULL,            -- '水电', '空调', '门窗', '公共区域' 等
-  description     TEXT NOT NULL,
-  material_cost   NUMERIC(10, 2) DEFAULT 0,
-  labor_cost      NUMERIC(10, 2) DEFAULT 0,
-  supplier_id     UUID REFERENCES suppliers(id),
-  submitted_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  approved_at     TIMESTAMPTZ,
-  completed_at    TIMESTAMPTZ,
-  notes           TEXT,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_work_orders_status ON work_orders(status);
-CREATE INDEX idx_work_orders_building ON work_orders(building_id);
-CREATE INDEX idx_work_orders_assigned ON work_orders(assigned_to);
-
--- 工单照片表
-CREATE TABLE work_order_photos (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id    UUID NOT NULL REFERENCES work_orders(id) ON DELETE CASCADE,
-  photo_url   TEXT NOT NULL,
-  photo_type  VARCHAR(20) NOT NULL CHECK (photo_type IN ('issue', 'completion')),
-  uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 供应商表
-CREATE TABLE suppliers (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        VARCHAR(200) NOT NULL,
-  category    VARCHAR(100) NOT NULL,                -- '水电', '空调', '电梯' 等
-  contact     VARCHAR(100),
-  phone_hint  VARCHAR(10),                          -- 后4位脱敏
-  phone_encrypted BYTEA,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
-
----
-
-### 3.7 二房东穿透管理模块（M5）
-
-```sql
--- 子租赁表（行级隔离核心表）
-CREATE TABLE subleases (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  master_contract_id  UUID NOT NULL REFERENCES contracts(id),  -- 行级隔离锚点
-  unit_id             UUID NOT NULL REFERENCES units(id),
-  -- 终端租客信息
-  sub_tenant_name     VARCHAR(200) NOT NULL,
-  sub_tenant_type     VARCHAR(20) NOT NULL CHECK (sub_tenant_type IN ('company', 'individual')),
-  contact_name        VARCHAR(100),
-  contact_phone_encrypted BYTEA,
-  contact_phone_hint  VARCHAR(10),
-  -- 证件号加密存储（建议填写）
-  cert_no_encrypted   BYTEA,
-  cert_no_hint        VARCHAR(10),
-  -- 租期
-  start_date          DATE NOT NULL,
-  end_date            DATE NOT NULL,
-  -- 实际租金
-  monthly_rent        NUMERIC(12, 2) NOT NULL,      -- 终端租客支付给二房东的月租金
-  rent_per_sqm        NUMERIC(8, 2) GENERATED ALWAYS AS
-                        (monthly_rent / NULLIF(
-                          (SELECT net_area FROM units WHERE id = unit_id), 0
-                        )) STORED,                  -- 系统自动反算单价
-  -- 入住状态
-  occupancy_status    occupancy_status NOT NULL DEFAULT 'vacant',
-  occupant_count      SMALLINT,                     -- 公寓适用
-  notes               TEXT,
-  -- 审核状态
-  review_status       review_status NOT NULL DEFAULT 'draft',
-  reviewed_by         UUID REFERENCES users(id),
-  reviewed_at         TIMESTAMPTZ,
-  reject_reason       TEXT,
-  -- 元数据
-  submitted_by        UUID NOT NULL REFERENCES users(id),  -- 二房东用户ID
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  -- 同一单元不可同时存在两条"在租"子租赁
-  CONSTRAINT uq_active_sublease UNIQUE (unit_id, review_status)
-    DEFERRABLE INITIALLY DEFERRED
-);
-
-CREATE INDEX idx_subleases_master_contract ON subleases(master_contract_id);
-CREATE INDEX idx_subleases_unit ON subleases(unit_id);
-CREATE INDEX idx_subleases_review_status ON subleases(review_status);
-
--- 子租赁变更审计日志表
-CREATE TABLE sublease_audit_logs (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  sublease_id     UUID NOT NULL REFERENCES subleases(id),
-  action          VARCHAR(50) NOT NULL,             -- 'create', 'update', 'submit', 'approve', 'reject'
-  operator_id     UUID NOT NULL REFERENCES users(id),
-  old_value       JSONB,
-  new_value       JSONB,
-  ip_address      INET,
-  operated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_sublease_audit_sublease ON sublease_audit_logs(sublease_id);
-CREATE INDEX idx_sublease_audit_operated ON sublease_audit_logs(operated_at DESC);
-```
-
----
-
-### 3.8 通用审计日志表
-
-```sql
--- 全系统操作审计日志（合同变更、账单核销、权限变更记录在此）
-CREATE TABLE audit_logs (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  operator_id UUID NOT NULL REFERENCES users(id),
-  module      VARCHAR(50) NOT NULL,                 -- 'contracts', 'finance', 'auth'
-  action      VARCHAR(100) NOT NULL,
-  entity_type VARCHAR(50) NOT NULL,
-  entity_id   UUID,
-  old_value   JSONB,
-  new_value   JSONB,
-  ip_address  INET,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_audit_logs_operator ON audit_logs(operator_id);
-CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
-CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
-```
+> **唯一真相源**：完整的数据库 Schema 定义（DDL、枚举、索引、约束）统一维护在 [`docs/backend/data_model.md`](../backend/data_model.md)，本节不重复列出 DDL，仅概要说明架构层面的关键设计决策。
+
+### 3.1 设计要点概要
+
+| 关键设计 | 说明 |
+|---------|------|
+| 合同-单元 M:N | 通过 `contract_units` 中间表，每条记录独立记录 `billing_area` 与 `unit_price` |
+| 押金独立建账 | `deposits` + `deposit_transactions` 双表，状态机 `collected → frozen → partially_credited → refunded`，不计入 NOI |
+| 收款核销 | `payments` + `payment_allocations` 双表，支持部分收款、一笔收款核销多张账单 |
+| 单元扩展字段 | 三业态差异化属性存入 `units.ext_fields` JSONB，GIN 索引便于过滤 |
+| 行级隔离 | 二房东数据通过 `subleases.master_contract_id` 在 Repository 层强制 WHERE 过滤 |
+| KPI 快照 | `kpi_score_snapshots` + `kpi_score_snapshot_items` 冗余快照时权重，防止方案修改影响历史 |
+| 加密存储 | 证件号、手机号使用 AES-256-GCM 加密，API 层默认脱敏（后4位） |
+| 楼层图纸多版本 | 通过 `floor_plans` 表管理多版本图纸，`floors` 表仅存当前生效路径 |
+| 数据保留期 | `tenants` / `subleases` 含 `data_retention_until` 字段，合同终止后个人信息保留不超过 3 年（PIPL 合规） |
+
+### 3.2 枚举类型清单
+
+详见 `data_model.md` 第二节，核心枚举包括：
+
+- `property_type`（三业态）、`unit_status`（单元状态）、`contract_status`（合同状态机）
+- `escalation_type`（6 种递增类型）、`invoice_status`（账单状态）、`invoice_item_type`（费项）
+- `work_order_status`、`work_order_priority`（工单）
+- `sublease_occupancy_status`、`sublease_review_status`（含 `draft` 状态）
+- `deposit_status`、`termination_type`、`meter_type`、`turnover_approval_status`（v1.7 新增）
+
+### 3.3 索引策略
+
+| 场景 | 关键索引 |
+|------|---------|
+| 楼层色块渲染 | `units(floor_id, current_status)` |
+| WALE 计算 | `contracts(status, end_date)` covering index |
+| 逾期账单催收 | `invoices(status, due_date) WHERE status IN ('issued','overdue')` |
+| 二房东数据隔离 | `subleases(master_contract_id)` |
+| 工单状态监控 | `work_orders(status, submitted_at DESC)` |
+| KPI 快照历史 | `kpi_score_snapshots(evaluated_user_id, period_start)` |
+| 审计日志查询 | `audit_logs(resource_type, resource_id)` |
+| 单元扩展字段 | `units.ext_fields` GIN 索引（按业态过滤） |
 
 ---
 
@@ -1453,14 +803,12 @@ Middleware rbacGuard(Permission required) {
       final ctx = RequestContext.of(request);
 
       if (ctx == null) {
-        return Response(401, body: '{"error":"unauthenticated"}',
-            headers: {'Content-Type': 'application/json'});
+        throw AppException('UNAUTHENTICATED', '未认证', statusCode: 401);
       }
 
       final perms = rolePermissions[ctx.role] ?? {};
       if (!perms.contains(required)) {
-        return Response(403, body: '{"error":"forbidden"}',
-            headers: {'Content-Type': 'application/json'});
+        throw AppException('FORBIDDEN', '无此操作权限', statusCode: 403);
       }
 
       return innerHandler(request);
@@ -1473,10 +821,10 @@ Middleware rbacGuardAny(Set<Permission> anyOf) {
   return (Handler innerHandler) {
     return (Request request) async {
       final ctx = RequestContext.of(request);
-      if (ctx == null) return Response(401);
+      if (ctx == null) throw AppException('UNAUTHENTICATED', '未认证', statusCode: 401);
 
       final perms = rolePermissions[ctx.role] ?? {};
-      if (perms.intersection(anyOf).isEmpty) return Response(403);
+      if (perms.intersection(anyOf).isEmpty) throw AppException('FORBIDDEN', '无此操作权限', statusCode: 403);
 
       return innerHandler(request);
     };
@@ -1499,17 +847,21 @@ Middleware authMiddleware(TokenService tokenService) {
       }
 
       final authHeader = request.headers['authorization'] ?? '';
-      if (!authHeader.startsWith('Bearer ')) return Response(401);
+      if (!authHeader.startsWith('Bearer ')) {
+        throw AppException('UNAUTHENTICATED', '缺少有效令牌', statusCode: 401);
+      }
 
       final token = authHeader.substring(7);
       final claims = tokenService.verify(token);
-      if (claims == null) return Response(401);
+      if (claims == null) {
+        throw AppException('UNAUTHENTICATED', '令牌无效或已过期', statusCode: 401);
+      }
 
       // 将上下文注入到请求中（通过 Request.change context）
       final ctx = RequestContext(
         userId: claims['sub'] as String,
         role: UserRole.values.byName(claims['role'] as String),
-        masterContractId: claims['master_contract_id'] as String?, // 二房东专用
+        boundContractId: claims['bound_contract_id'] as String?, // 二房东专用
       );
 
       return inner(request.change(context: {RequestContext.key: ctx}));
@@ -1523,34 +875,94 @@ Middleware authMiddleware(TokenService tokenService) {
 ```dart
 // lib/modules/contracts/controllers/contract_controller.dart
 
-Router contractRoutes() {
+Router contractRoutes(ContractService service) {
   final router = Router();
-  final service = ContractService(ContractRepository());
 
   router.get('/api/contracts',
       rbacGuard(Permission.contractsRead)(
-        (req) => service.listContracts(RequestContext.of(req)!),
+        (req) async {
+          final ctx = RequestContext.of(req)!;
+          final page = int.tryParse(req.url.queryParameters['page'] ?? '') ?? 1;
+          final pageSize = int.tryParse(req.url.queryParameters['pageSize'] ?? '') ?? 20;
+          final result = await service.listContracts(ctx, page: page, pageSize: pageSize);
+          return Response.ok(
+            jsonEncode({'data': result.items.map((e) => e.toJson()).toList(),
+                        'meta': {'page': page, 'pageSize': pageSize, 'total': result.total}}),
+            headers: {'Content-Type': 'application/json'},
+          );
+        },
       ));
 
   router.post('/api/contracts',
       rbacGuard(Permission.contractsWrite)(
-        (req) => service.create(req, RequestContext.of(req)!),
+        (req) async {
+          final ctx = RequestContext.of(req)!;
+          final body = jsonDecode(await req.readAsString()) as Map<String, dynamic>;
+          final cmd = CreateContractCommand.fromJson(body); // Controller 层解析为强类型 Command
+          final created = await service.create(cmd, ctx);
+          return Response(201,
+            body: jsonEncode({'data': created.toJson()}),
+            headers: {'Content-Type': 'application/json'},
+          );
+        },
       ));
 
   router.get('/api/contracts/<id>',
       rbacGuard(Permission.contractsRead)(
-        (req, id) => service.getById(id, RequestContext.of(req)!),
+        (req, id) async {
+          final result = await service.getById(id, RequestContext.of(req)!);
+          return Response.ok(
+            jsonEncode({'data': result.toJson()}),
+            headers: {'Content-Type': 'application/json'},
+          );
+        },
       ));
 
   // 查看完整证件号：需要额外权限
   router.get('/api/tenants/<id>/cert',
       rbacGuard(Permission.tenantsViewFullCert)(
-        (req, id) => service.getFullCert(id, RequestContext.of(req)!),
+        (req, id) async {
+          final result = await service.getFullCert(id, RequestContext.of(req)!);
+          return Response.ok(
+            jsonEncode({'data': result}),
+            headers: {'Content-Type': 'application/json'},
+          );
+        },
       ));
 
   return router;
 }
 ```
+
+### 5.6 健康检查端点
+
+```dart
+// bin/server.dart 路由注册（无需鉴权，用于 LB / K8s 探针）
+router.get('/api/health', (Request req) async {
+  // 验证数据库连接可用
+  try {
+    await db.execute('SELECT 1');
+    return Response.ok(jsonEncode({'status': 'ok'}),
+        headers: {'Content-Type': 'application/json'});
+  } catch (e) {
+    return Response.internalServerError(
+        body: jsonEncode({'status': 'degraded', 'error': 'db_unreachable'}),
+        headers: {'Content-Type': 'application/json'});
+  }
+});
+```
+
+### 5.7 中间件管道注册顺序
+
+```
+Request → rate_limit → auth → rbac → audit → Handler → error_handler → Response
+```
+
+- `rate_limit_middleware`：接口级限流，默认 60 req/min/IP（登录接口收紧至 10 req/min）
+- `auth_middleware`：JWT 验证，公开路由白名单跳过
+- `rbac_middleware`：路由级权限守卫，按 `Permission` 枚举鉴权
+- `audit_middleware`：写操作审计日志（合同变更、账单核销、权限变更）
+- `error_handler`：全局异常 → 标准 HTTP 错误响应信封
 
 ---
 
@@ -1563,7 +975,7 @@ Router contractRoutes() {
 | 角色 | 隔离范围 | 实现机制 |
 |------|---------|---------|
 | 内部所有角色 | 无数据范围限制 | SQL 无附加 WHERE 条件 |
-| `sub_landlord` | 仅限 `master_contract_id` 对应的单元和子租赁 | JWT Claims 携带 `master_contract_id`；Repository 层强制附加 `AND master_contract_id = $scope` |
+| `sub_landlord` | 仅限绑定主合同对应的单元和子租赁 | JWT Claims 携带 `bound_contract_id`；Repository 层强制附加 `AND master_contract_id = $scope` |
 
 ### 6.2 RequestContext 结构
 
@@ -1575,12 +987,12 @@ class RequestContext with _$RequestContext {
   const factory RequestContext({
     required String userId,
     required UserRole role,
-    String? masterContractId,  // 非 null 当且仅当 role = sub_landlord
+    String? boundContractId,  // 非 null 当且仅当 role = sub_landlord（对应 users.bound_contract_id）
   }) = _RequestContext;
 
   /// 是否为二房东角色（需要行级隔离）
   bool get isSubLandlord =>
-      role == UserRole.subLandlord && masterContractId != null;
+      role == UserRole.subLandlord && boundContractId != null;
 
   static const key = 'request_context';
   static RequestContext? of(Request request) =>
@@ -1647,9 +1059,9 @@ class SubleaseRepository {
 
   /// 新增子租赁（二房东只能在自身主合同范围内的单元创建）
   Future<SubLease> create(CreateSubleaseDto dto, RequestContext ctx) async {
-    // 若为二房东，强制 master_contract_id 必须与 JWT 中一致
+    // 若为二房东，强制 master_contract_id 必须与 JWT 中绑定的合同一致
     if (ctx.isSubLandlord &&
-        dto.masterContractId != ctx.masterContractId) {
+        dto.masterContractId != ctx.boundContractId) {
       throw ForbiddenException('跨主合同操作被拒绝');
     }
 
@@ -1736,7 +1148,7 @@ class SubleaseRepository {
   /// - 二房东：强制附加 master_contract_id = $n
   (String clause, List<Object?> params) _buildScopeClause(RequestContext ctx) {
     if (ctx.isSubLandlord) {
-      return ('master_contract_id = \$1', [ctx.masterContractId]);
+      return ('master_contract_id = \$1', [ctx.boundContractId]);
     }
     return ('TRUE', []);
   }
@@ -1792,7 +1204,7 @@ BEGIN
     UPDATE users
        SET is_active = FALSE
      WHERE role = 'sub_landlord'
-       AND master_contract_id = NEW.id;
+       AND bound_contract_id = NEW.id;
   END IF;
   RETURN NEW;
 END;
