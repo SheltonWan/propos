@@ -6,5 +6,11 @@
   "github.copilot.enable": {
     "*": true,
     "dart": true
+  },
+  "search.exclude": {
+    "pdfdocs/**": true
+  },
+  "files.exclude": {
+    "pdfdocs/**": false
   }
 }
