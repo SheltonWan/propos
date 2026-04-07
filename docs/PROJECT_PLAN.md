@@ -159,8 +159,8 @@
 
 #### Day 14 · 4月27日（周一）— CAD 导入后端（难点）
 
-- 调研 `oc2svg` CLI：确认二进制可用、参数格式、输出质量
-- `cad_import_service.dart`：接收 `.dwg` 文件 → 调度 `oc2svg` 子进程 → SVG 输出写入 `FILE_STORAGE_PATH/floors/{buildingId}/{floorId}.svg`
+- 安装配置 ODA File Converter（DWG→DXF）+ `ezdxf[draw]`（Python，DXF→SVG），验证两步转换链路可用
+- `cad_import_service.dart`：接收 `.dwg` 文件 → `Process.run` 调度 ODA File Converter（DWG→DXF）→ `Process.run` 调度 `ezdxf draw`（DXF→SVG）→ SVG 输出写入 `FILE_STORAGE_PATH/floors/{buildingId}/{floorId}.svg`
 - `PUT /api/floors/:id/cad-upload`（multipart 大文件，异步任务，上传完成后返回 SVG 预览 URL）
 - `GET /api/files/*`（鉴权后返回本地文件流，不直接暴露存储路径）
 
@@ -214,7 +214,7 @@
 
 - 切换 `USE_MOCK=false`，对接真实后端
 - 修复数据格式差异（snake_case → camelCase 自动转换验证，日期 ISO 8601 解析，枚举映射不缺值）
-- 真实 SVG 文件上传测试（测试用 .dwg → oc2svg 转换 → Flutter 渲染验证）
+- 真实 SVG 文件上传测试（测试用 .dwg → ODA File Converter→DXF → ezdxf→SVG 两步转换链路 → Flutter 渲染验证）
 
 #### Day 23 · 5月8日（周五）— M1 缺陷修复 + 冒烟测试
 
@@ -789,7 +789,7 @@
 
 | 风险点 | 概率 | 影响 | 预案 |
 |--------|------|------|------|
-| CAD .dwg → SVG 转换工具不可用或输出质量差 | 高 | M1 延期 1–2 天 | W3 末若 oc2svg 不可行，降级为"手动上传 SVG/PNG"；CAD 自动转换列为 Phase 2 补充 |
+| CAD .dwg → SVG 转换工具不可用或输出质量差 | 中 | M1 延期 1–2 天 | W3 末若 ODA File Converter + ezdxf 链路输出质量不符合要求，降级为"手动上传 SVG/PNG"；CAD 自动转换列为 Phase 2 补充 |
 | 租金递增配置器 UI 复杂度超估 | 中 | M2 延期 2–3 天 | Day 36 前若配置器 UI 未完工，先简化为纯 Form 表单（暂不含实时预测图），功能完整性优先 |
 | KPI 10 指标跨模块聚合 SQL 难度超估 | 中 | M3 延期 2 天 | K10 满意度固定为手动录入；其余 9 个自动指标若有 2 个数据源不稳定，先返回 0 值，待稳定后补接 |
 | 真实 CAD 文件结构与测试文件不同 | 中 | 数据初始化延期 | Day 13 前向运营团队索取 1 层实际 .dwg 文件用作早期验证 |

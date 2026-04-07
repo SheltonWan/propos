@@ -94,12 +94,15 @@ flutter doctor
 ### 2.3 其他工具
 
 ```bash
-# CAD 转换工具（.dwg → SVG/PNG）
-# 后端调度 oc2svg CLI，macOS 下先验证安装
-which oc2svg || brew install oc2svg   # 视实际 CLI 名称调整
+# CAD 转换工具（.dwg → DXF → SVG/PNG）两步链路：
+# 第一步：ODA File Converter（DWG → DXF，免费下载）
+# 下载地址：https://www.opendesign.com/guestfiles/oda_file_converter
+# 安装后验证（macOS 下通常在 /Applications/ODAFileConverter.app）
+/Applications/ODAFileConverter.app/Contents/MacOS/ODAFileConverter --version
 
-# 代码生成（freezed）
-dart pub global activate build_runner
+# 第二步：ezdxf（Python，DXF → SVG）
+pip install "ezdxf[draw]"
+ezdxf --version
 ```
 
 ### 2.4 项目目录结构确认
@@ -282,7 +285,7 @@ psql propos_dev -c "\dT+"            # 列出所有枚举类型
 | Repository | `repositories/building_repository.dart` | CRUD SQL，全字段映射 |
 | Repository | `repositories/unit_repository.dart` | 含按业态、状态过滤的查询方法 |
 | Service | `services/unit_service.dart` | 状态计算（合同数据联动）、色块聚合统计 |
-| Service | `services/cad_import_service.dart` | 调用 `oc2svg` CLI，将 `.dwg` 转换后保存路径到 DB |
+| Service | `services/cad_import_service.dart` | 调用 ODA File Converter（DWG→DXF）+ `ezdxf draw`（DXF→SVG）两步转换，保存路径到 DB |
 | Service | `services/unit_import_service.dart` | 解析 Excel，批量 upsert units（639 套） |
 | Controller | `controllers/building_controller.dart` | HTTP 路由注册，调用 Service |
 | Controller | `controllers/unit_controller.dart` | 含 `GET /units?building=&type=&status=` 过滤 |
@@ -300,7 +303,8 @@ psql propos_dev -c "\dT+"            # 列出所有枚举类型
 POST /api/floors/:id/cad-import
   → 接收 multipart .dwg 文件
   → 保存到临时目录
-  → 调用 oc2svg CLI 转换
+  → 调用 ODA File Converter CLI（DWG→DXF）
+  → 调用 ezdxf draw（DXF→SVG）
   → 上传 SVG/PNG 到文件存储
   → 更新 floors.svg_path / png_path
   → 返回预览 URL

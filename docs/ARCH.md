@@ -92,7 +92,7 @@
 | 数据模型 | `freezed` + `json_serializable` | 不可变数据类，自动序列化 |
 | 认证 | JWT（`dart_jsonwebtoken`） | Claims 携带 role + sub_landlord_scope |
 | 数据库 | PostgreSQL 15+ | 行级安全 + GIN 索引 |
-| 文件转换 | `oc2svg` CLI + 后端调度 | .dwg → SVG/PNG 楼层平面图 |
+| 文件转换 | ODA File Converter + `ezdxf[draw]`（Python）| .dwg → DXF → SVG/PNG 楼层平面图，两步转换链路 |
 | APP | Flutter 3.x（`go_router`） | iOS / Android / macOS / Windows / Web 五端复用；桌面端不含 QR 扫码与 FCM 推送，其余功能完整 |
 
 ### 平台能力矩阵
