@@ -16,6 +16,7 @@
 5. [RBAC 权限矩阵代码实现](#5-rbac-权限矩阵代码实现)
 6. [二房东数据行级隔离 Repository 实现](#6-二房东数据行级隔离-repository-实现)
 7. [关键数据流说明](#7-关键数据流说明)
+8. [附录 A：缩写与术语对照表](#附录-a缩写与术语对照表)
 
 ---
 
@@ -1341,6 +1342,60 @@ JobRunner.execute(job)
            ├─ RetryScheduler 按退避策略自动重试
            └─ 后台失败任务列表支持人工重跑或补发
 ```
+
+---
+
+## 附录 A：缩写与术语对照表
+
+以下按字母顺序列出文档中出现的全部缩写，供快速查阅。
+
+| 缩写 | 全称 | 中文说明 |
+|------|------|---------|
+| AES | Advanced Encryption Standard | 高级加密标准，本项目使用 AES-256-GCM 对证件号、手机号等敏感字段加密存储 |
+| API | Application Programming Interface | 应用程序接口，前后端通过 REST API 通信 |
+| APNs | Apple Push Notification service | 苹果推送通知服务，用于 iOS 设备的工单推送 |
+| ARCH | Architecture | 架构（本文档文件名缩写）|
+| BLoC | Business Logic Component | 业务逻辑组件，Flutter 端状态管理模式，事件驱动 |
+| CAD | Computer-Aided Design | 计算机辅助设计，本项目处理 `.dwg` 格式楼层平面图 |
+| CPI | Consumer Price Index | 消费者价格指数，用于合同租金年度联动递增计算 |
+| CRUD | Create, Read, Update, Delete | 增删改查，数据库基本操作统称 |
+| DDL | Data Definition Language | 数据定义语言，用于创建/修改数据库表结构的 SQL 语句 |
+| DI | Dependency Injection | 依赖注入，本项目使用 `get_it` 作为 DI 容器 |
+| DWG | Drawing（AutoCAD 格式） | AutoCAD 专有矢量图格式，楼层 CAD 平面图原始格式 |
+| EGI | Effective Gross Income | 有效总收入，EGI = PGI - VacancyLoss + OtherIncome |
+| FCM | Firebase Cloud Messaging | Firebase 云消息推送服务，用于 Android/iOS 工单通知 |
+| GCM | Galois/Counter Mode | 伽罗华/计数器模式，AES 的一种认证加密工作模式 |
+| GIN | Generalized Inverted Index | 通用倒排索引，PostgreSQL 索引类型，用于 JSONB 字段高效过滤 |
+| HTTP | HyperText Transfer Protocol | 超文本传输协议，客户端与后端服务通信基础协议 |
+| HTTPS | HTTP Secure | 超文本传输安全协议，HTTP + TLS，外部门户强制启用 |
+| ISO | International Organization for Standardization | 国际标准化组织；ISO 8601 为日期时间标准格式（如 `2026-04-07T08:00:00Z`）|
+| JSONB | JSON Binary | PostgreSQL 的二进制 JSON 字段类型，支持 GIN 索引与高效查询 |
+| JWT | JSON Web Token | 身份令牌规范，Claims 携带 `role` 与 `bound_contract_id` 用于认证与行级隔离 |
+| K8s | Kubernetes | 容器编排平台，`/api/health` 端点供 K8s 探针调用 |
+| KPI | Key Performance Indicator | 关键绩效指标，Phase 1 包含正式考核、排名、申诉与导出 |
+| LB | Load Balancer | 负载均衡器，`/api/health` 同时用于 LB 健康探测 |
+| M:N | Many-to-Many | 多对多关系，合同-单元通过 `contract_units` 中间表实现 M:N 绑定 |
+| NOI | Net Operating Income | 净营业收入，NOI = EGI - OpEx，统一使用不含税口径 |
+| ORM | Object-Relational Mapping | 对象关系映射，本项目**不引入** ORM，使用原生 SQL 保证行级隔离可控 |
+| PDF | Portable Document Format | 便携文档格式，合同扫描件及导出报告使用此格式 |
+| PGI | Potential Gross Income | 潜在总收入，满租状态下的理论最大收入 |
+| PIPL | Personal Information Protection Law | 《个人信息保护法》（中国），要求合同终止后个人信息保留不超过 3 年，脱敏还原须记录完整审计日志 |
+| PNG | Portable Network Graphics | 便携网络图形格式，楼层 SVG 转换后的备用光栅图 |
+| PRD | Product Requirements Document | 产品需求文档，本架构对应 PRD v1.7 |
+| QR | Quick Response Code | 快速响应码（二维码），移动端扫码报修入口，桌面端降级为手动填报 |
+| RBAC | Role-Based Access Control | 基于角色的访问控制，所有 API 端点须经 RBAC 中间件验证 |
+| REST | Representational State Transfer | 表述性状态转移，本项目 API 风格 |
+| S3 | Simple Storage Service | 亚马逊简单存储服务，本项目文件存储层兼容 S3 协议（也可用本地存储） |
+| SLA | Service Level Agreement | 服务级别协议，二房东审核 SLA 在 PRD v1.7 中明确约定 |
+| SQL | Structured Query Language | 结构化查询语言，数据库操作语言 |
+| SVG | Scalable Vector Graphics | 可缩放矢量图形，楼层 CAD 平面图转换后的交互格式，用于楼层热区渲染 |
+| TIMESTAMPTZ | Timestamp with Time Zone | 带时区的时间戳，PostgreSQL 字段类型，数据库统一存储 UTC |
+| TLS | Transport Layer Security | 传输层安全协议，外部门户强制要求 TLS 1.2 及以上版本 |
+| UTC | Coordinated Universal Time | 协调世界时，所有业务时间计算（WALE、逾期天数）统一使用 UTC |
+| UUID | Universally Unique Identifier | 通用唯一标识符，所有实体主键及文件存储路径均采用 UUID |
+| WALE | Weighted Average Lease Expiry | 加权平均租约到期年限，Phase 1 支持收入加权与面积加权双口径，精确到天 |
+
+> **正向/反向指标**（direction）：KPI 指标方向字段。`positive` 表示数值越高得分越高；`negative` 表示数值越低得分越高（如逾期率、空置周转天数）。
 
 ---
 
