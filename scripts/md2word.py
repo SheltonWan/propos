@@ -38,6 +38,31 @@ HEX_QUOT_LN  = "2E5496"
 
 
 # ═══════════════════════════════════════════════
+#  页头 / 页尾配置（在此修改公司信息、Logo、联系方式）
+# ═══════════════════════════════════════════════
+
+# ── 页头 ────────────────────────────────────────
+ENABLE_HEADER         = False               # 是否启用页头
+HEADER_LOGO_FILE      = 'realxen_logo.png'  # Logo 文件名（与脚本同目录）
+HEADER_LOGO_HEIGHT_CM = 1.2                 # Logo 高度（cm），宽度自动等比
+HEADER_DISTANCE_CM    = 1.0                 # 页眉距页面顶部距离（cm）
+HEADER_BRAND_TEXT     = 'Realxen'           # 无 logo 时显示的品牌名
+HEADER_BRAND_SUBTITLE = '  同信智维'         # 品牌名右侧副标题
+
+# ── 页尾 ────────────────────────────────────────
+ENABLE_FOOTER       = False               # 是否启用页尾
+FOOTER_COMPANY_LINE = (
+    '深圳市同信智维网络技术有限公司  '
+    '地址：深圳市宝安区西乡街道办前进二路和流塘路交汇中粮锦云3栋1103-1106'
+)
+FOOTER_CONTACT_LINE = (
+    '邮箱：info@realxen.com  电话：17620341860  '
+    '微信：xmusmart  QQ：18755444  网站：www.realxen.com'
+)
+FOOTER_TAB_POS = '10546'  # 右对齐制表位 twips（A4 内容宽 18.6cm ≈ 10546 twips）
+
+
+# ═══════════════════════════════════════════════
 #  低级 XML 工具
 # ═══════════════════════════════════════════════
 def _set_cell_bg(cell, hex6: str):
@@ -187,7 +212,7 @@ def _add_footer(doc):
     tabs = OxmlElement('w:tabs')
     tab = OxmlElement('w:tab')
     tab.set(qn('w:val'), 'right')
-    tab.set(qn('w:pos'), '10546')  # A4 可用宽度 18.6cm ≈ 10546 twips
+    tab.set(qn('w:pos'), FOOTER_TAB_POS)  # A4 可用宽度 18.6cm ≈ 10546 twips
     tabs.append(tab)
     pPr.append(tabs)
 
@@ -201,7 +226,7 @@ def _add_footer(doc):
         except Exception: pass
         return r
 
-    _run(para, '深圳市同信智维网络技术有限公司  地址：深圳市宝安区西乡街道办前进二路和流塘路交汇中粮锦云3栋1103-1106', size=8, bold=False, color=RGBColor(0x40, 0x40, 0x40))
+    _run(para, FOOTER_COMPANY_LINE, size=8, bold=False, color=RGBColor(0x40, 0x40, 0x40))
 
     tab_r = para.add_run()
     tab_r._element.append(OxmlElement('w:tab'))
@@ -225,8 +250,7 @@ def _add_footer(doc):
     para2 = footer.add_paragraph()
     _set_spacing(para2, 0, 0)
     para2.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    info_text = ('邮箱：info@realxen.com  电话：17620341860  '
-                 '微信：xmusmart  QQ：18755444  网站：www.realxen.com')
+    info_text = FOOTER_CONTACT_LINE
     _run(para2, info_text, size=7, bold=False, color=RGBColor(0x88, 0x88, 0x88))
 
 
@@ -236,7 +260,7 @@ def _add_footer(doc):
 def _add_header(doc, logo_path: str = None):
     """在每页页头左侧添加 logo 图片（若有）或文字品牌标识，右侧留空，底部加分隔线。"""
     section = doc.sections[0]
-    section.header_distance = Cm(1.0)
+    section.header_distance = Cm(HEADER_DISTANCE_CM)
     header = section.header
 
     # 清空默认空段落
@@ -250,16 +274,16 @@ def _add_header(doc, logo_path: str = None):
     if logo_path and os.path.isfile(logo_path):
         # 嵌入 logo 图片，高度约 1.2cm，宽度按比例缩放
         run = para.add_run()
-        run.add_picture(logo_path, height=Cm(1.2))
+        run.add_picture(logo_path, height=Cm(HEADER_LOGO_HEIGHT_CM))
     else:
         # 无图片时，用样式化文字替代
-        r1 = para.add_run('Realxen')
+        r1 = para.add_run(HEADER_BRAND_TEXT)
         r1.font.name   = 'Arial'
         r1.font.bold   = True
         r1.font.italic = True
         r1.font.size   = Pt(16)
         r1.font.color.rgb = RGBColor(0xD7, 0x19, 0x21)
-        r2 = para.add_run('  同信智维')
+        r2 = para.add_run(HEADER_BRAND_SUBTITLE)
         r2.font.name = '微软雅黑'
         r2.font.size = Pt(9)
         r2.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
@@ -668,7 +692,7 @@ def _toc_entries(doc, headings):
 # ═══════════════════════════════════════════════
 #  文档初始化
 # ═══════════════════════════════════════════════
-def _setup_doc(doc):
+def _setup_doc(doc, enable_header=ENABLE_HEADER, enable_footer=ENABLE_FOOTER):
     sec = doc.sections[0]
     sec.page_width    = Cm(21)
     sec.page_height   = Cm(29.7)
@@ -684,22 +708,24 @@ def _setup_doc(doc):
     except Exception:
         pass
     # 自动查找同目录下的 logo 文件
-    _logo = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'realxen_logo.png')
-    _add_header(doc, logo_path=_logo)
-    _add_footer(doc)
+    if enable_header:
+        _logo = os.path.join(os.path.dirname(os.path.abspath(__file__)), HEADER_LOGO_FILE)
+        _add_header(doc, logo_path=_logo)
+    if enable_footer:
+        _add_footer(doc)
 
 
 # ═══════════════════════════════════════════════
 #  主解析器
 # ═══════════════════════════════════════════════
-def convert(md_path: str, out_path: str):
+def convert(md_path: str, out_path: str, enable_header=ENABLE_HEADER, enable_footer=ENABLE_FOOTER):
     with open(md_path, encoding='utf-8') as f:
         lines = f.read().splitlines()
 
     headings = _collect_headings(lines)   # 第一遍：收集文档标题，供目录节渲染
 
     doc = Document()
-    _setup_doc(doc)
+    _setup_doc(doc, enable_header=enable_header, enable_footer=enable_footer)
 
     i             = 0
     in_code       = False
@@ -862,6 +888,14 @@ def main():
     )
     ap.add_argument('args',    nargs='+', help='输入 .md 文件（可多个），最后一个参数若以 .docx 结尾则作为输出路径')
     ap.add_argument('-o', '--output',     help='指定输出路径（仅单文件时有效）')
+    ap.add_argument('--header', action='store_true', default=ENABLE_HEADER,
+                    help='启用页头（Logo + 品牌标识）')
+    ap.add_argument('--footer', action='store_true', default=ENABLE_FOOTER,
+                    help='启用页尾（公司信息 + 页码）')
+    ap.add_argument('--no-header', dest='header', action='store_false',
+                    help='禁用页头')
+    ap.add_argument('--no-footer', dest='footer', action='store_false',
+                    help='禁用页尾')
     parsed = ap.parse_args()
 
     positional = parsed.args
@@ -888,7 +922,7 @@ def main():
             out = os.path.abspath(out_single)
         else:
             out = os.path.splitext(os.path.abspath(md))[0] + '.docx'
-        convert(md, out)
+        convert(md, out, enable_header=parsed.header, enable_footer=parsed.footer)
 
 
 if __name__ == '__main__':
