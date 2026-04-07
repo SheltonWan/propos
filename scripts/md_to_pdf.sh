@@ -15,6 +15,14 @@ WORKSPACE="$(cd "$SCRIPT_DIR/.." && pwd)"
 DOCS_DIR="$WORKSPACE/docs"
 PDF_DIR="$WORKSPACE/pdfdocs"
 
+# 优先使用项目 venv 的 Python，确保 python-docx/ezdxf 可用
+VENV_PYTHON="$WORKSPACE/.venv/bin/python3"
+if [[ -x "$VENV_PYTHON" ]]; then
+    PYTHON="$VENV_PYTHON"
+else
+    PYTHON="python3"
+fi
+
 if [[ $# -eq 0 ]]; then
     echo "Usage: bash scripts/md_to_pdf.sh <docs/[subdir/]file.md> [...]" >&2
     exit 1
@@ -44,10 +52,10 @@ for MD_FILE in "$@"; do
 
     echo "▶ [$REL_SUBDIR/$BASENAME]"
     echo "  md   → $DOCX"
-    python3 "$WORKSPACE/scripts/md2word.py" "$ABS_MD" "$DOCX"
+    "$PYTHON" "$WORKSPACE/scripts/md2word.py" "$ABS_MD" "$DOCX"
 
     echo "  docx → $PDF"
-    python3 "$WORKSPACE/scripts/docx2pdf.py" "$DOCX" "$PDF"
+    "$PYTHON" "$WORKSPACE/scripts/docx2pdf.py" "$DOCX" "$PDF"
 
     echo "  删除中间文件: $DOCX"
     rm "$DOCX"
