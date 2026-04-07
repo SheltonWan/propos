@@ -13,7 +13,7 @@ md2word.py — 通用 Markdown → 专业 Word 文档转换工具
 
 import sys, re, os, argparse
 from docx import Document
-from docx.shared import Pt, Cm, RGBColor
+from docx.shared import Pt, Cm, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml.ns import qn
@@ -62,6 +62,24 @@ def _set_table_borders(table, color=HEX_TBL_BORD):
         t.set(qn('w:sz'),    '4')
         t.set(qn('w:space'), '0')
         t.set(qn('w:color'), color)
+        bdr.append(t)
+    tblPr.append(bdr)
+
+
+def _clear_table_borders(table):
+    """移除表格所有边框，用于签字栏等无边框场景"""
+    tbl   = table._tbl
+    tblPr = tbl.find(qn('w:tblPr'))
+    if tblPr is None:
+        tblPr = OxmlElement('w:tblPr')
+        tbl.insert(0, tblPr)
+    bdr = OxmlElement('w:tblBorders')
+    for edge in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
+        t = OxmlElement(f'w:{edge}')
+        t.set(qn('w:val'),   'none')
+        t.set(qn('w:sz'),    '0')
+        t.set(qn('w:space'), '0')
+        t.set(qn('w:color'), 'auto')
         bdr.append(t)
     tblPr.append(bdr)
 
@@ -151,27 +169,103 @@ def _run_inline_code_bg(run):
 # ═══════════════════════════════════════════════
 def _add_footer(doc):
     footer = doc.sections[0].footer
-    para   = footer.paragraphs[0]
-    para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    _set_spacing(para, 0, 0)
+
+    # ── 第一行：分隔线 + 公司名（左）+ 页码（右）──
+    para = footer.paragraphs[0]
+    para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _set_spacing(para, 60, 0)   # 段前 3pt 留出与分隔线的间距
+    # 顶部细分隔线
+    pBdr = OxmlElement('w:pBdr')
+    top = OxmlElement('w:top')
+    top.set(qn('w:val'), 'single'); top.set(qn('w:sz'), '4')
+    top.set(qn('w:space'), '4'); top.set(qn('w:color'), HEX_TBL_BORD)
+    pBdr.append(top)
+    para._p.get_or_add_pPr().append(pBdr)
+
+    # 右侧页码制表位
+    pPr = para._p.get_or_add_pPr()
+    tabs = OxmlElement('w:tabs')
+    tab = OxmlElement('w:tab')
+    tab.set(qn('w:val'), 'right')
+    tab.set(qn('w:pos'), '10546')  # A4 可用宽度 18.6cm ≈ 10546 twips
+    tabs.append(tab)
+    pPr.append(tabs)
+
+    def _run(para, text, size=8, bold=False, color=RGBColor(0x40, 0x40, 0x40)):
+        r = para.add_run(text)
+        r.font.name = '微软雅黑'
+        r.font.size = Pt(size)
+        r.font.bold = bold
+        r.font.color.rgb = color
+        try: r._element.rPr.rFonts.set(qn('w:eastAsia'), '微软雅黑')
+        except Exception: pass
+        return r
+
+    _run(para, '深圳市同信智维网络技术有限公司  地址：深圳市宝安区西乡街道办前进二路和流塘路交汇中粮锦云3栋1103-1106', size=8, bold=False, color=RGBColor(0x40, 0x40, 0x40))
+
+    tab_r = para.add_run()
+    tab_r._element.append(OxmlElement('w:tab'))
 
     def _field(name):
-        r   = para.add_run()
-        r.font.size      = Pt(9)
+        r = para.add_run()
+        r.font.size = Pt(8)
         r.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
-        fc1 = OxmlElement('w:fldChar')
-        fc1.set(qn('w:fldCharType'), 'begin')
-        ins = OxmlElement('w:instrText')
-        ins.text = f' {name} '
-        fc2 = OxmlElement('w:fldChar')
-        fc2.set(qn('w:fldCharType'), 'end')
+        fc1 = OxmlElement('w:fldChar'); fc1.set(qn('w:fldCharType'), 'begin')
+        ins = OxmlElement('w:instrText'); ins.text = f' {name} '
+        fc2 = OxmlElement('w:fldChar'); fc2.set(qn('w:fldCharType'), 'end')
         r._element.extend([fc1, ins, fc2])
 
     _field('PAGE')
     sep = para.add_run(' / ')
-    sep.font.size      = Pt(9)
+    sep.font.size = Pt(8)
     sep.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
     _field('NUMPAGES')
+
+    # ── 第二行：联系信息（单行，字号 7pt 确保不超行）──
+    para2 = footer.add_paragraph()
+    _set_spacing(para2, 0, 0)
+    para2.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    info_text = ('邮箱：info@realxen.com  电话：17620341860  '
+                 '微信：xmusmart  QQ：18755444  网站：www.realxen.com')
+    _run(para2, info_text, size=7, bold=False, color=RGBColor(0x88, 0x88, 0x88))
+
+
+# ═══════════════════════════════════════════════
+#  页头（Logo + 分隔线）
+# ═══════════════════════════════════════════════
+def _add_header(doc, logo_path: str = None):
+    """在每页页头左侧添加 logo 图片（若有）或文字品牌标识，右侧留空，底部加分隔线。"""
+    section = doc.sections[0]
+    section.header_distance = Cm(1.0)
+    header = section.header
+
+    # 清空默认空段落
+    for p in header.paragraphs:
+        p.clear()
+
+    para = header.paragraphs[0]
+    para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _set_spacing(para, 0, 0)
+
+    if logo_path and os.path.isfile(logo_path):
+        # 嵌入 logo 图片，高度约 1.2cm，宽度按比例缩放
+        run = para.add_run()
+        run.add_picture(logo_path, height=Cm(1.2))
+    else:
+        # 无图片时，用样式化文字替代
+        r1 = para.add_run('Realxen')
+        r1.font.name   = 'Arial'
+        r1.font.bold   = True
+        r1.font.italic = True
+        r1.font.size   = Pt(16)
+        r1.font.color.rgb = RGBColor(0xD7, 0x19, 0x21)
+        r2 = para.add_run('  同信智维')
+        r2.font.name = '微软雅黑'
+        r2.font.size = Pt(9)
+        r2.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+
+    # 底部细分隔线
+    _set_para_bottom_border(para, HEX_TBL_BORD, sz='4')
 
 
 # ═══════════════════════════════════════════════
@@ -184,6 +278,7 @@ _INLINE_RE = re.compile(
     r'|(\*(?P<i>[^*\n]+?)\*)'
     r'|(_(?P<i2>[^_\n]+?)_)'
     r'|(`(?P<code>[^`\n]+?)`)'
+    r'|(!\[(?P<ia>[^\]\n]*?)\]\((?P<ip>[^)\n]+?)\))'
     r'|(\[(?P<lt>[^\]\n]+?)\]\((?P<lu>[^)\n]+?)\))'
     r'|(~~(?P<st>[^~\n]+?)~~)'
 )
@@ -195,14 +290,15 @@ def _parse_inline(text: str) -> list:
         if m.start() > last:
             tokens.append(('text', text[last:m.start()]))
         g = m.groupdict()
-        if   g['bi']:   tokens.append(('bi',     g['bi']))
-        elif g['b']:    tokens.append(('bold',   g['b']))
-        elif g['b2']:   tokens.append(('bold',   g['b2']))
-        elif g['i']:    tokens.append(('ital',   g['i']))
-        elif g['i2']:   tokens.append(('ital',   g['i2']))
-        elif g['code']: tokens.append(('code',   g['code']))
-        elif g['lt']:   tokens.append(('link',   g['lt'], g['lu']))
-        elif g['st']:   tokens.append(('strike', g['st']))
+        if   g['bi']:             tokens.append(('bi',     g['bi']))
+        elif g['b']:              tokens.append(('bold',   g['b']))
+        elif g['b2']:             tokens.append(('bold',   g['b2']))
+        elif g['i']:              tokens.append(('ital',   g['i']))
+        elif g['i2']:             tokens.append(('ital',   g['i2']))
+        elif g['code']:           tokens.append(('code',   g['code']))
+        elif g['ia'] is not None: tokens.append(('image',  g['ia'], g['ip']))
+        elif g['lt']:             tokens.append(('link',   g['lt'], g['lu']))
+        elif g['st']:             tokens.append(('strike', g['st']))
         last = m.end()
     if last < len(text):
         tokens.append(('text', text[last:]))
@@ -232,6 +328,15 @@ def _add_inline(para, text: str, size=10.5, color=None, bold=False):
         elif kind == 'link':
             r = para.add_run(tok[1])
             _run_font(r, size=size, color=LINK_COLOR, underline=True)
+        elif kind == 'image':
+            img_path = tok[2]
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            if not os.path.isabs(img_path):
+                img_path = os.path.join(base_dir, img_path)
+            if os.path.exists(img_path):
+                para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = para.add_run()
+                run.add_picture(img_path, height=Cm(3.0))
         elif kind == 'strike':
             r = para.add_run(tok[1])
             _run_font(r, size=size, color=RGBColor(0x80, 0x80, 0x80), strike=True)
@@ -342,6 +447,73 @@ def _table(doc, headers, rows):
     tbl.style     = 'Table Grid'
     _set_table_borders(tbl)
 
+    # ── 按内容计算各列期望宽度 ──────────────────────────
+    # A4 内容宽 = 21cm - 左右各 1.2cm = 18.6cm ≈ 10546 twips
+    TOTAL_TWIPS    = 10546
+    # 9.5pt 字号下：1 个"显示单位"(中文=2/英文=1) ≈ 95~100 twips
+    TWIPS_PER_UNIT = 100
+    # 单元格内边距（Word 默认左右各 108 twips）+ 小缓冲 = 300 twips
+    CELL_PAD       = 300
+    MIN_COL        = 640   # 最小列宽保底
+
+    # 计算每列最长单行内容的"显示单位数"（<br> 分行后取最大值）
+    col_units = []
+    for ci in range(n):
+        mx = _text_width(headers[ci].strip())
+        for rd in rows:
+            v = rd[ci].strip() if ci < len(rd) else ''
+            for part in re.split(r'<br\s*/?>', v, flags=re.IGNORECASE):
+                mx = max(mx, _text_width(part.strip()))
+        col_units.append(max(mx, 2))
+
+    # 期望宽度 = 最长行字宽 + 内边距缓冲
+    desired = [max(u * TWIPS_PER_UNIT + CELL_PAD, MIN_COL) for u in col_units]
+    total_d = sum(desired)
+
+    if total_d <= TOTAL_TWIPS:
+        # 总期望 ≤ 页宽：将剩余空间按期望比例分配给各列
+        extra      = TOTAL_TWIPS - total_d
+        twips_list = [d + int(extra * d / total_d) for d in desired]
+    else:
+        # 总期望 > 页宽：等比压缩，保底 MIN_COL
+        twips_list = [max(int(TOTAL_TWIPS * d / total_d), MIN_COL) for d in desired]
+
+    # 补齐舍入误差（加到最宽的列）
+    diff = TOTAL_TWIPS - sum(twips_list)
+    twips_list[twips_list.index(max(twips_list))] += diff
+
+    # 固定布局 + 整表宽度
+    tbl.autofit = False
+    tbl_xml = tbl._tbl
+    tblPr   = tbl_xml.find(qn('w:tblPr'))
+    if tblPr is None:
+        tblPr = OxmlElement('w:tblPr')
+        tbl_xml.insert(0, tblPr)
+    # 覆盖可能已存在的 tblW
+    for old in tblPr.findall(qn('w:tblW')):
+        tblPr.remove(old)
+    tblW_el = OxmlElement('w:tblW')
+    tblW_el.set(qn('w:w'),    str(TOTAL_TWIPS))
+    tblW_el.set(qn('w:type'), 'dxa')
+    tblPr.append(tblW_el)
+
+    # 重建 tblGrid（这才是 Word 固定布局下列宽的权威来源）
+    for old in tbl_xml.findall(qn('w:tblGrid')):
+        tbl_xml.remove(old)
+    tblGrid = OxmlElement('w:tblGrid')
+    for tw in twips_list:
+        gridCol = OxmlElement('w:gridCol')
+        gridCol.set(qn('w:w'), str(tw))
+        tblGrid.append(gridCol)
+    # tblGrid 必须紧跟在 tblPr 之后
+    tblPr_idx = list(tbl_xml).index(tblPr)
+    tbl_xml.insert(tblPr_idx + 1, tblGrid)
+
+    # 每行每格同步写入 tcW（与 gridCol 保持一致）
+    for row in tbl.rows:
+        for ci, cell in enumerate(row.cells):
+            _set_col_width(cell, twips_list[ci])
+
     # 表头
     for i, h in enumerate(headers):
         cell = tbl.rows[0].cells[i]
@@ -363,12 +535,40 @@ def _table(doc, headers, rows):
             cell = row.cells[ci]
             _set_cell_bg(cell, bg)
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-            para = cell.paragraphs[0]
-            _set_spacing(para, 60, 60)
-            _add_inline(para, ct.strip(), size=9.5, color=BODY_COLOR)
+            # 支持 <br> 多行单元格
+            parts = re.split(r'<br\s*/?>', ct.strip(), flags=re.IGNORECASE)
+            for pi, part in enumerate(parts):
+                if pi == 0:
+                    para = cell.paragraphs[0]
+                else:
+                    para = cell.add_paragraph()
+                _set_spacing(para, 40, 40)
+                para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                _add_inline(para, part.strip(), size=9.5, color=BODY_COLOR)
 
     doc.add_paragraph()
     return tbl
+
+
+# ═══════════════════════════════════════════════
+#  表格列宽工具
+# ═══════════════════════════════════════════════
+def _text_width(s: str) -> int:
+    """估算文本显示宽度：中文字符计2，ASCII 计1（已剥离 Markdown 标记）"""
+    s = re.sub(r'\*+|_+|`|~~|!?\[[^\]]*\]\([^)]*\)', '', s)
+    return sum(2 if '\u4e00' <= c <= '\u9fff' else 1 for c in s)
+
+
+def _set_col_width(cell, twips: int):
+    """精确设置单元格宽度（dxa twips）"""
+    tc   = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    for old in tcPr.findall(qn('w:tcW')):
+        tcPr.remove(old)
+    tcW = OxmlElement('w:tcW')
+    tcW.set(qn('w:w'),    str(twips))
+    tcW.set(qn('w:type'), 'dxa')
+    tcPr.append(tcW)
 
 
 # ═══════════════════════════════════════════════
@@ -377,6 +577,31 @@ def _table(doc, headers, rows):
 def _is_sep(line: str) -> bool:
     s = line.strip()
     return bool(s) and s.startswith('|') and re.fullmatch(r'[\s|:\-]+', s)
+
+
+def _sig_table(doc, left_lines, right_lines):
+    """渲染双栏无边框签字区（甲方左、乙方右）"""
+    tbl = doc.add_table(rows=1, cols=2)
+    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+    tbl.style = 'Table Grid'
+    _clear_table_borders(tbl)
+    col_w = Cm(9.0)
+    for ci, side_lines in enumerate([left_lines, right_lines]):
+        cell = tbl.rows[0].cells[ci]
+        cell.width = col_w
+        first = True
+        for ln in side_lines:
+            ln = ln.strip().rstrip('  ').rstrip()
+            if not ln:
+                continue
+            if first:
+                para = cell.paragraphs[0]
+                first = False
+            else:
+                para = cell.add_paragraph()
+            _set_spacing(para, 80, 80)
+            _add_inline(para, ln, size=10.5, color=BODY_COLOR)
+    doc.add_paragraph()
 
 
 def _parse_table(lines, start):
@@ -447,10 +672,10 @@ def _setup_doc(doc):
     sec = doc.sections[0]
     sec.page_width    = Cm(21)
     sec.page_height   = Cm(29.7)
-    sec.left_margin   = Cm(3.0)
-    sec.right_margin  = Cm(3.0)
+    sec.left_margin   = Cm(1.2)
+    sec.right_margin  = Cm(1.2)
     sec.top_margin    = Cm(2.5)
-    sec.bottom_margin = Cm(2.5)
+    sec.bottom_margin = Cm(3.0)
     try:
         s = doc.styles['Normal']
         s.font.name = '微软雅黑'
@@ -458,6 +683,9 @@ def _setup_doc(doc):
         s._element.rPr.rFonts.set(qn('w:eastAsia'), '微软雅黑')
     except Exception:
         pass
+    # 自动查找同目录下的 logo 文件
+    _logo = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'realxen_logo.png')
+    _add_header(doc, logo_path=_logo)
     _add_footer(doc)
 
 
@@ -540,6 +768,21 @@ def convert(md_path: str, out_path: str):
                     _heading(doc, text, level)
             ol_counters.clear()
             i += 1
+            continue
+
+        # ── 签字栏（双栏无边框）────────────────────────
+        if line.strip() == '<!-- sig:start -->':
+            left_lines, right_lines = [], []
+            i += 1
+            while i < len(lines) and lines[i].strip() != '<!-- sig:split -->':
+                left_lines.append(lines[i])
+                i += 1
+            i += 1  # 跳过 split
+            while i < len(lines) and lines[i].strip() != '<!-- sig:end -->':
+                right_lines.append(lines[i])
+                i += 1
+            i += 1  # 跳过 end
+            _sig_table(doc, left_lines, right_lines)
             continue
 
         # ── 引用 ─────────────────────────────────────
