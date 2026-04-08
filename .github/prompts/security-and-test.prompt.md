@@ -8,6 +8,8 @@ description: 执行安全审查、集成测试或性能测试任务。Use when r
 @file:docs/ARCH.md
 @file:.github/copilot-instructions.md
 @file:docs/backend/data_model.md
+@file:docs/backend/RBAC_MATRIX.md
+@file:docs/backend/SEED_DATA_SPEC.md
 
 ## 当前任务
 

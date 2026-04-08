@@ -7,6 +7,7 @@ description: 创建 Flutter 前端的 UI 层（Pages + Widgets）。Use when bui
 
 @file:docs/ARCH.md
 @file:.github/copilot-instructions.md
+@file:docs/frontend/PAGE_SPEC_v1.7.md
 
 ## 当前任务
 

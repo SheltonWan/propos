@@ -8,6 +8,10 @@ description: 创建后端 Dart/Shelf 模块的四层结构（Model + Repository 
 @file:docs/ARCH.md
 @file:docs/backend/data_model.md
 @file:.github/copilot-instructions.md
+@file:docs/backend/API_CONTRACT_v1.7.md
+@file:docs/backend/RBAC_MATRIX.md
+@file:docs/backend/ERROR_CODE_REGISTRY.md
+@file:docs/backend/CONTRACT_STATE_MACHINE.md
 
 ## 当前任务
 

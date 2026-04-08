@@ -7,6 +7,8 @@ description: 创建纯 Dart 计算包（租金递增引擎 / KPI 打分器）。
 
 @file:docs/ARCH.md
 @file:docs/backend/data_model.md
+@file:docs/backend/SEED_DATA_SPEC.md
+@file:docs/backend/REVENUE_SHARE_SPEC.md
 
 ## 当前任务
 
