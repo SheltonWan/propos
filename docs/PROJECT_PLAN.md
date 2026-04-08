@@ -1,10 +1,10 @@
 # PropOS Phase 1 项目开发日程计划
 
-> **版本**: v1.2
-> **制定日期**: 2026-04-05（v1.2 更新日期: 2026-04-08）
+> **版本**: v1.3
+> **制定日期**: 2026-04-05（v1.3 更新日期: 2026-04-08）
 > **计划开始日期**: 2026-04-08（周三）
 > **计划上线日期**: 2026-08-21（周五）
-> **开发模式**: 独立开发（一人全栈）
+> **开发模式**: Copilot Agent 主导（~85% 零手写代码）+ 人工基础设施配置
 > **每日投入**: 8 小时
 > **总工期**: 20 周 / 98 个工作日
 > **依据文档**: PRD v1.7 / ARCH v1.2 / data_model v1.3
@@ -14,16 +14,44 @@
 ## Copilot 协作规范
 
 > 本节说明如何在 VS Code 中高效使用 Copilot（Claude 模型）推进每日开发，避免 AI 偏离架构设计与数据模型。
+>
+> **v1.3 升级说明**：整个项目已具备 ~85% 零手写代码能力。推荐优先使用 Agent 模式，按模块整体编排；仅在精细化调试或单层补丁时退回单提示词模式。
 
-### 使用方式
+### 工作流选择
 
-每天开始编码前，打开 VS Code **Copilot Chat（Agent 模式）**，按以下步骤操作：
+#### 模式 A：Agent 整模块编排（推荐，优先使用）
 
-1. **调用对应日的提示词模板**（斜杠命令）：在 Chat 输入框输入 `/` 可看到 `.github/prompts/` 下的模板列表，选择当天任务对应的模板。
-2. **粘贴当日"Copilot 提示语"**：每个 Day 节点下的 `> 💬 Copilot 提示语` 引用块是专门为当天任务定制的开场语句，直接复制到 Chat 中即可。
-3. **附带关键上下文文件**：提示语末尾标注了当天需要附带的 `@file:` 引用，在 Chat 中用 `#file:路径` 手动附加（或直接粘贴引用块—其中 `@file:` 语法在 Agent 模式下自动解析）。
+适合完整模块实现（如"实现 M1 资产模块后端四层"）。Copilot 将自动按 9 步依序生成代码、运行测试、输出完成报告。
 
-### 可用提示词模板（斜杠命令）
+1. 打开 VS Code **Copilot Chat（Agent 模式）**
+2. 在 Agent 选择器中选择 **`PropOS Feature Builder`**
+3. 用一句话描述要实现的模块，例如：
+
+   ```
+   实现资产模块 M1 的后端四层：Building + Floor + Unit + Renovation
+   ```
+
+4. Agent 会自动读取所有相关架构文档，按 Step 1–9 依序输出，每步完成后更新进度
+5. 完成后，立即用 **`PropOS Compliance Reviewer`** 审查（见下方）
+
+#### 模式 B：单层精细提示词（次选，用于补丁 / 调试）
+
+适合只修改某一层、修复单个 Bug，或 Agent 模式遗漏了某个细节时使用。
+
+1. 在 Chat 输入框输入 `/` 选择对应斜杠命令（见下表）
+2. 粘贴当日 `> 💬 Copilot 提示语` 引用块中的任务描述
+3. 末尾附带标注的 `@file:` 引用（Agent 模式下自动解析）
+
+### 可用资源（Agent + 提示词模板）
+
+#### 专用 Agent（模式 A）
+
+| Agent | 调用方式 | 职责 |
+|-------|---------|------|
+| `PropOS Feature Builder` | Agent 选择器 | 端到端模块实现（Step 1 迁移 → Step 9 UI），自动编排 9 层 |
+| `PropOS Compliance Reviewer` | Agent 选择器 | 只读合规审查，返回逐层违规报告，**每个 Milestone 后必须执行一次** |
+
+#### 单层提示词模板（模式 B，斜杠命令）
 
 | 模板文件 | 斜杠命令 | 适用任务类型 |
 |---------|---------|------------|
@@ -35,19 +63,27 @@
 | `flutter-ui.prompt.md` | `/flutter-ui` | Flutter Pages + Widgets |
 | `security-and-test.prompt.md` | `/security-and-test` | 安全审查 + 性能测试 + 集成测试 |
 
-### 通用防偏离技巧
+### 仍需人工操作的步骤（不可绕过）
 
-以下问题在实际使用中最容易被 Copilot 忽略，**每次 Chat 会话开始时**注意检查生成内容是否符合：
+| 操作 | 说明 |
+|------|------|
+| 基础设施搭建 | PostgreSQL 启动、`.env` 环境变量填写、ODA File Converter 安装 |
+| 执行数据库迁移 | `psql -f migration.sql` 需连接真实 DB |
+| UAT 设备验收 | 真实用户在设备上的业务流程验收 |
 
-| 常见偏离点 | 检查方式 |
+> Copilot Agent 可运行 `dart test`、`flutter pub get` 等终端命令，但无法连接用户本地数据库或访问外部服务。
+
+### 通用防偏离技巧（由 Compliance Reviewer 自动执行，此处供人工复核参考）
+
+| 常见偏离点 | 检查命令 |
 |-----------|---------|
-| 引入了 ORM（如 `drift`/`sqflite`）| 检查 `pubspec.yaml` 有无 ORM 包 |
-| BLoC 直接 import 了 data 层 | `grep -r "import.*data/" lib/features/*/presentation/` |
-| UI 硬编码了颜色值 | `grep -r "Color(0x\|Colors\." lib/features/*/presentation/pages/` |
+| 引入了 ORM（如 `drift`/`sqflite`）| `grep -r "drift\|sqflite\|floor" backend/pubspec.yaml` |
+| BLoC 直接 import 了 data 层 | `grep -r "import.*data/" frontend/lib/features/*/presentation/` |
+| UI 硬编码了颜色值 | `grep -r "Color(0x\|Colors\." frontend/lib/features/*/presentation/pages/` |
 | Controller 直接 return Response | `grep -r "return Response\." backend/lib/modules/` |
 | SQL 字符串拼接（注入风险） | `grep -rn '"\$' backend/lib/modules/*/repositories/` |
-| State 用了 if(state is Xxx) | `grep -r "is Xxx\|is.*State" lib/features/*/presentation/` |
-| 使用了 `Either<Failure, T>` | `grep -r "Either" lib/features/` |
+| State 用了 if(state is Xxx) | `grep -rn "is [A-Z].*State" frontend/lib/features/*/presentation/` |
+| 使用了 `Either<Failure, T>` | `grep -r "Either" frontend/lib/features/` |
 
 ---
 
@@ -75,16 +111,18 @@
 
 ## 里程碑一览
 
-| 里程碑 | 完成日期 | 核心验证标准 |
-|--------|---------|------------|
-| M0 基础就绪 | 2026-04-17 | 两个核心 Package 全测试通过；后端启动成功；Flutter 登录页联调跑通 |
-| M1 资产上线 | 2026-05-08 | 639 套 Excel 导入正常；楼层 SVG 热区图渲染正确；资产 Dashboard 三业态数据展示 |
-| M2 合同上线 | 2026-06-05 | 合同状态机全流程；租金递增 6 种类型 + 混合分段；WALE 误差 < 0.01 年 |
-| M4 工单上线 | 2026-06-19 | 移动端报修全链路；FCM 推送验证；成本接口预留 |
-| M3 财务上线 | 2026-07-17 | 账单生成 < 30 秒；NOI 三业态拆分正确；KPI 2 套方案打分与手工一致 |
-| M5 穿透上线 | 2026-07-31 | 外部门户可独立访问；审核流完整；行级隔离安全验证通过 |
-| 集成完成 | 2026-08-14 | 全 PRD 验收项 Pass；50 并发压测达标；实际数据导入完成 |
-| **正式上线** | **2026-08-21** | **PropOS Phase 1 全模块生产环境就绪** |
+> **每个里程碑完成后，必须用 `PropOS Compliance Reviewer` Agent 对该阶段所有新增模块执行一次合规审查，确认无违规后方可进入下一阶段。**
+
+| 里程碑 | 完成日期 | 核心验证标准 | 合规审查范围 |
+|--------|---------|------------|------------|
+| M0 基础就绪 | 2026-04-17 | 两个核心 Package 全测试通过；后端启动成功；Flutter 登录页联调跑通 | `backend/lib/core/` + `backend/lib/modules/auth/` + `frontend/lib/features/auth/` |
+| M1 资产上线 | 2026-05-08 | 639 套 Excel 导入正常；楼层 SVG 热区图渲染正确；资产 Dashboard 三业态数据展示 | `backend/lib/modules/assets/` + `frontend/lib/features/assets/` |
+| M2 合同上线 | 2026-06-05 | 合同状态机全流程；租金递增 6 种类型 + 混合分段；WALE 误差 < 0.01 年 | `backend/lib/modules/contracts/` + `frontend/lib/features/contracts/` |
+| M4 工单上线 | 2026-06-19 | 移动端报修全链路；FCM 推送验证；成本接口预留 | `backend/lib/modules/work_orders/` + `frontend/lib/features/work_orders/` |
+| M3 财务上线 | 2026-07-17 | 账单生成 < 30 秒；NOI 三业态拆分正确；KPI 2 套方案打分与手工一致 | `backend/lib/modules/finance/` + `frontend/lib/features/finance/` |
+| M5 穿透上线 | 2026-07-31 | 外部门户可独立访问；审核流完整；行级隔离安全验证通过 | `backend/lib/modules/subleases/` + `frontend/lib/features/subleases/` |
+| 集成完成 | 2026-08-14 | 全 PRD 验收项 Pass；50 并发压测达标；实际数据导入完成 | 全模块交叉合规扫描 |
+| **正式上线** | **2026-08-21** | **PropOS Phase 1 全模块生产环境就绪** | — |
 
 ---
 
