@@ -1,0 +1,10 @@
+# https://dart.dev/guides/libraries/private-files
+# Created by `dart pub`
+.dart_tool/
+
+# 环境变量（敏感信息，禁止提交）
+.env
+
+# 构建产物
+build/
+

@@ -1,0 +1,14 @@
+name: propos_rent_escalation_engine
+description: PropOS 租金递增计算引擎（6 种递增类型 + 混合分段），零外部依赖
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.0.0
+
+# 零外部依赖 — 仅 Dart core
+dependencies: {}
+
+dev_dependencies:
+  test: ^1.25.6
+  lints: ^4.0.0

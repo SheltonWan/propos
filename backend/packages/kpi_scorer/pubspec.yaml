@@ -1,0 +1,13 @@
+name: propos_kpi_scorer
+description: PropOS KPI 线性插值打分引擎，零外部依赖
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.0.0
+
+dependencies: {}
+
+dev_dependencies:
+  test: ^1.25.6
+  lints: ^4.0.0
