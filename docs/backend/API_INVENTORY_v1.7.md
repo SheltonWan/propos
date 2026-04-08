@@ -1,7 +1,7 @@
 # PropOS 后端 API 清单草案 v1.7
 
-> 版本: v1.1
-> 日期: 2026-04-06
+> 版本: v1.2
+> 日期: 2026-04-08
 > 范围: Phase 1 Must + 部分 Should
 > 依据: PRD v1.7 / ARCH v1.2 / data_model v1.2
 > 说明: 所有接口统一使用响应信封。成功为 `{ data, meta? }`，失败为 `{ error: { code, message } }`。分页参数统一为 `page` 和 `pageSize`，默认 20，最大 100。
@@ -16,10 +16,14 @@
 | POST | /api/auth/refresh | 刷新 token | 已登录 |
 | POST | /api/auth/logout | 注销当前会话 | 已登录 |
 | GET | /api/auth/me | 获取当前用户与权限 | 已登录 |
+| GET | /api/users | 用户列表（支持 `role`、`department_id`、`is_active` 过滤） | super_admin |
+| GET | /api/users/:id | 用户详情 | super_admin |
 | POST | /api/users | 创建后台账号或二房东账号 | super_admin |
+| PATCH | /api/users/:id | 更新用户基本信息（`name`、`email`） | super_admin |
 | PATCH | /api/users/:id/status | 启停用账号 | super_admin |
 | PATCH | /api/users/:id/role | 变更角色 | super_admin |
 | PATCH | /api/users/:id/department | 变更员工所属部门 | super_admin |
+| POST | /api/auth/change-password | 修改密码（需提供旧密码，触发 `session_version` 递增） | 已登录 |
 
 ### 认证接口备注
 
@@ -27,6 +31,7 @@
 2. 二房东账号首次登录需触发强制改密流程。
 3. 主合同冻结或改密后，旧 token 应因 `session_version` 失效。
 4. 密码复杂度：最少 8 位，必须含大小写字母 + 数字，禁止与用户名相同（v1.7）。
+5. `POST /api/auth/change-password` 成功后返回新的 access token 和 refresh token（旧会话立即失效）。
 
 ---
 
@@ -62,18 +67,27 @@
 | GET | /api/floors/:id | 楼层详情 | assets.read |
 | POST | /api/floors/:id/cad | 上传楼层图并触发转换 | assets.write |
 | GET | /api/floors/:id/heatmap | 获取热区与状态色块 | assets.read |
+| GET | /api/floors/:id/plans | 楼层图纸版本列表 | assets.read |
+| PATCH | /api/floor-plans/:id/set-current | 将指定版本设为当前生效版本 | assets.write |
 | GET | /api/units | 单元分页列表 | assets.read |
 | POST | /api/units | 创建单元 | assets.write |
 | GET | /api/units/:id | 单元详情（含 `market_rent_reference`、`predecessor_unit_ids`、`archived_at`） | assets.read |
 | PATCH | /api/units/:id | 更新单元 | assets.write |
 | POST | /api/units/import | 批量导入单元 | assets.write |
-| GET | /api/renovations | 改造记录列表 | assets.read |
+| GET | /api/renovations | 改造记录列表（支持按 `unit_id` 过滤） | assets.read |
 | POST | /api/renovations | 新增改造记录 | assets.write |
+| GET | /api/renovations/:id | 改造记录详情 | assets.read |
+| PATCH | /api/renovations/:id | 更新改造记录 | assets.write |
+| POST | /api/renovations/:id/photos | 上传改造前/后照片（`photo_stage=before/after`） | assets.write |
+| GET | /api/units/export | 导出全部房源台账 Excel（支持 `property_type` 筛选） | assets.read |
+| GET | /api/assets/overview | 资产概览看板（按业态汇总：总套数/已租/空置/出租率） | assets.read |
 
 ### 资产接口备注（v1.7 新增）
 
 1. `PATCH /api/units/:id` 更改为归档时需设置 `archived_at`，旧单元不物理删除。
 2. 单元拆分/合并时 `predecessor_unit_ids` 记录前序单元 ID 列表，保持历史合同关联不脱钩。
+3. `GET /api/floors/:id/plans` 返回该楼层的所有图纸版本，包含 `is_current`、上传人、上传时间、`version_label`。
+4. `GET /api/units/export` 按 `property_type` 三业态分别导出（`office`/`retail`/`apartment`），生成 Excel 文件直接返回二进制流（`Content-Disposition: attachment`）。
 
 ---
 
@@ -95,17 +109,11 @@
 | GET | /api/contracts/:id/escalation-phases | 查询递增阶段 | contracts.read |
 | PUT | /api/contracts/:id/escalation-phases | 覆盖递增阶段配置 | contracts.write |
 | GET | /api/contracts/wale | 查询 WALE 双口径（收入加权 + 面积加权），支持 `groupBy` | contracts.read |
-| GET | /api/alerts | 预警列表 | alerts.read |
+| GET | /api/alerts | 预警列表（支持 `contract_id`、`alert_type`、`is_read` 过滤） | alerts.read |
+| GET | /api/alerts/unread | 未读预警数量（桌面端/Web 30 秒轮询使用，返回 `{ data: { count } }`） | alerts.read |
+| PATCH | /api/alerts/:id/read | 标记单条预警已读 | alerts.read |
+| POST | /api/alerts/read-all | 批量标记所有预警已读 | alerts.read |
 | POST | /api/alerts/replay | 按条件补发预警 | alerts.write |
-
-### 合同接口备注（v1.7 变更）
-
-1. `POST /api/contracts` 请求体新增 `contract_units[]`（每项含 `unit_id`、`billing_area`、`unit_price`），替代原 `unit_id` 单值字段。
-2. `POST /api/contracts/:id/terminate` 请求体需包含 `termination_type`（`tenant_early | negotiated | owner_termination`）、`termination_date`、`penalty_amount`、`deposit_deduction_details`、`termination_reason`。终止后自动取消未生成账单、关闭递增规则、触发押金流程。
-3. WALE 接口返回 `wale_income_weighted` 和 `wale_area_weighted` 双口径；已终止合同（`termination_type IS NOT NULL`）剩余租期归零不参与计算。
-4. 租客信用评级（`credit_rating`）每月 1 日自动重算：A（逾期≤1次且≤3天）/ B（2~3次或4~15天）/ C（≥4次或>15天）。
-
----
 
 ## 三-A、押金管理（v1.7 新增）
 
@@ -129,6 +137,37 @@
 
 ---
 
+## 三-B、租金递增模板
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET | /api/escalation-templates | 递增规则模板列表（支持按 `property_type`、`is_active` 过滤） | contracts.read |
+| POST | /api/escalation-templates | 创建递增规则模板 | contracts.write |
+| GET | /api/escalation-templates/:id | 模板详情（含各阶段配置） | contracts.read |
+| PATCH | /api/escalation-templates/:id | 更新模板 | contracts.write |
+| DELETE | /api/escalation-templates/:id | 停用模板（逻辑删除，设 `is_active = false`） | contracts.write |
+| POST | /api/contracts/:id/apply-template | 将模板阶段复制到合同递增配置（幂等：覆盖已有阶段） | contracts.write |
+
+---
+
+## 三-C、合同租金预测与 WALE 趋势（Should）
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET | /api/contracts/:id/rent-forecast | 合同全生命周期租金预测表（按 `granularity=monthly/yearly`） | contracts.read |
+| GET | /api/contracts/:id/rent-forecast/export | 导出租金预测 Excel | contracts.read |
+| GET | /api/contracts/wale/trend | WALE 近 12 个月历史趋势（支持 `groupBy=building/property_type`） | contracts.read |
+| GET | /api/contracts/wale/waterfall | 未来到期瀑布图（按年份分布到期面积与租金） | contracts.read |
+
+### 合同接口备注（v1.7 变更）
+
+1. `POST /api/contracts` 请求体新增 `contract_units[]`（每项含 `unit_id`、`billing_area`、`unit_price`），替代原 `unit_id` 单值字段。
+2. `POST /api/contracts/:id/terminate` 请求体需包含 `termination_type`（`tenant_early | negotiated | owner_termination`）、`termination_date`、`penalty_amount`、`deposit_deduction_details`、`termination_reason`。终止后自动取消未生成账单、关闭递增规则、触发押金流程。
+3. WALE 接口返回 `wale_income_weighted` 和 `wale_area_weighted` 双口径；已终止合同（`termination_type IS NOT NULL`）剩余租期归零不参与计算。
+4. 租客信用评级（`credit_rating`）每月 1 日自动重算：A（逾期≤1次且≤3天）/ B（2~3次或4~15天）/ C（≥4次或>15天）。
+
+---
+
 ## 四、财务与 NOI
 
 | 方法 | 路径 | 说明 | 权限 |
@@ -137,19 +176,39 @@
 | POST | /api/invoices/generate | 手工触发账单生成 | finance.write |
 | GET | /api/invoices/:id | 账单详情 | finance.read |
 | GET | /api/invoices/:id/items | 账单费项明细 | finance.read |
+| PATCH | /api/invoices/:id | 更新账单（录入外部发票号、标记已开票、修正到期日等） | finance.write |
+| POST | /api/invoices/:id/void | 作废账单（需填写原因，限 `issued` 状态） | finance.write |
+| GET | /api/invoices/export | 导出账单 Excel（支持 `period`、`building_id`、`property_type`、`tenant_id` 过滤） | finance.read |
 | POST | /api/payments | 新增收款主记录并分配核销 | finance.write |
 | GET | /api/payments | 收款记录列表 | finance.read |
 | GET | /api/payments/:id | 收款与分配详情 | finance.read |
 | PATCH | /api/payments/:id/allocations | 调整核销分配 | finance.write |
 | GET | /api/expenses | 运营支出列表 | finance.read |
 | POST | /api/expenses | 新增运营支出 | finance.write |
+| PATCH | /api/expenses/:id | 更新运营支出 | finance.write |
+| DELETE | /api/expenses/:id | 删除运营支出（限未关联工单的记录） | finance.write |
 | GET | /api/noi/summary | NOI 汇总卡片（不含税口径） | finance.read |
 | GET | /api/noi/trend | NOI 趋势 | finance.read |
 | GET | /api/noi/breakdown | 按楼栋或业态拆分 NOI | finance.read |
+| GET | /api/noi/vacancy-loss | 空置损失测算（基于 `market_rent_reference` 字段） | finance.read |
+| GET | /api/noi/budget | NOI 预算列表 | finance.read |
+| POST | /api/noi/budget | 录入 NOI 预算（用于 K07 NOI 达成率计算） | finance.write |
+| GET | /api/kpi/metrics | KPI 指标定义库列表（K01~K10，含 `direction`、`is_enabled`） | kpi.view |
+| PATCH | /api/kpi/metrics/:id | 启用/停用指标（`is_enabled`） | kpi.manage |
+| POST | /api/kpi/metrics/:id/manual-input | 录入手动指标值（仅 K10 租户满意度，需 `period_start`、`period_end`、`value`、`target_user_id`） | kpi.manage |
 | GET | /api/kpi/schemes | KPI 考核方案列表 | kpi.view |
 | POST | /api/kpi/schemes | 创建 KPI 考核方案 | kpi.manage |
-| GET | /api/kpi/scores | KPI 快照列表 | kpi.view |
-| POST | /api/kpi/scores/recalculate | 手工重算 KPI 快照 | kpi.manage |
+| GET | /api/kpi/schemes/:id | KPI 方案详情（含绑定指标与权重） | kpi.view |
+| PATCH | /api/kpi/schemes/:id | 更新方案基本信息（名称、周期、有效期等） | kpi.manage |
+| DELETE | /api/kpi/schemes/:id | 停用方案（逻辑删除，已有快照不受影响） | kpi.manage |
+| GET | /api/kpi/schemes/:id/metrics | 方案指标列表（含权重与阈值覆盖） | kpi.view |
+| PUT | /api/kpi/schemes/:id/metrics | 覆盖方案指标配置（权重/阈值，需校验权重之和 = 100%） | kpi.manage |
+| GET | /api/kpi/schemes/:id/targets | 方案绑定对象列表 | kpi.view |
+| PUT | /api/kpi/schemes/:id/targets | 设置方案绑定对象（部门/员工，批量覆写） | kpi.manage |
+| GET | /api/kpi/scores | KPI 快照列表（支持 `scheme_id`、`evaluated_user_id`、`period` 过滤） | kpi.view |
+| GET | /api/kpi/scores/:id | KPI 快照详情（含各指标实际值、得分、加权得分） | kpi.view |
+| POST | /api/kpi/scores/generate | 触发指定方案+周期的 KPI 打分（生成快照草稿） | kpi.manage |
+| POST | /api/kpi/scores/recalculate | 手工重算 KPI 快照（需快照 ID，保留重算审计记录） | kpi.manage |
 | GET | /api/kpi/rankings | KPI 排名榜（按方案+周期+维度） | kpi.view |
 | GET | /api/kpi/trends | KPI 历史趋势 + 同比环比 | kpi.view |
 | GET | /api/kpi/export | 导出 KPI 评分报告（Excel） | kpi.manage |
@@ -166,6 +225,10 @@
 5. KPI 已升级为正式考核模块，`scoring_mode` 默认为 `'official'`。
 6. 申诉窗口为快照冻结后 7 个自然日，超时返回 `APPEAL_WINDOW_CLOSED`。
 7. Excel 导出包含方案名、周期、各指标实际值/得分/加权得分详细明细。
+8. `POST /api/noi/budget` 录入格式：`{ building_id?, property_type?, period_year, period_month?, budget_noi }`；K07 取数时以最近一条匹配的预算为基准。
+9. `GET /api/invoices/export` 直接返回 Excel 二进制流，文件名格式 `invoices_{period}.xlsx`。
+10. `POST /api/invoices/:id/void` 作废账单后，系统自动对应收款核销分配做反冲，写审计日志。
+11. `POST /api/kpi/scores/generate` 执行后返回快照草稿，管理员确认后调用冻结接口（冻结后才触发申诉窗口计时）。
 
 ---
 
@@ -223,6 +286,8 @@
 | POST | /api/workorders/:id/photos | 上传工单照片 | workorders.write |
 | GET | /api/suppliers | 供应商列表 | workorders.read |
 | POST | /api/suppliers | 新增供应商 | workorders.write |
+| GET | /api/suppliers/:id | 供应商详情 | workorders.read |
+| PATCH | /api/suppliers/:id | 更新供应商信息 | workorders.write |
 
 ---
 
@@ -233,14 +298,18 @@
 | POST | /api/sublease-portal/login | 二房东门户登录 | 公共 |
 | GET | /api/sublease-portal/units | 获取当前二房东可填报单元列表 | sublease.portal |
 | GET | /api/sublease-portal/subleases | 获取当前二房东已提交记录 | sublease.portal |
-| POST | /api/sublease-portal/subleases | 新增子租赁填报 | sublease.portal |
+| POST | /api/sublease-portal/subleases | 新增子租赁填报（支持 `review_status=draft` 暂存） | sublease.portal |
+| GET | /api/sublease-portal/subleases/:id | 查询单条子租赁填报详情（行级隔离：仅可见自身主合同范围） | sublease.portal |
 | PATCH | /api/sublease-portal/subleases/:id | 修改待审核或退回记录 | sublease.portal |
+| POST | /api/sublease-portal/subleases/:id/submit | 将草稿提交审核（`draft → pending`） | sublease.portal |
+| DELETE | /api/sublease-portal/subleases/:id | 删除草稿（仅限 `draft` 状态） | sublease.portal |
 | POST | /api/sublease-portal/subleases/import | 批量导入子租赁 | sublease.portal |
 | GET | /api/subleases | 内部子租赁分页列表 | sublease.read |
 | GET | /api/subleases/:id | 子租赁详情 | sublease.read |
 | PATCH | /api/subleases/:id/approve | 审核通过 | sublease.write |
 | PATCH | /api/subleases/:id/reject | 退回并填写原因 | sublease.write |
-| GET | /api/subleases/dashboard | 穿透基础看板 | sublease.read |
+| GET | /api/subleases/dashboard | 穿透基础看板（含穿透出租率、空置/在租/未入住统计） | sublease.read |
+| GET | /api/subleases/export | 导出子租赁数据 Excel（仅 `approved` 记录） | sublease.read |
 
 ### 二房东接口备注
 
@@ -278,6 +347,8 @@
 | GET | /api/jobs/executions | 定时任务执行列表 | ops.read |
 | POST | /api/jobs/executions/:id/retry | 手工重试失败任务 | ops.write |
 | GET | /api/files/:path | 代理下载附件或图纸 | 已登录 |
+| POST | /api/files | 通用文件上传（返回存储路径，供业务接口引用） | 已登录 |
+| GET | /api/audit-logs | 审计日志分页列表（支持 `resource_type`、`resource_id`、`user_id`、`created_at` 范围过滤） | super_admin |
 | GET | /api/health | 健康检查 | 公共 |
 
 ---
@@ -297,10 +368,46 @@
 11. ImportBatchDetail / ImportErrorReport
 12. DepartmentTree / ManagedScopeConfig
 13. KpiRankingResponse / KpiTrendResponse / KpiAppealCreateRequest / KpiAppealReviewRequest
+14. EscalationTemplateDto / ApplyTemplateRequest
+15. FloorPlanVersionDto
+16. RentForecastRow / RentForecastExportRequest
+17. WaleTrendPoint / WaleWaterfallItem
+18. NoiBudgetCreateRequest / NoiVacancyLossItem
+19. KpiMetricDefinitionDto / ManualKpiInputRequest
+20. KpiSchemeDetail / KpiSchemeMetricConfig / KpiSchemeTargetConfig
+21. KpiScoreSnapshotDetail（含 `items[]`）
+22. InvoiceVoidRequest / InvoiceExportQuery
+23. AlertUnreadResponse
+24. AuditLogEntry
 
 ---
 
-## 十、v1.7 对齐变更摘要
+## 十、v1.7 → v1.2 补充变更摘要
+
+| 变更项 | 新增端点 |
+|--------|----------|
+| 用户列表/详情/更新 + 改密 | `GET /api/users`, `GET /api/users/:id`, `PATCH /api/users/:id`, `POST /api/auth/change-password` |
+| 楼层图纸版本管理 | `GET /api/floors/:id/plans`, `PATCH /api/floor-plans/:id/set-current` |
+| 改造记录详情/更新/照片 | `GET/PATCH /api/renovations/:id`, `POST /api/renovations/:id/photos` |
+| 资产台账导出 + 概览看板 | `GET /api/units/export`, `GET /api/assets/overview` |
+| 预警已读操作 | `GET /api/alerts/unread`, `PATCH /api/alerts/:id/read`, `POST /api/alerts/read-all` |
+| 租金递增模板全套 CRUD | `GET/POST /api/escalation-templates`, `GET/PATCH/DELETE /api/escalation-templates/:id`, `POST /api/contracts/:id/apply-template` |
+| 合同租金预测 + WALE 趋势/瀑布 | `GET /api/contracts/:id/rent-forecast`, `GET .../export`, `GET /api/contracts/wale/trend`, `GET .../waterfall` |
+| 账单更新/作废/导出 | `PATCH /api/invoices/:id`, `POST /api/invoices/:id/void`, `GET /api/invoices/export` |
+| 运营支出更新/删除 | `PATCH/DELETE /api/expenses/:id` |
+| NOI 空置损失 + 预算 | `GET /api/noi/vacancy-loss`, `GET/POST /api/noi/budget` |
+| KPI 指标管理 + 手动录入 | `GET /api/kpi/metrics`, `PATCH /api/kpi/metrics/:id`, `POST /api/kpi/metrics/:id/manual-input` |
+| KPI 方案详情/更新/删除 | `GET/PATCH/DELETE /api/kpi/schemes/:id` |
+| KPI 方案指标/绑定对象管理 | `GET/PUT /api/kpi/schemes/:id/metrics`, `GET/PUT /api/kpi/schemes/:id/targets` |
+| KPI 快照详情 + 生成触发 | `GET /api/kpi/scores/:id`, `POST /api/kpi/scores/generate` |
+| 供应商详情/更新 | `GET/PATCH /api/suppliers/:id` |
+| 二房东门户单记录/草稿提交/删除 | `GET /api/sublease-portal/subleases/:id`, `POST .../submit`, `DELETE .../` |
+| 子租赁导出 | `GET /api/subleases/export` |
+| 通用文件上传 + 审计日志 | `POST /api/files`, `GET /api/audit-logs` |
+
+---
+
+## 十一、v1.7 对齐变更摘要（原版保留）
 
 | 变更项 | 影响端点 |
 |--------|---------|
