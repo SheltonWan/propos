@@ -159,11 +159,17 @@ fi
 # ══════════════════════════════════════════════
 section "3. Python 工具链"
 
-# Python 3
-if command -v python3 &>/dev/null; then
-    PY_VER="$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')"
-    ok "Python ${PY_VER}"
+# Python 3（优先使用项目 .venv，兜底使用系统 python3）
+VENV_PYTHON="$WORKSPACE/.venv/bin/python3"
+if [[ -x "$VENV_PYTHON" ]]; then
+    PYTHON="$VENV_PYTHON"
+    PY_VER="$($VENV_PYTHON --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')"
+    ok "Python ${PY_VER}  （.venv）"
+elif command -v python3 &>/dev/null; then
     PYTHON="python3"
+    PY_VER="$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')"
+    ok "Python ${PY_VER}  （系统）"
+    warn ".venv 未找到，包检查可能失败（运行 python3 -m venv .venv 创建）"
 else
     fail "Python 3 未找到"
     PYTHON=""
@@ -176,7 +182,7 @@ if [[ -n "$PYTHON" ]]; then
         ok "python-docx ${DOCX_VER}  （md→docx 转换）"
     else
         fail "python-docx 未安装"
-        info "安装：pip3 install python-docx"
+        info "安装：source .venv/bin/activate && pip install python-docx"
     fi
 
     # ezdxf（CAD DXF→SVG 转换）
@@ -185,7 +191,7 @@ if [[ -n "$PYTHON" ]]; then
         ok "ezdxf ${EZDXF_VER}  （CAD DXF→SVG 转换）"
     else
         warn "ezdxf 未安装  （CAD 模块 M1 需要）"
-        info "安装：pip3 install \"ezdxf[draw]\""
+        info "安装：source .venv/bin/activate && pip install \"ezdxf[draw]\""
     fi
 fi
 

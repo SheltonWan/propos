@@ -155,29 +155,49 @@ python3 --version
 brew install python@3.12
 ```
 
-### 4.2 python-docx（必需）
+### 4.2 创建项目虚拟环境（必需）
+
+Python 3.13+ 默认禁止 `pip3` 直接向系统环境安装包（PEP 668）。
+项目统一使用项目根目录下的 `.venv` 虚拟环境，所有脚本优先使用 `.venv/bin/python3`。
+
+```bash
+# 在项目根目录创建虚拟环境（仅需执行一次）
+cd /path/to/propos
+python3 -m venv .venv
+```
+
+> `.venv/` 已加入 `.gitignore`，不会提交到版本库。
+
+### 4.3 python-docx（必需）
 
 文档转换脚本 `scripts/md2word.py` 依赖此包。
 
 ```bash
-pip3 install python-docx
+# 安装到 .venv（无需激活，直接使用 .venv 的 pip）
+.venv/bin/pip install python-docx
 
 # 验证
-python3 -c "import docx; print(docx.__version__)"
+.venv/bin/python3 -c "import docx; print(docx.__version__)"
 ```
 
-### 4.3 ezdxf（M1 模块，可选）
+### 4.4 ezdxf（M1 模块，可选）
 
 M1 资产模块的 CAD 图纸导入功能需要（DXF → SVG 转换）。
 
 ```bash
-pip3 install "ezdxf[draw]"
+.venv/bin/pip install "ezdxf[draw]"
 
 # 验证
-python3 -c "import ezdxf; print(ezdxf.__version__)"
+.venv/bin/python3 -c "import ezdxf; print(ezdxf.__version__)"
 ```
 
 > 如果不涉及 CAD 图纸导入功能，此包可暂缓安装，不影响其他模块开发。
+
+**一次性安装两个包：**
+
+```bash
+.venv/bin/pip install python-docx "ezdxf[draw]"
+```
 
 ---
 
