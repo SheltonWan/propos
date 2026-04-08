@@ -1,9 +1,9 @@
 # PropOS 后端 API 清单草案 v1.7
 
-> 版本: v1.3
+> 版本: v1.4
 > 日期: 2026-04-08
 > 范围: Phase 1 Must + 部分 Should
-> 依据: PRD v1.7 / ARCH v1.2 / data_model v1.2
+> 依据: PRD v1.7 / ARCH v1.2 / data_model v1.3
 > 说明: 所有接口统一使用响应信封。成功为 `{ data, meta? }`，失败为 `{ error: { code, message } }`。分页参数统一为 `page` 和 `pageSize`，默认 20，最大 100。
 > **契约文档**: 各端点字段级 Request/Response DTO 定义见 [API_CONTRACT_v1.7.md](API_CONTRACT_v1.7.md)
 
@@ -431,6 +431,10 @@
 | 敏感字段脱敏/还原 | `POST /api/tenants/:id/unmask`, `POST /api/subleases/:id/unmask` |
 | 合同 PATCH 字段白名单 | 备注第 5 条明确可变更字段集合，`contract_units` 不可通过 PATCH 变更 |
 | 路由注册顺序修正 | `invoices/export`、`kpi/scores/generate|recalculate`、`sublease-portal/import` 调至参数路由前 |
+
+### v1.4 对齐 data_model v1.3（2026-04-08）
+
+内容已完整覆盖 data_model v1.3 所有新增端点（`floor_plans` 版本管理、`escalation_templates` 模板 CRUD、`sublease_review_status.draft` 草稿暂存、`alerts.target_user_id` 定向推送等），本次仅更新依据文档版本引用。
 
 ---
 

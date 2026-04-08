@@ -1,13 +1,13 @@
 # PropOS Phase 1 项目开发日程计划
 
-> **版本**: v1.1
-> **制定日期**: 2026-04-05（v1.1 更新日期: 2026-04-06）
+> **版本**: v1.2
+> **制定日期**: 2026-04-05（v1.2 更新日期: 2026-04-08）
 > **计划开始日期**: 2026-04-08（周三）
 > **计划上线日期**: 2026-08-21（周五）
 > **开发模式**: 独立开发（一人全栈）
 > **每日投入**: 8 小时
 > **总工期**: 20 周 / 98 个工作日
-> **依据文档**: PRD v1.7 / ARCH v1.2 / data_model v1.2
+> **依据文档**: PRD v1.7 / ARCH v1.2 / data_model v1.3
 
 ---
 
@@ -1275,3 +1275,17 @@
 2. **若无法吸收，备选方案**：将 S-06（KPI 试运行看板）和 S-07（信用评级可视化）从 Should 延后至 Phase 1.5，释放约 3 天给 Must 新增项。
 
 3. **风险提示**：新增 4 张数据表（deposits、meter_readings、turnover_reports、import_batches）及对应 API/页面，开发密度上升约 12%。建议在 Wave 2 结束时（Day 43 前后）评估进度，若落后超 3 天则立即启动 Should 延期决策。
+
+---
+
+### v1.2 对齐 data_model v1.3 补充说明（2026-04-08）
+
+以下 data_model v1.3 新增项在上方日计划中未显式提及，开发时需注意在对应 Day 中一并实现：
+
+| data_model v1.3 新增项 | 影响 Day | 具体补充 |
+|---|---|---|
+| `floor_plans` 多版本图纸管理（`is_current` 标识当前生效） | Day 10（Building + Floor 后端） | `FloorRepository` 需增加 `floor_plans` 表 CRUD + `setCurrentPlan` 方法 |
+| `escalation_templates` 递增规则模板保存/应用 | Day 26（递增规则持久化） | 需增加 `EscalationTemplateRepository` 与 `POST /api/contracts/:id/apply-template` |
+| `alerts.target_user_id` 定向推送 | Day 29（预警引擎后端） | `alert_service.dart` 生成预警时需填充 `target_user_id`，支持用户级定向 |
+| `data_retention_until` PIPL 合规 | Day 24（租客后端）+ Day 49（二房东后端） | `tenants` 和 `subleases` 表新增字段，合同终止后计算保留截止日 |
+| `contracts.status` 默认值 `quoting` | Day 25（合同 CRUD 后端） | 创建合同时状态初始化为 `quoting` 而非 `pending_sign` |

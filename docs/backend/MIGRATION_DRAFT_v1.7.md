@@ -1,9 +1,9 @@
 # PropOS 数据库迁移草案 v1.7
 
-> 版本: v1.1
-> 日期: 2026-04-06
+> 版本: v1.2
+> 日期: 2026-04-08
 > 范围: Phase 1 Must + 必要基础设施
-> 依据: PRD v1.7 / ARCH v1.2 / data_model v1.2
+> 依据: PRD v1.7 / ARCH v1.2 / data_model v1.3
 > 目标: 将数据模型文档转成迁移实施顺序，作为后续 SQL migration 编写基线。
 
 ---
@@ -315,3 +315,7 @@ CHECK: `direction IN ('positive', 'negative')`
 | 新增 kpi_scheme_targets 方案绑定表 | 017（新） |
 | 新增 kpi_appeals 申诉表 | 017（新） |
 | 迁移序列从 14 扩展到 17 步 | 全局 |
+
+### v1.2 对齐 data_model v1.3（2026-04-08）
+
+内容已完整覆盖 data_model v1.3 所有新增表和字段（`floor_plans`、`escalation_templates`、`alerts.target_user_id`、`data_retention_until`、`sublease_review_status.draft`、`contracts.status` 默认 `quoting`），本次仅更新依据文档版本引用。

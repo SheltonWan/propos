@@ -1,8 +1,8 @@
 # PropOS Phase 1 开发泳道计划 v1.7
 
-> 版本: v1.1
-> 日期: 2026-04-06
-> 依据文档: PRD v1.7 / ARCH v1.2 / data_model v1.2 / Phase 1 实施清单 v1.7
+> 版本: v1.2
+> 日期: 2026-04-08
+> 依据文档: PRD v1.7 / ARCH v1.2 / data_model v1.3 / Phase 1 实施清单 v1.7(v1.2)
 > 目标: 将 Must / Should 任务按后端、Flutter、数据初始化三条泳道展开，便于并行实施。
 
 ---
@@ -26,19 +26,19 @@
 | B1 | BE-03a | 落库 deposits、meter_readings、turnover_reports、import_batches 表（v1.7） | BE-02 | 迁移脚本（007~009, 012） |
 | B1 | BE-04 | 建立 job runner、执行日志、失败重试机制 | BE-01 | 任务框架 |
 | B2 | BE-05 | 资产台账 CRUD 与导入 API（含 import_batches 跟踪） | BE-02, BE-03a | buildings/floors/units 接口 |
-| B2 | BE-06 | CAD 转换调度与图纸元数据 API | BE-02 | 图纸上传与查询接口 |
+| B2 | BE-06 | CAD 转换调度与图纸元数据 API（含 `floor_plans` 多版本管理） | BE-02 | 图纸上传/查询/版本切换接口 |
 | B2 | BE-07 | 租客（含信用评级）、合同（含多单元/含税/终止）、附件、状态机 API | BE-02 | contracts/tenants 接口 |
 | B2 | BE-07a | 押金管理 API（v1.7 新增） | BE-07 | deposits CRUD + 状态流转 |
-| B2 | BE-08 | 递增规则持久化与 WALE 双口径计算 API | BE-07 | escalation/wale 接口 |
+| B2 | BE-08 | 递增规则持久化（含 `escalation_templates` 模板保存/应用）与 WALE 双口径计算 API | BE-07 | escalation/wale/templates 接口 |
 | B3 | BE-09 | 自动账单生成任务与 invoice API | BE-07, BE-08, BE-04 | invoices 接口 |
 | B3 | BE-09a | 水电抄表与自动计费 API（v1.7 新增） | BE-09, BE-03a | meter_readings 接口 |
 | B3 | BE-09b | 营业额申报与审核 API（v1.7 新增） | BE-09, BE-03a | turnover_reports 接口 |
 | B3 | BE-10 | payments + payment_allocations 核销 API | BE-09 | payment 接口 |
 | B3 | BE-11 | NOI 聚合 API（不含税口径） | BE-09, BE-10 | NOI 看板接口 |
 | B4 | BE-12 | work order 状态机、SLA、成本归口 API | BE-03 | workorders 接口 |
-| B4 | BE-13 | sublease 门户 API、审核流、版本留痕 | BE-03, BE-07 | subleases 接口 |
+| B4 | BE-13 | sublease 门户 API、审核流（含 `draft` 草稿暂存）、版本留痕 | BE-03, BE-07 | subleases 接口 |
 | B4 | BE-14 | 二房东行级隔离与会话安全控制（含 HTTPS/TLS/密码复杂度） | BE-13, BE-01 | 门户安全闭环 |
-| B5 | BE-15 | 预警、催收、填报提醒、信用评级重算任务 | BE-04, BE-07, BE-09, BE-13 | 可追溯消息任务 |
+| B5 | BE-15 | 预警（含 `target_user_id` 定向推送）、催收、填报提醒、信用评级重算任务 | BE-04, BE-07, BE-09, BE-13 | 可追溯消息任务 |
 | B4 | BE-16a | 组织架构管理 API（departments CRUD + 管辖范围配置） | BE-01, BE-02 | departments + user_managed_scopes 接口 |
 | B5 | BE-16 | KPI 正式考核评分 API + 自动冻结（含正向/反向指标方向） | BE-11, BE-16a | KPI 考核接口 |
 | B5 | BE-17 | KPI 申诉 API + 审核重算 | BE-16 | 申诉闭环 |
@@ -54,8 +54,8 @@
 | F1 | FE-01 | 建立主题、路由、DI、鉴权骨架 | 无 | App 壳层 |
 | F1 | FE-02 | 登录页、权限路由守卫、错误态基建 | FE-01, BE-01 | 鉴权闭环 |
 | F2 | FE-03 | 资产台账列表、详情（含 market_rent_reference）、导入页（含批次跟踪） | FE-01, BE-05 | 资产模块基础页面 |
-| F2 | FE-04 | 楼层图查看与热区状态渲染 | FE-03, BE-06 | 图纸可视化页面 |
-| F2 | FE-05 | 租客（含信用评级展示）、合同（含多单元选择/含税标识/终止操作）、附件、递增规则表单页 | FE-01, BE-07, BE-08 | 合同录入闭环 |
+| F2 | FE-04 | 楼层图查看、热区状态渲染与多版本图纸切换 | FE-03, BE-06 | 图纸可视化页面 |
+| F2 | FE-05 | 租客（含信用评级展示）、合同（含多单元选择/含税标识/终止操作/初始状态 `quoting`）、附件、递增规则表单页（含模板选用） | FE-01, BE-07, BE-08 | 合同录入闭环 |
 | F2 | FE-05a | 押金管理页面（v1.7 新增） | FE-05, BE-07a | 押金 CRUD + 状态操作 + 交易流水 |
 | F2 | FE-06 | WALE 双口径查询与基础分析页 | FE-05, BE-08 | WALE 页面 |
 | F3 | FE-07 | 账单列表、详情、核销录入页（含含税/不含税双金额） | FE-01, BE-09, BE-10 | 财务主链路页面 |
@@ -156,3 +156,12 @@
 - BE-16 从“KPI 试运行评分”升级为“KPI 正式考核评分”，新增前置依赖 BE-16a（组织架构）。
 - FE-13 从“KPI 试运行看板”升级为“KPI 正式考核看板”，含雷达图。
 - 新增波次 4 任务：组织架构 + KPI 全套能力（排名/申诉/导出）。
+
+### v1.2 对齐 data_model v1.3（2026-04-08）
+
+- BE-06：补充 `floor_plans` 多版本图纸管理，FE-04 同步增加版本切换。
+- BE-08：补充 `escalation_templates` 递增规则模板保存/应用，FE-05 同步增加模板选用。
+- BE-13：补充 `sublease_review_status.draft` 草稿暂存状态。
+- BE-15：补充 `alerts.target_user_id` 定向推送。
+- FE-05：补充合同初始状态默认 `quoting` 标注。
+- 依据文档引用从 `data_model v1.2` 更新为 `data_model v1.3`，实施清单从 v1.1 更新为 v1.2。
