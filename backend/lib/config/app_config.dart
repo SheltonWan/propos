@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:io' show Platform, Directory;
 import 'package:path/path.dart' as path_lib;
 
 /// 全局运行时配置，从环境变量读取。
@@ -34,8 +34,7 @@ class AppConfig {
     String require(String key) {
       final value = lookup(key);
       if (value == null || value.isEmpty) {
-        stderr.writeln('[FATAL] 缺少必须环境变量: $key — 服务拒绝启动');
-        exit(1);
+        throw StateError('缺少环境变量: $key');
       }
       return value;
     }
@@ -43,14 +42,12 @@ class AppConfig {
     final databaseUrl = require('DATABASE_URL');
     final jwtSecret = require('JWT_SECRET');
     if (jwtSecret.length < 32) {
-      stderr.writeln('[FATAL] JWT_SECRET 长度不足 32 字节 — 服务拒绝启动');
-      exit(1);
+      throw StateError('JWT_SECRET 长度不足 32 字节，至少需要 32 个字符');
     }
     final jwtExpiresInHoursStr = require('JWT_EXPIRES_IN_HOURS');
     final jwtExpiresInHours = int.tryParse(jwtExpiresInHoursStr);
     if (jwtExpiresInHours == null) {
-      stderr.writeln('[FATAL] JWT_EXPIRES_IN_HOURS 必须为整数 — 服务拒绝启动');
-      exit(1);
+      throw StateError('环境变量 JWT_EXPIRES_IN_HOURS 必须为整数，当前值: $jwtExpiresInHoursStr');
     }
     final rawStoragePath = require('FILE_STORAGE_PATH');
     // 相对路径以 CWD（通常为 backend/）为基准解析为绝对路径
@@ -59,14 +56,12 @@ class AppConfig {
         : path_lib.join(Directory.current.path, rawStoragePath);
     final encryptionKey = require('ENCRYPTION_KEY');
     if (encryptionKey.length < 32) {
-      stderr.writeln('[FATAL] ENCRYPTION_KEY 长度不足 32 字节 — 服务拒绝启动');
-      exit(1);
+      throw StateError('ENCRYPTION_KEY 长度不足 32 字节，至少需要 32 个字符');
     }
     final appPortStr = require('APP_PORT');
     final appPort = int.tryParse(appPortStr);
     if (appPort == null) {
-      stderr.writeln('[FATAL] APP_PORT 必须为整数 — 服务拒绝启动');
-      exit(1);
+      throw StateError('环境变量 APP_PORT 必须为整数，当前值: $appPortStr');
     }
 
     return AppConfig._(

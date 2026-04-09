@@ -8,8 +8,12 @@ import '../errors/app_exception.dart';
 Middleware authMiddleware(String jwtSecret) {
   return (Handler innerHandler) {
     return (Request request) async {
-      // 放行健康检查
-      if (request.url.path == 'health') {
+      // 仅放行登录/刷新两个真正无需 Bearer Token 的公开端点。
+      // /api/auth/me、/api/auth/logout、/api/auth/change-password 均需 JWT 验证。
+      final path = request.url.path;
+      if (path == 'health' ||
+          path == 'api/auth/login' ||
+          path == 'api/auth/refresh') {
         return innerHandler(request);
       }
 
