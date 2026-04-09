@@ -47,24 +47,23 @@ class RentCalculator {
   double _calculate(
       RentEscalationRule rule, double base, int monthIndex) {
     return switch (rule) {
-      FixedPercentRule r => _fixedPercent(r, base, monthIndex),
+      FixedRateRule r => _fixedRate(r, base, monthIndex),
       FixedAmountRule r => _fixedAmount(r, base, monthIndex),
       SteppedRule r => _stepped(r, monthIndex),
       CpiLinkedRule r => _cpiLinked(r, base, monthIndex),
       EveryNYearsRule r => _everyNYears(r, base, monthIndex),
-      PostFreeRentRule r => _postFreeRent(r, monthIndex),
+      PostRenovationRule r => _postRenovation(r, monthIndex),
     };
   }
 
-  double _fixedPercent(FixedPercentRule r, double base, int monthIndex) {
+  double _fixedRate(FixedRateRule r, double base, int monthIndex) {
     final intervals = (monthIndex - 1) ~/ (r.intervalYears * 12);
     return base * _pow(1 + r.percent, intervals);
   }
 
   double _fixedAmount(FixedAmountRule r, double base, int monthIndex) {
-    // FixedAmount 需要面积，此处按 base 作为月租金直接处理，面积通过 base 已包含
     final intervals = (monthIndex - 1) ~/ (r.intervalYears * 12);
-    return base + r.amountPerSqm * intervals;
+    return base + r.incrementPerMonth * intervals;
   }
 
   double _stepped(SteppedRule r, int monthIndex) {
@@ -97,7 +96,7 @@ class RentCalculator {
     return base * _pow(1 + r.percent, intervals);
   }
 
-  double _postFreeRent(PostFreeRentRule r, int monthIndex) {
+  double _postRenovation(PostRenovationRule r, int monthIndex) {
     if (monthIndex <= r.freeRentMonths) return 0;
     final adjustedIndex = monthIndex - r.freeRentMonths;
     if (r.followUpRule == null) return r.baseMonthlyRent;

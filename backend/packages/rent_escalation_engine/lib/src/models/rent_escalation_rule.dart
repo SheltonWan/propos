@@ -4,21 +4,21 @@ sealed class RentEscalationRule {
   const RentEscalationRule();
 }
 
-/// 固定百分比递增（每年/每N年按比例上涨）
-final class FixedPercentRule extends RentEscalationRule {
+/// 固定比例递增（每年/每N年按比例上涨）
+final class FixedRateRule extends RentEscalationRule {
   /// 递增百分比，如 0.05 表示 5%
   final double percent;
   /// 递增周期（年），默认 1
   final int intervalYears;
-  const FixedPercentRule({required this.percent, this.intervalYears = 1});
+  const FixedRateRule({required this.percent, this.intervalYears = 1});
 }
 
-/// 固定金额递增（每平米每月递增固定元）
+/// 固定金额递增（每月递增固定元，调用方负责将每平米金额乘以面积后传入）
 final class FixedAmountRule extends RentEscalationRule {
-  /// 每平米每月递增金额（元）
-  final double amountPerSqm;
+  /// 每个递增周期（默认1年）新增的月租金额（元/月）
+  final double incrementPerMonth;
   final int intervalYears;
-  const FixedAmountRule({required this.amountPerSqm, this.intervalYears = 1});
+  const FixedAmountRule({required this.incrementPerMonth, this.intervalYears = 1});
 }
 
 /// 阶梯式递增（按月/按年分段定义租金）
@@ -49,15 +49,15 @@ final class EveryNYearsRule extends RentEscalationRule {
   const EveryNYearsRule({required this.intervalYears, required this.percent});
 }
 
-/// 免租期后租金递增（装修免租 + 后续递增策略）
-final class PostFreeRentRule extends RentEscalationRule {
+/// 装修免租期后租金递增（装修免租 + 后续递增策略）
+final class PostRenovationRule extends RentEscalationRule {
   /// 免租月数
   final int freeRentMonths;
   /// 免租期后基准月租（元/月）
   final double baseMonthlyRent;
   /// 免租期后的递增规则（可嵌套）
   final RentEscalationRule? followUpRule;
-  const PostFreeRentRule({
+  const PostRenovationRule({
     required this.freeRentMonths,
     required this.baseMonthlyRent,
     this.followUpRule,
