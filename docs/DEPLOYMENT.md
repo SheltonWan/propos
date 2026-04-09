@@ -97,7 +97,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
       # 初始化脚本（DDL + seed）
-      - ./scripts/migrations:/docker-entrypoint-initdb.d:ro
+      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
     ports:
       - "${DB_PORT:-5432}:5432"
     healthcheck:
@@ -304,3 +304,56 @@ docker compose restart nginx
 | 磁盘空间 | `df -h` on upload volume | > 85% |
 | 后端内存 | Docker stats | > 512MB |
 | 定时任务失败 | `job_execution_logs` 表 | `status = 'retry_exhausted'` |
+
+---
+
+## 九、注意事项
+
+### 9.1 migrations 目录挂载路径
+
+`docker-compose.yml` 将 `./backend/migrations` 挂载到 PostgreSQL 容器的 `/docker-entrypoint-initdb.d/`。
+`init_local_postgres.sh` 也读取同一目录（`MIGRATIONS_DIR` 默认值为 `backend/migrations`）。
+**两者指向同一路径，不需要维护两套脚本。**
+
+> 当前 `backend/migrations/` 只有 `.gitkeep`，DDL 就位前两种方式均会跳过。
+
+### 9.2 `docker-entrypoint-initdb.d` 仅在数据卷首次创建时执行
+
+PostgreSQL 官方镜像只在 `pg_data` 数据卷**为空**时才会执行 `/docker-entrypoint-initdb.d/` 下的脚本。
+已有数据的情况下重启容器**不会**重新执行 DDL。
+
+如需在已有实例上补跑迁移脚本，有两种方式：
+
+```bash
+# 方式一：通过 Docker Compose exec 在容器内执行
+docker compose exec postgres \
+  psql -U propos -d propos -f /docker-entrypoint-initdb.d/002_add_indexes.sql
+
+# 方式二：通过 init_local_postgres.sh 从宿主机执行（需 5432 端口暴露）
+bash scripts/init_local_postgres.sh --skip-migrations  # 跳过已执行的，只跑新增的
+```
+
+### 9.3 `init_local_postgres.sh` 与 Docker Compose 的配合方式
+
+| 场景 | 推荐操作 |
+|------|----------|
+| 首次启动 Docker Compose | `docker compose up -d` 自动执行 DDL（数据卷为空时）|
+| 补跑新增迁移脚本 | `docker compose exec postgres psql ...` 或 `init_local_postgres.sh` |
+| 重置本地数据库 | `docker compose down -v && docker compose up -d`（销毁数据卷重建）|
+| 纯宿主机 PostgreSQL 开发 | `bash scripts/init_local_postgres.sh [--seed]` |
+
+### 9.4 `init_local_postgres.sh` 的幂等性边界
+
+脚本对「角色和数据库创建」是**幂等**的（`WHERE NOT EXISTS` 保护）。
+对「migration SQL 执行」**不幂等**——同一个 `.sql` 文件运行两次会报重复创建错误。
+因此迁移脚本本身应在 DDL 语句中使用 `IF NOT EXISTS`，例如：
+
+```sql
+CREATE TABLE IF NOT EXISTS buildings ( ... );
+CREATE INDEX IF NOT EXISTS idx_buildings_type ON buildings(type);
+```
+
+### 9.5 生产环境不要使用 `init_local_postgres.sh`
+
+该脚本默认密码为 `ChangeMe_2026!`，设计用于本地开发环境。
+生产环境数据库初始化应通过 CI/CD 流水线或运维工具执行，密钥通过 `ADMIN_DATABASE_URL` 注入，**不得**使用默认值。
