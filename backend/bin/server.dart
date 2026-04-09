@@ -10,15 +10,15 @@ import 'package:propos_backend/core/middleware/audit_middleware.dart';
 import 'package:propos_backend/router/app_router.dart';
 
 Future<void> main() async {
-  // 加载 .env（本地开发；生产通过实际环境变量注入）
-  // DotEnv(includePlatformEnvironment: true) 已自动合并 Platform.environment
+  // 加载 .env（本地开发）；生产环境仍可直接使用进程环境变量。
+  final dotEnv = DotEnv(includePlatformEnvironment: true);
   try {
-    DotEnv(includePlatformEnvironment: true).load(['.env']);
+    dotEnv.load(['.env']);
   } catch (_) {
     // .env 文件可选，生产环境不需要
   }
 
-  final config = AppConfig.load();
+  final config = AppConfig.load(get: (key) => dotEnv[key]);
   await Database.init(config);
 
   final router = buildRouter();

@@ -27,11 +27,11 @@ class AppConfig {
     required this.maxUploadSizeMb,
   });
 
-  static AppConfig load() {
-    final env = Platform.environment;
+  static AppConfig load({String? Function(String)? get}) {
+    String? lookup(String key) => get != null ? get(key) : Platform.environment[key];
 
     String require(String key) {
-      final value = env[key];
+      final value = lookup(key);
       if (value == null || value.isEmpty) {
         stderr.writeln('[FATAL] 缺少必须环境变量: $key — 服务拒绝启动');
         exit(1);
@@ -71,9 +71,9 @@ class AppConfig {
       fileStoragePath: fileStoragePath,
       encryptionKey: encryptionKey,
       appPort: appPort,
-      corsOrigins: env['CORS_ORIGINS'] ?? '*',
-      logLevel: env['LOG_LEVEL'] ?? 'info',
-      maxUploadSizeMb: int.tryParse(env['MAX_UPLOAD_SIZE_MB'] ?? '') ?? 50,
+      corsOrigins: lookup('CORS_ORIGINS') ?? '*',
+      logLevel: lookup('LOG_LEVEL') ?? 'info',
+      maxUploadSizeMb: int.tryParse(lookup('MAX_UPLOAD_SIZE_MB') ?? '') ?? 50,
     );
   }
 }
