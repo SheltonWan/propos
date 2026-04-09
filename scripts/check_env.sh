@@ -363,6 +363,40 @@ else
 fi
 
 # ══════════════════════════════════════════════
+#  9. VS Code 工作区配置
+# ══════════════════════════════════════════════
+section "9. VS Code 工作区配置"
+
+VSCODE_SETTINGS="$WORKSPACE/.vscode/settings.json"
+VSCODE_SETTING_TYPO="$WORKSPACE/.vscode/setting.json"
+
+# 检查是否存在拼写错误的 setting.json（缺少 's'，VS Code 不读取）
+if [[ -f "$VSCODE_SETTING_TYPO" ]] && [[ ! -f "$VSCODE_SETTINGS" ]]; then
+    fail ".vscode/setting.json 存在但 VS Code 不读取（文件名缺少 's'）"
+    info "修复：mv .vscode/setting.json .vscode/settings.json"
+elif [[ -f "$VSCODE_SETTINGS" ]]; then
+    ok ".vscode/settings.json  — 工作区配置存在"
+
+    # 检查 typescript.tsdk 是否配置（防止 VS Code 内置 TS 版本解析 extends 路径失败）
+    if grep -q '"typescript.tsdk"' "$VSCODE_SETTINGS"; then
+        TSDK_VAL="$(grep '"typescript.tsdk"' "$VSCODE_SETTINGS" | grep -oE '"[^"]*node_modules[^"]*"' | tr -d '"')"
+        if [[ -n "$TSDK_VAL" ]]; then
+            ok "typescript.tsdk  — ${TSDK_VAL}"
+        else
+            warn "typescript.tsdk 已配置但值可能有误（检查是否指向 app/node_modules/typescript/lib）"
+        fi
+    else
+        warn ".vscode/settings.json 未配置 typescript.tsdk"
+        info "VS Code 内置 TypeScript 7.0+ 解析 @vue/tsconfig/tsconfig.json 时会报错"
+        info "修复：在 .vscode/settings.json 中添加 \"typescript.tsdk\": \"./app/node_modules/typescript/lib\""
+    fi
+else
+    warn ".vscode/settings.json 不存在"
+    info "创建后添加：\"typescript.tsdk\": \"./app/node_modules/typescript/lib\""
+    info "防止 VS Code 内置 TypeScript 误报 @vue/tsconfig/tsconfig.json 找不到"
+fi
+
+# ══════════════════════════════════════════════
 #  汇总
 # ══════════════════════════════════════════════
 TOTAL=$((PASS + FAIL + WARN))
