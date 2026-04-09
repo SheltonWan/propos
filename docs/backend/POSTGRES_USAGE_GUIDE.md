@@ -606,6 +606,66 @@ pg_restore -d postgres://propos:ChangeMe_2026!@localhost:5432/propos_restore pro
 psql "$DATABASE_URL" -f backend/migrations/001_init.sql
 ```
 
+## 7.7 本地测试：检查数据是否正确写入
+
+### 查看某张表最新 N 条记录
+
+PropOS 所有表均有 `created_at TIMESTAMPTZ` 字段，按此字段倒序即可查看最新写入的数据：
+
+```sql
+-- 以 contracts 表为例，查看最新 10 条
+SELECT * FROM contracts ORDER BY created_at DESC LIMIT 10;
+
+-- 其他常用表
+SELECT * FROM buildings   ORDER BY created_at DESC LIMIT 10;
+SELECT * FROM units       ORDER BY created_at DESC LIMIT 10;
+SELECT * FROM tenants     ORDER BY created_at DESC LIMIT 10;
+SELECT * FROM invoices    ORDER BY created_at DESC LIMIT 10;
+SELECT * FROM work_orders ORDER BY created_at DESC LIMIT 10;
+```
+
+### 统计各表行数（快速确认批量写入结果）
+
+```sql
+SELECT
+  schemaname,
+  relname        AS table_name,
+  n_live_tup     AS row_count
+FROM pg_stat_user_tables
+ORDER BY n_live_tup DESC;
+```
+
+> 注意：`n_live_tup` 是近似值，刚写入后短暂延迟才会更新。精确行数用 `SELECT COUNT(*) FROM <table>`。
+
+### 验证最后一次 API 写入
+
+在后端 API 完成一次 POST/PATCH 请求后，立即用 `id` 或时间戳确认记录：
+
+```bash
+# 命令行一行查最新一条，适合快速验证
+psql "$DATABASE_URL" -c "SELECT id, status, created_at FROM contracts ORDER BY created_at DESC LIMIT 1;"
+```
+
+### 检查加密字段是否已加密存储
+
+证件号、手机号等敏感字段在数据库中应为密文，不应出现明文值：
+
+```sql
+-- 确认字段值不是原始明文（正确：应为一段不可读密文）
+SELECT id, id_number FROM tenants LIMIT 5;
+```
+
+如果查询结果中 `id_number` 显示为可读字符串，说明加密未生效，需排查 `backend/lib/shared/encryption.dart`。
+
+### 查看表结构
+
+确认字段类型与迁移脚本一致：
+
+```bash
+psql "$DATABASE_URL" -c "\d contracts"
+psql "$DATABASE_URL" -c "\d+ units"
+```
+
 ---
 
 ## 8. 常见问题
