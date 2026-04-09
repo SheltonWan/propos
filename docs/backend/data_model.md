@@ -1072,7 +1072,7 @@ CREATE TABLE kpi_metric_definitions (
 | K05 | 工单响应时效（小时） | 24 | 48 | 72 | FALSE | negative |
 | K06 | 空置周转天数 | 30 | 60 | 90 | FALSE | negative |
 | K07 | NOI 达成率 | 1.00 | 0.85 | 0.70 | TRUE | positive |
-| K08 | 逾期率 | 0.05 | 0.10 | 0.20 | FALSE | negative |
+| K08 | 逾期率 | 0.05 | 0.15 | 0.20 | FALSE | negative |
 | K09 | 租金递增执行率 | 0.95 | 0.85 | 0.70 | TRUE | positive |
 | K10 | 租户满意度（手动）| 90 | 75 | 60 | TRUE | positive |
 
