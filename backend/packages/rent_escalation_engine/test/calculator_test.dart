@@ -268,4 +268,41 @@ void main() {
       ), equals(8888));
     });
   });
+
+  group('EscalationType DB 映射', () {
+    test('fromDbValue 正确映射全部 6 种 DB 枚举值', () {
+      expect(EscalationType.fromDbValue('fixed_rate'),             EscalationType.fixedRate);
+      expect(EscalationType.fromDbValue('fixed_amount'),           EscalationType.fixedAmount);
+      expect(EscalationType.fromDbValue('step'),                   EscalationType.stepped);
+      expect(EscalationType.fromDbValue('cpi'),                    EscalationType.cpiLinked);
+      expect(EscalationType.fromDbValue('periodic'),               EscalationType.everyNYears);
+      expect(EscalationType.fromDbValue('base_after_free_period'), EscalationType.postRenovation);
+    });
+
+    test('toDbValue 正确反向映射全部 6 种', () {
+      expect(EscalationType.fixedRate.toDbValue(),      'fixed_rate');
+      expect(EscalationType.fixedAmount.toDbValue(),    'fixed_amount');
+      expect(EscalationType.stepped.toDbValue(),        'step');
+      expect(EscalationType.cpiLinked.toDbValue(),      'cpi');
+      expect(EscalationType.everyNYears.toDbValue(),    'periodic');
+      expect(EscalationType.postRenovation.toDbValue(), 'base_after_free_period');
+    });
+
+    test('fromDbValue 未知值抛出 ArgumentError', () {
+      expect(
+        () => EscalationType.fromDbValue('unknown_type'),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('fromDbValue → toDbValue 往返一致', () {
+      const dbValues = [
+        'fixed_rate', 'fixed_amount', 'step', 'cpi', 'periodic', 'base_after_free_period',
+      ];
+      for (final v in dbValues) {
+        expect(EscalationType.fromDbValue(v).toDbValue(), v,
+            reason: '$v 往返映射应一致');
+      }
+    });
+  });
 }
