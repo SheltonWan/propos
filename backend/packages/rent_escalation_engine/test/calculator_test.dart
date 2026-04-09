@@ -186,6 +186,29 @@ void main() {
         contractStart: start, targetMonth: DateTime.utc(2027, 12),
       ), equals(9000));
     });
+
+    // 回归测试：零租金阶段不应被哨兵逻辑覆盖（修复前 double rent=0 导致零值段被回退）
+    test('零租金阶段（monthlyRent=0）应正确返回 0，不回退到第一个阶段', () {
+      const rule = SteppedRule(steps: [
+        StepSegment(startMonth: 0,  monthlyRent: 5000), // 第 1–6 月
+        StepSegment(startMonth: 6,  monthlyRent: 0),    // 第 7–12 月免租（零租）
+        StepSegment(startMonth: 12, monthlyRent: 6000), // 第 13 月起
+      ]);
+      // 零租金阶段应返回 0，而非回退为 5000
+      expect(calc.calculateRentForMonth(
+        rule: rule, baseMonthlyRent: 0,
+        contractStart: start, targetMonth: DateTime.utc(2026, 7),  // month 7
+      ), equals(0.0));
+      // 确认零租前后阶段不受影响
+      expect(calc.calculateRentForMonth(
+        rule: rule, baseMonthlyRent: 0,
+        contractStart: start, targetMonth: DateTime.utc(2026, 6),  // month 6
+      ), equals(5000));
+      expect(calc.calculateRentForMonth(
+        rule: rule, baseMonthlyRent: 0,
+        contractStart: start, targetMonth: DateTime.utc(2027, 1),  // month 13
+      ), equals(6000));
+    });
   });
 
   group('compute 多阶段聚合', () {

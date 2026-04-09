@@ -144,7 +144,7 @@ class RentCalculator {
   }
 
   double _stepped(SteppedRule r, int monthIndex) {
-    double rent = 0;
+    double? rent;
     for (final step in r.steps.reversed) {
       if (monthIndex > step.startMonth) {
         rent = step.monthlyRent;
@@ -152,10 +152,7 @@ class RentCalculator {
       }
     }
     // 如果 monthIndex <= 所有 step 的 startMonth，取第一个
-    if (rent == 0 && r.steps.isNotEmpty) {
-      rent = r.steps.first.monthlyRent;
-    }
-    return rent;
+    return rent ?? (r.steps.isNotEmpty ? r.steps.first.monthlyRent : 0.0);
   }
 
   double _cpiLinked(CpiLinkedRule r, double base, int monthIndex) {
