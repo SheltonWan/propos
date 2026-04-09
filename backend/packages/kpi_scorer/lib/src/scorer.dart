@@ -1,14 +1,10 @@
 import 'models/kpi_direction.dart';
-import 'models/kpi_indicator.dart';
 import 'models/kpi_metric.dart';
-import 'models/kpi_result.dart';
 import 'models/kpi_score.dart';
 
 /// KPI 线性插值打分器
 ///
-/// 提供两套 API：
-/// - [score]：老接口，接受 [KpiIndicator] 列表（正向指标，无 failThreshold）
-/// - [scoreMetrics]：新接口，接受 [KpiMetric] 列表（支持 direction + failThreshold）
+/// 使用 [scoreMetrics] 接受 [KpiMetric] 列表，返回 [KpiScore]（含各指标明细与综合总分）。
 ///
 /// **打分公式（正向指标，越高越好）：**
 /// - actual ≥ fullScore → 100
@@ -74,49 +70,6 @@ class KpiScorer {
     }
     if (actual >= fail) return 0.0;
     return ((fail - actual) / (fail - pass) * 60.0).clamp(0.0, 60.0);
-  }
-
-  // ---------------------------------------------------------------------------
-  // 旧接口：KpiIndicator（保留兼容）
-  // ---------------------------------------------------------------------------
-
-  KpiResult score(List<KpiIndicator> indicators) {
-    final scores = indicators.map(_scoreOne).toList();
-    final total = scores.fold(
-      0.0,
-      (sum, s) => sum + s.weightedScore,
-    );
-    return KpiResult(indicatorScores: scores, totalScore: total);
-  }
-
-  KpiIndicatorScore _scoreOne(KpiIndicator ind) {
-    final raw = _interpolateLegacy(
-      actual: ind.actualValue,
-      passThreshold: ind.passThreshold,
-      perfectThreshold: ind.perfectThreshold,
-    );
-    return KpiIndicatorScore(
-      code: ind.code,
-      actualValue: ind.actualValue,
-      rawScore: raw,
-      weightedScore: raw * ind.weight,
-    );
-  }
-
-  static double _interpolateLegacy({
-    required double actual,
-    required double passThreshold,
-    required double perfectThreshold,
-  }) {
-    if (actual >= perfectThreshold) return 100.0;
-    if (actual >= passThreshold) {
-      return 60.0 +
-          (actual - passThreshold) /
-              (perfectThreshold - passThreshold) *
-              40.0;
-    }
-    if (passThreshold == 0) return 0;
-    return (actual / passThreshold * 60.0).clamp(0.0, 60.0);
   }
 }
 

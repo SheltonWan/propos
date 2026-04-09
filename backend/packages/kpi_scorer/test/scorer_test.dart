@@ -5,64 +5,6 @@ void main() {
   const scorer = KpiScorer();
 
   // ---------------------------------------------------------------------------
-  // 旧接口 KpiIndicator（正向指标，无 failThreshold）
-  // ---------------------------------------------------------------------------
-  KpiIndicator ind({
-    required String code,
-    required double pass,
-    required double perfect,
-    required double actual,
-    double weight = 0.1,
-  }) =>
-      KpiIndicator(
-        code: code,
-        name: code,
-        passThreshold: pass,
-        perfectThreshold: perfect,
-        weight: weight,
-        actualValue: actual,
-      );
-
-  group('KpiIndicator 单指标打分（旧接口）', () {
-    test('实际值 >= 满分阈值 → 100 分', () {
-      final result = scorer.score([ind(code: 'K01', pass: 0.85, perfect: 0.95, actual: 1.0)]);
-      expect(result.indicatorScores.first.rawScore, equals(100.0));
-    });
-
-    test('实际值 == 满分阈值 → 100 分', () {
-      final result = scorer.score([ind(code: 'K01', pass: 0.85, perfect: 0.95, actual: 0.95)]);
-      expect(result.indicatorScores.first.rawScore, equals(100.0));
-    });
-
-    test('实际值 == 及格阈值 → 60 分', () {
-      final result = scorer.score([ind(code: 'K01', pass: 0.85, perfect: 0.95, actual: 0.85)]);
-      expect(result.indicatorScores.first.rawScore, closeTo(60.0, 0.001));
-    });
-
-    test('实际值 < 及格阈值 → 低于 60 分', () {
-      final result = scorer.score([ind(code: 'K01', pass: 0.85, perfect: 0.95, actual: 0.50)]);
-      expect(result.indicatorScores.first.rawScore, lessThan(60.0));
-    });
-
-    test('实际值 = 0 → 0 分', () {
-      final result = scorer.score([ind(code: 'K01', pass: 0.85, perfect: 0.95, actual: 0.0)]);
-      expect(result.indicatorScores.first.rawScore, equals(0.0));
-    });
-  });
-
-  group('KpiIndicator 总分计算（旧接口）', () {
-    test('两个指标权重各 0.5，总分正确', () {
-      final indicators = [
-        ind(code: 'K01', pass: 0.8, perfect: 0.95, actual: 0.95, weight: 0.5),
-        ind(code: 'K02', pass: 0.8, perfect: 0.95, actual: 0.8, weight: 0.5),
-      ];
-      final result = scorer.score(indicators);
-      // K01 = 100 × 0.5 = 50, K02 = 60 × 0.5 = 30 → total = 80
-      expect(result.totalScore, closeTo(80.0, 0.001));
-    });
-  });
-
-  // ---------------------------------------------------------------------------
   // 新接口 KpiMetric（支持 direction + failThreshold）
   // ---------------------------------------------------------------------------
 
