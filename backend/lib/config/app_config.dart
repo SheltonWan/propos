@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:path/path.dart' as path_lib;
 
 /// 全局运行时配置，从环境变量读取。
 /// 缺失必须变量时拒绝启动并输出明确错误。
@@ -51,7 +52,11 @@ class AppConfig {
       stderr.writeln('[FATAL] JWT_EXPIRES_IN_HOURS 必须为整数 — 服务拒绝启动');
       exit(1);
     }
-    final fileStoragePath = require('FILE_STORAGE_PATH');
+    final rawStoragePath = require('FILE_STORAGE_PATH');
+    // 相对路径以 CWD（通常为 backend/）为基准解析为绝对路径
+    final fileStoragePath = path_lib.isAbsolute(rawStoragePath)
+        ? rawStoragePath
+        : path_lib.join(Directory.current.path, rawStoragePath);
     final encryptionKey = require('ENCRYPTION_KEY');
     if (encryptionKey.length < 32) {
       stderr.writeln('[FATAL] ENCRYPTION_KEY 长度不足 32 字节 — 服务拒绝启动');
