@@ -57,10 +57,8 @@
 |---------|---------|------------|
 | `pure-dart-package.prompt.md` | `/pure-dart-package` | 纯计算包（`rent_escalation_engine`、`kpi_scorer`）|
 | `backend-module.prompt.md` | `/backend-module` | 后端四层（Model + Repository + Service + Controller）|
-| `flutter-domain.prompt.md` | `/flutter-domain` | Flutter domain 层（freezed 模型 + 接口）|
-| `flutter-data.prompt.md` | `/flutter-data` | Flutter data 层（HTTP 实现 + Mock）|
-| `flutter-bloc.prompt.md` | `/flutter-bloc` | Flutter BLoC/Cubit + State + 单元测试 |
-| `flutter-ui.prompt.md` | `/flutter-ui` | Flutter Pages + Widgets |
+| `uniapp-page.prompt.md` | `/uniapp-page` | uni-app 页面（类型 + API + Store + 页面）|
+| `admin-view.prompt.md` | `/admin-view` | admin 视图（类型 + API + Store + 视图）|
 | `security-and-test.prompt.md` | `/security-and-test` | 安全审查 + 性能测试 + 集成测试 |
 
 ### 仍需人工操作的步骤（不可绕过）
@@ -71,19 +69,17 @@
 | 执行数据库迁移 | `psql -f migration.sql` 需连接真实 DB |
 | UAT 设备验收 | 真实用户在设备上的业务流程验收 |
 
-> Copilot Agent 可运行 `dart test`、`flutter pub get` 等终端命令，但无法连接用户本地数据库或访问外部服务。
+> Copilot Agent 可运行 `dart test`、`npm install` 等终端命令，但无法连接用户本地数据库或访问外部服务。
 
 ### 通用防偏离技巧（由 Compliance Reviewer 自动执行，此处供人工复核参考）
 
 | 常见偏离点 | 检查命令 |
 |-----------|---------|
 | 引入了 ORM（如 `drift`/`sqflite`）| `grep -r "drift\|sqflite\|floor" backend/pubspec.yaml` |
-| BLoC 直接 import 了 data 层 | `grep -r "import.*data/" frontend/lib/features/*/presentation/` |
-| UI 硬编码了颜色值 | `grep -r "Color(0x\|Colors\." frontend/lib/features/*/presentation/pages/` |
+| Store 直接使用 fetch/axios | `grep -rn "fetch(\|axios\." app/src/stores/ admin/src/stores/` |
+| 页面硬编码了 API 路径 | `grep -rn '"/api/' app/src/pages/ admin/src/views/` |
 | Controller 直接 return Response | `grep -r "return Response\." backend/lib/modules/` |
 | SQL 字符串拼接（注入风险） | `grep -rn '"\$' backend/lib/modules/*/repositories/` |
-| State 用了 if(state is Xxx) | `grep -rn "is [A-Z].*State" frontend/lib/features/*/presentation/` |
-| 使用了 `Either<Failure, T>` | `grep -r "Either" frontend/lib/features/` |
 
 ---
 
@@ -115,12 +111,12 @@
 
 | 里程碑 | 完成日期 | 核心验证标准 | 合规审查范围 |
 |--------|---------|------------|------------|
-| M0 基础就绪 | 2026-04-17 | 两个核心 Package 全测试通过；后端启动成功；Flutter 登录页联调跑通 | `backend/lib/core/` + `backend/lib/modules/auth/` + `frontend/lib/features/auth/` |
-| M1 资产上线 | 2026-05-08 | 639 套 Excel 导入正常；楼层 SVG 热区图渲染正确；资产 Dashboard 三业态数据展示 | `backend/lib/modules/assets/` + `frontend/lib/features/assets/` |
-| M2 合同上线 | 2026-06-05 | 合同状态机全流程；租金递增 6 种类型 + 混合分段；WALE 误差 < 0.01 年 | `backend/lib/modules/contracts/` + `frontend/lib/features/contracts/` |
-| M4 工单上线 | 2026-06-19 | 移动端报修全链路；FCM 推送验证；成本接口预留 | `backend/lib/modules/work_orders/` + `frontend/lib/features/work_orders/` |
-| M3 财务上线 | 2026-07-17 | 账单生成 < 30 秒；NOI 三业态拆分正确；KPI 2 套方案打分与手工一致 | `backend/lib/modules/finance/` + `frontend/lib/features/finance/` |
-| M5 穿透上线 | 2026-07-31 | 外部门户可独立访问；审核流完整；行级隔离安全验证通过 | `backend/lib/modules/subleases/` + `frontend/lib/features/subleases/` |
+| M0 基础就绪 | 2026-04-17 | 两个核心 Package 全测试通过；后端启动成功；前端登录页联调跑通 | `backend/lib/core/` + `backend/lib/modules/auth/` + `app/src/` + `admin/src/` |
+| M1 资产上线 | 2026-05-08 | 639 套 Excel 导入正常；楼层 SVG 热区图渲染正确；资产 Dashboard 三业态数据展示 | `backend/lib/modules/assets/` + `app/src/pages/assets/` + `admin/src/views/assets/` |
+| M2 合同上线 | 2026-06-05 | 合同状态机全流程；租金递增 6 种类型 + 混合分段；WALE 误差 < 0.01 年 | `backend/lib/modules/contracts/` + `app/src/pages/contracts/` + `admin/src/views/contracts/` |
+| M4 工单上线 | 2026-06-19 | 移动端报修全链路；FCM 推送验证；成本接口预留 | `backend/lib/modules/work_orders/` + `app/src/pages/workorders/` + `admin/src/views/workorders/` |
+| M3 财务上线 | 2026-07-17 | 账单生成 < 30 秒；NOI 三业态拆分正确；KPI 2 套方案打分与手工一致 | `backend/lib/modules/finance/` + `admin/src/views/finance/` |
+| M5 穿透上线 | 2026-07-31 | 外部门户可独立访问；审核流完整；行级隔离安全验证通过 | `backend/lib/modules/subleases/` + `admin/src/views/subleases/` |
 | 集成完成 | 2026-08-14 | 全 PRD 验收项 Pass；50 并发压测达标；实际数据导入完成 | 全模块交叉合规扫描 |
 | **正式上线** | **2026-08-21** | **PropOS Phase 1 全模块生产环境就绪** | — |
 
@@ -134,7 +130,7 @@
 
 #### Day 1 · 4月8日（周三）— `rent_escalation_engine` Package 骨架
 
-- 创建 Monorepo 目录结构（`backend/packages/`、`flutter_app/`、`packages/`）
+- 创建 Monorepo 目录结构（`backend/packages/`、`app/`、`admin/`）
 - `rent_escalation_engine/pubspec.yaml`（name: rent_escalation_engine，零外部依赖）
 - `EscalationType` 枚举（6 种：fixedRate / fixedAmount / stepped / cpiLinked / everyNYears / postRenovation）
 - `RentEscalationPhase` 数据类（阶段起止月份 + 递增参数 sealed union）
@@ -159,7 +155,7 @@
 
 - `rent_escalation_test.dart`：固定比例 / 固定金额 / 阶梯 / 每 N 年 / CPI / 混合分段，每类型 ≥ 3 个用例
 - `kpi_scorer_test.dart`：满分边界 / 线性插值中间值 / 零分边界 / 权重汇总 4 类用例
-- `dart test` 全绿通过，Package 完工，可供后端和 Flutter 双端 path 依赖引用
+- `dart test` 全绿通过，Package 完工，可供后端 path 依赖引用（前端不直接引用，通过 API 调用）
 
 > 💬 **Copilot 提示语**（模板：`/pure-dart-package`）：
 > 补齐两个包的单元测试：租金递增每种规则 ≥3 用例，**必须包含跨类型混合分段场景**（如"第1~2年固定比例+第3年CPI挂钩"）；KPI 覆盖正/反向指标各一组的满分/中间/零分边界。只用 `package:test`，不引入 mock 框架，`dart test` 全绿方可停止。
@@ -211,19 +207,20 @@
 > 实现 RBAC 和审计。`rbac_middleware.dart` 权限矩阵用 `Map<String, Map<String, Set<String>>>（路径→方法→允许角色）`，**禁止散落 if-else**；无权限返回 403 + `FORBIDDEN` code。`audit_middleware.dart` 必须覆盖4类高风险操作（合同变更/账单核销/权限变更/二房东提交），before/after 均为完整 JSON 非 null。Controller 只调用 Service，不含业务逻辑。
 > 附：`@file:docs/ARCH.md`（RBAC章节）`@file:docs/backend/data_model.md`（audit_logs 表）
 
-#### Day 8 · 4月17日（周五）— Flutter 项目初始化 + Auth 前端
+#### Day 8 · 4月17日（周五）— 前端项目初始化 + Auth 前端
 
-- `flutter create propos_app --org com.propos`，添加依赖：flutter_bloc, go_router, get_it, freezed, json_serializable, dio, bloc_test, mocktail, flutter_svg, file_picker, image_picker, mobile_scanner
-- 骨架目录：`lib/shared/`（theme, constants, platform_utils）+ `lib/features/auth/domain/data/presentation/`
-- `app_theme.dart`（Material 3，`useMaterial3: true`，状态色 Token 映射：secondary/tertiary/error/outlineVariant）
-- `api_client.dart`（Dio 实例 + JWT Bearer 拦截器 + 401 自动刷新重试）
-- `AuthRepository` 抽象接口 + `HttpAuthRepository` 实现 + `LoginBloc`（Event/State @freezed sealed）+ `LoginPage` UI + get_it DI 注册
+- uni-app 端：`cd app && npm install`，核心依赖：`wot-design-uni`、`luch-request`、`pinia`、`dayjs`
+- admin 端：`cd admin && npm install`，核心依赖：`element-plus`、`axios`、`pinia`、`vue-router`、`dayjs`
+- 骨架目录：`app/src/`（api, stores, types, constants, pages）+ `admin/src/`（api, stores, types, constants, views, router）
+- `app/src/api/client.ts`（luch-request 封装 + JWT Bearer 拦截器 + 401 刷新）
+- `admin/src/api/client.ts`（axios 封装 + JWT Bearer 拦截器 + 401 refresh subscriber queue）
+- `useAuthStore`（Pinia setup 风格）+ 登录页 UI（app + admin 各一套）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-bloc` + `/flutter-ui`）：
-> 初始化 Flutter 项目并完成 Auth 全链路。必须遵守：`app_theme.dart` 设 `useMaterial3: true`，**所有颜色通过 `colorScheme` Token 而非 `Colors.xxx`**；`LoginBloc` 只 import domain 接口（禁止直接用 `HttpAuthRepository`）；`LoginState` 为 `@freezed` sealed union，`LoginPage` 用 `.when()` 渲染（**禁止 `if(state is LoginLoaded)`**）；`api_client.dart` 401 刷新不能死循环（用标志位防止重复刷新）；`get_it` 在 `main.dart` 统一注册。
-> 附：`@file:docs/ARCH.md`（Flutter分层规则）`@file:.github/copilot-instructions.md`
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 初始化前端项目并完成 Auth 全链路。必须遵守：uni-app 端所有颜色通过 CSS 变量（`--color-success` 等），admin 端通过 Element Plus `type` 属性；`useAuthStore` 使用 `defineStore(id, setup)` 风格，state 含 `token / user / loading / error`；`api/client.ts` 401 刷新不能死循环（用标志位 + subscriber queue 防止重复刷新）；页面只访问 store，不内联 HTTP 请求。
+> 附：`@file:docs/ARCH.md`（前端分层规则）`@file:.github/copilot-instructions.md`
 
-> **Milestone 0**：`dart test` 两个核心 Package 全绿；`dart run bin/server.dart` 后端启动成功；Flutter 登录页与后端 `POST /api/auth/login` 端到端联调成功。
+> **Milestone 0**：`dart test` 两个核心 Package 全绿；`dart run bin/server.dart` 后端启动成功；前端登录页与后端 `POST /api/auth/login` 端到端联调成功。
 
 ---
 
@@ -261,7 +258,7 @@
 - `UnitService`（当前状态计算：Leased / Vacant / ExpiringSoon≤90天 / NonLeasable；单元不重叠在租校验）
 
 > 💬 **Copilot 提示语**（模板：`/backend-module`）：
-> 实现 `unit.dart`（@freezed）和 `UnitRepository`/`UnitService`。`propertyTypeDetails` 字段为 JSONB，用 sealed class（`OfficeDetails`/`RetailDetails`/`ApartmentDetails`）区分三业态扩展信息。`getFloorHeatmap` 方法返回楼层所有单元的坐标多边形 + 当前状态（用于 Flutter 热区图叠加）。**状态计算逻辑在 Service 层**，Repository 只做数据存取；同一单元时段重叠校验用 SQL `EXCLUDE` 约束或应用层 OVERLAP 检查。
+> 实现 `unit.dart`（@freezed）和 `UnitRepository`/`UnitService`。`propertyTypeDetails` 字段为 JSONB，用 sealed class（`OfficeDetails`/`RetailDetails`/`ApartmentDetails`）区分三业态扩展信息。`getFloorHeatmap` 方法返回楼层所有单元的坐标多边形 + 当前状态（用于前端热区图叠加）。**状态计算逻辑在 Service 层**，Repository 只做数据存取；同一单元时段重叠校验用 SQL `EXCLUDE` 约束或应用层 OVERLAP 检查。
 > 附：`@file:docs/backend/data_model.md`（units 表+扩展字段）`@file:docs/ARCH.md`
 
 #### Day 12 · 4月23日（周四）— Unit Controller + RenovationRecord
@@ -297,85 +294,86 @@
 > 实现 `cad_import_service.dart`，通过两步 `Process.run` 链路（ODA Converter→DXF，ezdxf→SVG）进行 CAD 转换。SVG 输出路径严格遵守 `floors/{buildingId}/{floorId}.svg` 格式（UUID，非业务号）；**转换为异步任务**，上传端点立即返回任务 ID，通过轮询或回调获取结果。`GET /api/files/*` 必须验证 JWT，文件路径必须在 `FILE_STORAGE_PATH` 目录沙箱内（防路径穿越），用 `path.canonicalize()` + 前缀检查。
 > 附：`@file:.github/copilot-instructions.md`（文件存储约定）`@file:docs/ARCH.md`
 
-#### Day 15 · 4月28日（周二）— M1 前端 Domain 层
+#### Day 15 · 4月28日（周二）— M1 前端类型定义 + API 函数
 
-- freezed 模型：`Unit`, `Building`, `Floor`, `RenovationRecord`（纯 Dart，无 Flutter SDK 依赖）
-- 抽象接口：`UnitRepository`, `BuildingRepository`, `FloorRepository`, `RenovationRepository`
-- UseCase：`GetUnitsUseCase`, `GetFloorHeatmapUseCase`, `GetBuildingsUseCase`（注入接口，不直接实例化实现）
+- TypeScript 接口：`Unit`, `Building`, `Floor`, `RenovationRecord`（放 `app/src/types/` 和 `admin/src/types/`）
+- API 函数：`unitApi`, `buildingApi`, `floorApi`, `renovationApi`（放 `app/src/api/modules/` 和 `admin/src/api/modules/`）
+- 路径常量：`API_PATHS.units`, `API_PATHS.buildings` 等（放 `src/constants/api_paths.ts`）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-domain`）：
-> 在 `lib/features/assets/domain/` 下创建 M1 domain 层。**禁止 import 任何 `flutter/` 包**，所有模型纯 Dart，`dart test` 可独立运行。`Unit.status` 枚举值（`leased`/`vacant`/`expiringSoon`/`nonLeasable`）用 `@JsonValue` 标注对应后端 `snake_case`；`BuildingRepository` 接口的分页方法签名为 `Future<PaginatedResult<Building>> list({int page=1, int pageSize=20})`；UseCase 构造函数注入接口，不实例化 `HttpXxxRepository`。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page`）：
+> 在 `app/src/types/` 下创建 M1 TypeScript 接口定义。`Unit.status` 枚举值（`leased`/`vacant`/`expiring_soon`/`non_leasable`）与后端 `snake_case` 保持一致；在 `app/src/api/modules/asset.ts` 下封装 API 函数，使用 `apiGet`/`apiPost`（来自 `@/api/client`），路径来自 `@/constants/api_paths`（禁止硬编码）；分页请求统一传 `{ page, pageSize }` 参数。
 > 附：`@file:docs/backend/data_model.md`（buildings/floors/units 表）`@file:docs/ARCH.md`
 
-#### Day 16 · 4月29日（周三）— M1 前端 Data 层
+#### Day 16 · 4月29日（周三）— M1 前端 Pinia Store 层
 
-- `HttpUnitRepository`（Dio 调用 `/api/units`，分页，枚举映射，异常包装为 `ApiException`）
-- `HttpBuildingRepository` / `HttpFloorRepository` / `HttpRenovationRepository`
-- `MockUnitRepository`（内存数据：写字楼 5 条 / 商铺 5 条 / 公寓 5 条，不同状态）
-- `get_it` 注册 M1 dependencies，`--dart-define=USE_MOCK=true` 切换 Mock / 真实实现
+- `useAssetOverviewStore`（加载三业态汇总：总套数 / 已租套数 / 空置套数 / 出租率）
+- `useBuildingStore`（列表 + 筛选：按业态 / 状态 / 翻页）
+- `useUnitStore`（列表 + 多条件筛选：propertyType / status / buildingId / 翻页）
+- Mock 模式：通过 `VITE_USE_MOCK=true` 环境变量切换，Store 内条件返回模拟数据
 
-> 💬 **Copilot 提示语**（模板：`/flutter-data`）：
-> 在 `lib/features/assets/data/` 下实现 HTTP + Mock Repository。使用项目统一 `ApiClient`（禁止自建 Dio）；路径常量来自 `api_paths.dart`（禁止硬编码字符串）；`DioException` 捕获后统一包装为 `ApiException`，不透传原始异常；Mock 数据覆盖 `leased`/`vacant`/`expiringSoon`/`nonLeasable` 四种状态各至少一条。`get_it` 注册时根据 `const bool.fromEnvironment('USE_MOCK')` 选择实现。
-> 附：`@file:docs/ARCH.md`（Flutter分层规则）`@file:.github/copilot-instructions.md`
+> 💬 **Copilot 提示语**（模板：`/uniapp-page`）：
+> 在 `app/src/stores/` 下实现 M1 Pinia Store。使用 `defineStore(id, setup)` 风格；state 固定字段 `list / item / loading / error / meta`；action 调用 `@/api/modules/asset` 的 API 函数（禁止在 Store 中直接写 HTTP 请求）；异常捕获统一 `catch (e) { error.value = e instanceof ApiError ? e.message : '操作失败，请重试' }`；Mock 数据覆盖 `leased`/`vacant`/`expiring_soon`/`non_leasable` 四种状态各至少一条。
+> 附：`@file:docs/ARCH.md`（前端分层规则）`@file:.github/copilot-instructions.md`
 
-#### Day 17 · 4月30日（周四）— M1 BLoC
+#### Day 17 · 4月30日（周四）— M1 Store 单元测试 + admin Store
 
-- `AssetOverviewBloc`（加载三业态汇总：总套数 / 已租套数 / 空置套数 / 出租率）
-- `BuildingListCubit` + `UnitListBloc`（Event：filterByPropertyType / filterByStatus / filterByBuilding / changePage）
-- State 使用 `@freezed` sealed union（initial / loading / loaded / error），Widget 用 `.when()` 分支渲染
-- BLoC 单元测试（`bloc_test` + `mocktail`，覆盖 loading → loaded / error 场景）
+- uni-app Store 单元测试（Vitest，mock API 函数，覆盖 loading → loaded / error 场景）
+- `admin/src/stores/` 下同步实现 `useAssetOverviewStore`、`useBuildingStore`、`useUnitStore`（逻辑与 app 端一致，HTTP 客户端为 Axios）
+- `admin/src/api/modules/asset.ts` — admin 端 API 函数
+- Store 超过 200 行时按子领域拆分（如 `useUnitListStore` + `useUnitFilterStore`）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-bloc`）：
-> 在 `lib/features/assets/presentation/bloc/` 下实现 M1 BLoC 层。**BLoC 只 import domain 接口**（`UnitRepository`/`BuildingRepository` 抽象类），不引用任何 `Http*Repository`；State 为 `@freezed` sealed union（initial/loading/loaded/error），**禁止用 bool 标志位**；`UnitListBloc` 超过 200 行时按职责拆分（列表 vs 过滤）。同步编写单元测试：mock 用 `mocktail` 的 `Mock implements XxxRepository`，覆盖 loading→loaded、loading→error 两个场景。
-> 附：`@file:docs/ARCH.md`（Flutter分层规则、文件复杂度超限拆分策略）
+> 💬 **Copilot 提示语**（模板：`/admin-view`）：
+> 在 `admin/src/stores/` 下实现 M1 Pinia Store。使用 `defineStore(id, setup)` 风格，state 固定字段 `list / item / loading / error / meta`；action 调用 `@/api/modules/asset` 的 API 函数（禁止直接写 axios 调用）；同步编写 Vitest 单元测试：mock API 函数，覆盖 loading→loaded、loading→error 两个场景。Store 超 200 行时按职责拆分。
+> 附：`@file:docs/ARCH.md`（前端分层规则、文件复杂度超限拆分策略）
 
 #### Day 18 · 5月1日（周五）— M1 UI — 资产概览 Dashboard
 
-- `AssetOverviewPage`：三列卡片（写字楼 / 商铺 / 公寓），每列展示：总套数、已租套数、空置套数、出租率进度条
-- `BuildingListPage` + `BuildingCard` Widget（楼栋名称、业态、GFA、出租率快速跳转楼层）
-- 颜色严格使用 colorScheme Token：`leased` → secondary（绿），`vacant` → error（红），`expiring_soon` → tertiary（橙），`non_leasable` → outlineVariant（灰）
+- uni-app `AssetOverviewPage`：三列卡片（写字楼 / 商铺 / 公寓），每列展示：总套数、已租套数、空置套数、出租率进度条
+- `BuildingListPage` + `BuildingCard` 组件（楼栋名称、业态、GFA、出租率快速跳转楼层）
+- admin `DashboardView`：Element Plus Card + Progress 组件，同步实现 PC 端资产概览
+- 状态色严格使用 CSS 变量 / Element Plus type：`leased` → success（绿），`vacant` → danger（红），`expiring_soon` → warning（橙），`non_leasable` → info（灰）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 在 `lib/features/assets/presentation/pages/` 下实现资产 Dashboard。严格约束：**所有颜色通过 `Theme.of(context).colorScheme`**（`leased`→secondary，`vacant`→error，`expiringSoon`→tertiary，`nonLeasable`→outlineVariant），禁止 `Colors.xxx` 或硬编码色值；`AssetOverviewPage.build()` 超过 150 行时将业态卡片提取到 `widgets/property_type_card.dart`；用 `.when()` 渲染 BLoC State，**禁止 `if(state is AssetOverviewLoaded)`**；进度条使用 Material3 `LinearProgressIndicator`。
-> 附：`@file:.github/copilot-instructions.md`（UI主题规范、状态色语义映射）
+> 💬 **Copilot 提示语**（模板：`/uniapp-page`）：
+> 在 `app/src/pages/assets/` 下实现资产 Dashboard。严格约束：**所有状态色通过 CSS 变量**（`--color-success` / `--color-danger` / `--color-warning` / `--color-neutral`），禁止内联 `style="color: green"` 或硬编码色值；页面超 250 行时将业态卡片提取到 `components/PropertyTypeCard.vue`；页面只使用 Store 的 state/action，不内联 HTTP 请求；进度条使用 `wot-design-uni` 的 `wd-progress` 组件。
+> 附：`@file:.github/copilot-instructions.md`（UI色彩规范、状态色语义映射）
 
 ### 第 5 周（5/4 — 5/8）· M1 前端 楼层热区图 + 联调
 
 #### Day 19 · 5月4日（周一）— 楼层平面图 SVG 渲染（难点）
 
-- `FloorMapPage`：使用 `flutter_svg` 加载楼层 SVG 文件（通过 `/api/files/floors/...` 代理）
-- `CustomPaint` 在 SVG 上叠加半透明状态色块多边形（coord 来自 API `heatmap` 端点）
-- 楼层切换 Tab / Dropdown，按业态显示/隐藏开关，SVG 支持手势缩放平移（`InteractiveViewer`）
+- uni-app `FloorMapPage`：通过 `<image>` 或内嵌 `<web-view>` 加载楼层 SVG 文件（通过 `/api/files/floors/...` 代理）
+- admin `FloorMapView`：使用 SVG 内联 + `<svg>` 元素叠加半透明状态色块多边形（coord 来自 API `heatmap` 端点）
+- 楼层切换 Tab / Dropdown，按业态显示/隐藏开关，SVG 支持手势缩放平移（CSS `transform` + touch 事件 / admin 端鼠标滚轮）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `FloorMapPage`：用 `flutter_svg` 加载 SVG（URL 通过 `ApiPaths.fileProxy(path)` 拼接，含 Authorization 头），`InteractiveViewer` 包裹支持手势缩放平移；`CustomPaint` 绘制热区多边形，颜色来自 `colorScheme`（**不硬编码**），透明度 0.4。**楼层切换和业态过滤逻辑在 `FloorMapBloc/Cubit`**，不在 Widget 中维护状态；`FloorMapPage` 超 150 行时将 SVG 叠加层提取为 `widgets/floor_heatmap_overlay.dart`。
-> 附：`@file:.github/copilot-instructions.md`（UI主题、状态色）`@file:docs/ARCH.md`（平台能力矩阵）
+> 💬 **Copilot 提示语**（模板：`/uniapp-page`）：
+> 实现 `FloorMapPage`：加载 SVG（URL 通过 `API_PATHS.fileProxy(path)` 拼接，含 Authorization 头），支持手势缩放平移；SVG 叠加热区多边形，颜色来自 CSS 变量（**不硬编码**），透明度 0.4。**楼层切换和业态过滤逻辑在 `useFloorMapStore`**，不在组件中维护状态；`FloorMapPage` 超 250 行时将 SVG 叠加层提取为 `components/FloorHeatmapOverlay.vue`。
+> 附：`@file:.github/copilot-instructions.md`（UI色彩、状态色）`@file:docs/ARCH.md`（平台能力矩阵）
 
 #### Day 20 · 5月5日（周二）— 热区交互 + 单元详情
 
-- 热区点击识别：GestureDetector + 点坐标 → 查找命中 unitId → 跳转 `UnitDetailPage`
+- 热区点击识别：SVG 元素 click 事件 + 坐标命中判断 → 查找命中 unitId → 跳转 `UnitDetailPage`
 - `UnitDetailPage`：基本信息（面积 / 楼层 / 朝向 / 装修状态）+ 三业态差异化扩展字段 + 当前合同摘要占位（待 M2 联动）
-- `RenovationHistoryWidget`：改造记录列表（改造类型 / 日期 / 造价）+ 照片网格 `GridView`
+- `RenovationHistory` 组件：改造记录列表（改造类型 / 日期 / 造价）+ 照片网格
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现热区点击交互和 `UnitDetailPage`。点击多边形命中用射线法或 `Path.contains(offset)` 判断，命中后 `context.push('/units/${unitId}')` 跳转（**用 go_router，禁止 Navigator.push**）。`UnitDetailPage` 中当前合同摘要区域目前为占位组件（`ContractSummaryPlaceholder`），待 M2 联动后回填。三业态差异化字段用 `unit.propertyTypeDetails.when(office:..., retail:..., apartment:...)` 渲染，禁止 `if(unit.propertyType == 'office')` 字符串判断。
-> 附：`@file:docs/ARCH.md`（Flutter路由）`@file:.github/copilot-instructions.md`
+> 💬 **Copilot 提示语**（模板：`/uniapp-page`）：
+> 实现热区点击交互和 `UnitDetailPage`。点击 SVG 多边形通过元素 `@click` 事件 + `data-unit-id` 属性识别，命中后 `uni.navigateTo({ url: '/pages/assets/unit-detail?id=${unitId}' })` 跳转。`UnitDetailPage` 中当前合同摘要区域目前为占位组件（`ContractSummaryPlaceholder`），待 M2 联动后回填。三业态差异化字段用 `v-if="unit.propertyType === 'office'"` 等条件渲染（admin 端同理）。
+> 附：`@file:docs/ARCH.md`（前端路由）`@file:.github/copilot-instructions.md`
 
 #### Day 21 · 5月6日（周三）— Excel 导入前端 + 资产台账导出
 
-- `ImportPage`：业态选择 Tabs + `file_picker` 选择 Excel + Http 上传进度 + 结果报告（成功条数 / 失败行明细）
-- `UnitListPage`（表格模式，列：单元号 / 业态 / 面积 / 状态 / 当前租客，支持筛选 + 翻页）
+- uni-app `ImportPage`：业态选择 Tabs + `uni.chooseFile` 选择 Excel + 上传进度 + 结果报告（成功条数 / 失败行明细）
+- admin `UnitListView`（Element Plus Table，列：单元号 / 业态 / 面积 / 状态 / 当前租客，支持筛选 + 翻页）
 - 导出按钮 → `GET /api/units/export`（后端生成 Excel，前端下载保存）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `ImportPage` 和 `UnitListPage`。上传进度用 `Dio.onSendProgress` 回调驱动 `LinearProgressIndicator`；错误行用 `DataTable` 展示（列：行号/字段/错误原因）。`UnitListPage` 翻页大小使用 `kDefaultPageSize`（来自 `ui_constants.dart`），禁止硬编码 `20`；状态列颜色用 `colorScheme` Token；筛选条件变化通过 `UnitListBloc.add(FilterChangedEvent(...))` 触发，不在 Widget 中做业务判断。
-> 附：`@file:.github/copilot-instructions.md`（常量管理规则、UI主题）
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 `ImportPage`（uni-app）和 `UnitListView`（admin）。上传进度用 `luch-request` 的 `onUploadProgress` 回调驱动 `wd-progress`（uni-app）或 `el-progress`（admin）；错误行用表格展示（列：行号/字段/错误原因）。翻页大小使用 `DEFAULT_PAGE_SIZE`（来自 `ui_constants.ts`），禁止硬编码 `20`；状态列颜色用 CSS 变量（uni-app）或 Element Plus Tag type（admin）；筛选条件变化通过 Store action 触发，不在组件中做业务判断。
+> 附：`@file:.github/copilot-instructions.md`（常量管理规则、UI色彩规范）
 
 #### Day 22 · 5月7日（周四）— M1 前后端联调
 
 - 切换 `USE_MOCK=false`，对接真实后端
 - 修复数据格式差异（snake_case → camelCase 自动转换验证，日期 ISO 8601 解析，枚举映射不缺值）
-- 真实 SVG 文件上传测试（测试用 .dwg → ODA File Converter→DXF → ezdxf→SVG 两步转换链路 → Flutter 渲染验证）
+- 真实 SVG 文件上传测试（测试用 .dwg → ODA File Converter→DXF → ezdxf→SVG 两步转换链路 → 前端渲染验证）
 
 > 💬 **Copilot 提示语**（排查联调问题用）：
 > 我在联调 M1 前后端，遇到以下问题：[描述具体报错或数据差异]。请对照 `@file:docs/ARCH.md`（API协议约定）和 `@file:docs/backend/data_model.md`，帮我定位是后端响应格式不符（信封/字段名/枚举值）还是前端解析逻辑问题，给出最小修改方案。**不要引入新依赖，不要改变架构层次，只修复数据格式对齐问题。**
@@ -389,7 +387,7 @@
 > 💬 **Copilot 提示语**（安全验证用）：
 > 帮我验证 M1 RBAC 是否正确实现：前线员工（role: `frontline_staff`）访问 `POST /api/units` 和 `DELETE /api/units/:id` 应返回 403；管理员（role: `admin`）应200。请对照 `@file:docs/ARCH.md` RBAC 章节，检查 `rbac_middleware.dart` 的权限矩阵配置是否覆盖这些端点，并给出补充缺失权限规则的代码，**保持矩阵结构不变，仅追加行**。
 
-> **Milestone 1**：639 套 Excel 样本导入正常；楼层 SVG 热区图在 Flutter App 渲染正确；资产 Dashboard 三业态汇总数据展示。
+> **Milestone 1**：639 套 Excel 样本导入正常；楼层 SVG 热区图在前端渲染正确；资产 Dashboard 三业态汇总数据展示。
 
 ---
 
@@ -451,7 +449,7 @@
 > 实现 `wale_service.dart`，支持**双口径**（收入加权 + 面积加权）：$WALE_{income} = \sum(remaining_i \times annualRent_i) / \sum(annualRent_i)$，$WALE_{area} = \sum(remaining_i \times leasableArea_i) / \sum(leasableArea_i)$。剩余租期精确到天（用 UTC 日期差除以 365.25），**不依赖 `DateTime.now()`**，从注入的 `Clock.now()` 获取当前时间。终止合同的剩余租期归零（不参与加权）。`groupBy` 查询在 SQL 聚合层完成，不在 Dart 循环中遍历全量数据。
 > 附：`@file:docs/ARCH.md`（WALE双口径公式）`@file:docs/backend/data_model.md`（contracts/contract_units 表）
 
-### 第 7 周（5/18 — 5/22）· M2 后端 预警 + 前端 Domain/BLoC
+### 第 7 周（5/18 — 5/22）· M2 后端 预警 + 前端类型/Store
 
 #### Day 29 · 5月18日（周一）— 预警引擎后端
 
@@ -464,25 +462,25 @@
 > 实现 `alert_service.dart`。预警阈值（90/60/30天 到期；第1/7/15天逾期）定义在 `lib/shared/constants/business_rules.dart`（**禁止在 alert_service 中硬编码这些数字**）。扫描时批量插入，同一合同同一节点不得重复生成（用 UNIQUE 约束或 INSERT ON CONFLICT IGNORE）。`job_runner.dart` 中注册定时任务钩子（Phase 1 手动触发），需具备失败重试和人工补偿能力（参考 `job_execution_log.dart`）。
 > 附：`@file:docs/backend/data_model.md`（alerts 表）`@file:.github/copilot-instructions.md`（常量管理规则）
 
-#### Day 30 · 5月19日（周二）— M2 前端 Domain + Data 层
+#### Day 30 · 5月19日（周二）— M2 前端类型定义 + API 函数
 
-- freezed 模型：`Tenant`, `Contract`, `ContractAttachment`, `RentEscalationPhase`, `Alert`, `WaleData`, `RentForecastItem`（纯 Dart）
-- 抽象接口：`TenantRepository`, `ContractRepository`, `AlertRepository`, `WaleRepository`, `EscalationRepository`
-- HTTP 实现（Dio + 分页 + ApiException 包装）+ Mock 实现（含 3 种附件格式样本）
+- TypeScript 接口：`Tenant`, `Contract`, `ContractAttachment`, `RentEscalationPhase`, `Alert`, `WaleData`, `RentForecastItem`（放 `app/src/types/` 和 `admin/src/types/`）
+- API 函数：`tenantApi`, `contractApi`, `alertApi`, `waleApi`, `escalationApi`（放 `src/api/modules/`）
+- HTTP 封装（luch-request / axios + 分页 + ApiError 包装）+ Mock 模式（含 3 种附件格式样本）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-domain` + `/flutter-data`）：
-> 在 `lib/features/contracts/domain/` 和 `data/` 下实现 M2 两层。Domain 层：`Contract` 模型包含 `taxInclusive` 和 `terminationType` 枚举字段；`RentEscalationPhase` 用 sealed class（6种子类型）严格对应 `packages/rent_escalation_engine` 的类型——**两端必须共享同一包路径依赖（`path: ../../packages/rent_escalation_engine`），不重新定义模型**。Data 层：`ApiException` 包装 Dio 错误，不透传原始异常；Mock 数据包含 `active`/`expiring_soon`/`terminated` 三种合同状态。
-> 附：`@file:docs/ARCH.md`（Flutter分层规则、package复用）`@file:docs/backend/data_model.md`
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 在 `app/src/types/` 和 `app/src/api/modules/` 下实现 M2 类型 + API 层。`Contract` 接口包含 `taxInclusive` 和 `terminationType` 枚举字段；`RentEscalationPhase` 用 union type（6种子类型）与后端 `packages/rent_escalation_engine` 的类型一一对应（**前端不直接引用后端 package，通过 API 调用**）。API 层：`ApiError` 包装网络错误，不透传原始异常；Mock 数据包含 `active`/`expiring_soon`/`terminated` 三种合同状态。
+> 附：`@file:docs/ARCH.md`（前端分层规则、package复用）`@file:docs/backend/data_model.md`
 
 #### Day 31 · 5月20日（周三）— M2 BLoC
 
-- `TenantListBloc`（Event：search, paginate）+ `TenantDetailCubit`（加载全景画像）
-- `ContractListBloc`（过滤 Event：byStatus / byBuildingId / byPropertyType）+ `ContractDetailCubit`
-- `AlertListBloc`（加载 + 标记已读 + 未读数角标 stream）+ `WaleCubit`（加载三级 WALE + 趋势）
-- 全部 BLoC 单元测试通过（bloc_test + mocktail）
+- `useTenantStore`（搜索 + 分页 + 详情加载）
+- `useContractStore`（过滤：byStatus / byBuildingId / byPropertyType + 分页）
+- `useAlertStore`（加载 + 标记已读 + 未读数 computed）+ `useWaleStore`（加载三级 WALE + 趋势）
+- 全部 Store 单元测试通过（Vitest）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-bloc`）：
-> 在 `lib/features/contracts/presentation/bloc/` 下实现 M2 BLoC 层。`ContractListBloc` 若超过 200 行，将"过滤条件管理"拆为独立 `ContractFilterCubit`；`AlertListBloc` 的未读数通过 `Stream<int>` 暴露给 AppBar Badge，不轮询。所有 BLoC 测试覆盖：`①初始状态②加载成功③错误处理④过滤条件变更后重新加载`。**禁止在 BLoC 中直接 emit UI 副作用（如 `SnackBar`）**，改用 `BlocListener` 在 Widget 层响应。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 在 `app/src/stores/` 和 `admin/src/stores/` 下实现 M2 Pinia Store。`useContractStore` 若超过 200 行，将"过滤条件管理"拆为独立 `useContractFilterStore`；`useAlertStore` 的未读数通过 `computed` 计算，不轮询。所有 Store 测试覆盖：`①初始状态②加载成功③错误处理④过滤条件变更后重新加载`。**禁止在 Store 中直接操作 UI（如弹 Toast）**，组件层通过 `watch` 或 `storeToRefs` 响应状态变化。
 > 附：`@file:docs/ARCH.md`（文件复杂度超限拆分策略）`@file:.github/copilot-instructions.md`
 
 #### Day 32 · 5月21日（周四）— M2 UI 租客详情 + 合同列表
@@ -491,54 +489,54 @@
 - `TenantDetailPage`（全景画像：基本信息 / 租赁历史 Tab / 缴费信用 Tab / 工单记录 Tab 占位）
 - `ContractListPage`（状态 Tab 筛选 + 合同卡片：单元号 / 租客名 / 到期日 / 月租金 / 状态色标）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `TenantListPage`、`TenantDetailPage` 和 `ContractListPage`。`TenantDetailPage` 工单 Tab 目前为占位（`WorkOrderTabPlaceholder()`），M4 完工后回填，**不要现在实现工单 List**。证件号显示时必须脱敏（仅末4位），调用 `TenantDetailCubit` 获取的数据中 `idNumber` 字段已为脱敏值，直接展示即可。信用评级（A/B/C）用 `colorScheme` 颜色区分（A→secondary，B→tertiary，C→error）。
-> 附：`@file:.github/copilot-instructions.md`（UI主题、状态色）`@file:docs/ARCH.md`
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 `TenantListPage`、`TenantDetailPage` 和 `ContractListPage`。`TenantDetailPage` 工单 Tab 目前为占位组件，M4 完工后回填，**不要现在实现工单 List**。证件号显示时必须脱敏（仅末4位），Store 获取的数据中 `idNumber` 字段已为脱敏值，直接展示即可。信用评级（A/B/C）用 CSS 变量 / Element Plus Tag type 区分（A→success，B→warning，C→danger）。
+> 附：`@file:.github/copilot-instructions.md`（UI色彩规范、状态色）`@file:docs/ARCH.md`
 
 #### Day 33 · 5月22日（周五）— M2 UI 合同详情 + 操作 + 预警
 
 - `ContractDetailPage`（合同详情 + 附件列表 + 操作区：终止/续签 确认弹窗）
 - `ContractFormPage`（新建/编辑合同：单元选择 / 租客关联 / 免租期配置 / 付款周期）
 - `AlertListPage`（按类型分组：到期预警 / 逾期预警 / 月度汇总；未读红标）
-- `WaleDashboardWidget`（三业态 WALE 数值卡 + 12 月趋势折线图 `fl_chart`）
+- `WaleDashboard` 组件（三业态 WALE 数值卡 + 12 月趋势折线图，admin 端用 ECharts）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `ContractDetailPage`、`ContractFormPage`、`AlertListPage`、`WaleDashboardWidget`。合同状态色必须严格遵守：`active`→secondary，`expiring_soon`→tertiary，`terminated`→outlineVariant，`overdue`→error，**禁止任何硬编码颜色值**。`ContractFormPage` 的单元选择通过 `context.push('/units/picker')` 跳转，不内嵌 Dialog。`WaleDashboardWidget` 的 WALE 计算逻辑调用 `WaleCubit` 的已计算值，**Widget 中不做数学计算**。删除确认弹窗必须双重确认（先弹 AlertDialog，用户输入合同编号后方可确认）。
-> 附：`@file:.github/copilot-instructions.md`（UI主题规范）`@file:docs/backend/data_model.md`（合同状态机）
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 `ContractDetailPage`、`ContractFormPage`、`AlertListPage`、`WaleDashboard`。合同状态色必须严格遵守：`active`→success，`expiring_soon`→warning，`terminated`→info，`overdue`→danger，**禁止任何硬编码颜色值**。`ContractFormPage` 的单元选择通过路由跳转或 Dialog（admin 端 `el-dialog`）。`WaleDashboard` 的 WALE 计算逻辑调用 Store 已计算值，**组件中不做数学计算**。删除确认弹窗必须双重确认（先弹确认框，用户输入合同编号后方可确认）。
+> 附：`@file:.github/copilot-instructions.md`（UI色彩规范）`@file:docs/backend/data_model.md`（合同状态机）
 
 ### 第 8 周（5/25 — 5/29）· M2 前端 租金递增配置器（难点）
 
 #### Day 34 · 5月25日（周一）— 配置器整体架构
 
-- `RentEscalationConfiguratorWidget`（StatefulWidget）：多阶段动态列表，支持增删阶段按钮
-- 每个阶段渲染 `EscalationPhaseCard`（阶段序号 + 类型下拉 + 动态参数区）
-- `EscalationTypeSelector`：6 种类型 DropdownButton，选中后切换对应参数 Form
+- `RentEscalationConfigurator` 组件：多阶段动态列表，支持增删阶段按钮
+- 每个阶段渲染 `EscalationPhaseCard` 子组件（阶段序号 + 类型下拉 + 动态参数区）
+- `EscalationTypeSelector`：6 种类型下拉（uni-app 用 `wd-picker`，admin 用 `el-select`），选中后切换对应参数表单
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现租金递增配置器 `RentEscalationConfiguratorWidget`。这是一个复杂 StatefulWidget，阶段列表用 `List<EscalationPhase>` 本地状态管理；增删阶段只操作本地 state，保存时整体提交给 `RentEscalationCubit`。**禁止在 Widget 内直接调用 HTTP**。`EscalationTypeSelector` 的 6 种类型须与 `rent_escalation_engine` package 中的枚举一致（直接 import `packages/rent_escalation_engine`，不重新定义）。配置器整体超过 150 行时，将 `EscalationPhaseCard` 拆入 `widgets/escalation_phase_card.dart`。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现租金递增配置器 `RentEscalationConfigurator`（admin 端 Vue 组件）。阶段列表用 `ref<EscalationPhase[]>` 本地状态管理；增删阶段只操作本地 state，保存时整体提交给 `useEscalationStore`。**禁止在组件内直接调用 HTTP**。`EscalationTypeSelector` 的 6 种类型须与后端 `rent_escalation_engine` package 中的枚举一致（通过 API 调用，前端不直接引用）。配置器整体超过 250 行时，将 `EscalationPhaseCard` 拆入 `components/EscalationPhaseCard.vue`。
 > 附：`@file:docs/ARCH.md`（文件复杂度拆分规则）`@file:.github/copilot-instructions.md`
 
 #### Day 35 · 5月26日（周二）— 各类型参数表单
 
 - `FixedRateForm`（涨幅百分比 + 递增周期年数）
 - `FixedAmountForm`（固定金额 ¥/m²/月 + 递增周期）
-- `SteppedForm`（DataTable：年份段 × 单价，可增删行）
+- `SteppedForm`（`el-table`：年份段 × 单价，可增删行）
 - `CpiLinkedForm`（历年 CPI 录入表 + 生效年份选择）
 - `EveryNYearsForm`（间隔 N 年 + 涨幅百分比）
 - `PostRenovationForm`（免租结束后首年基准价 + 后续叠加规则选择）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 6 种递增类型参数表单（`FixedRateForm`、`FixedAmountForm`、`SteppedForm`、`CpiLinkedForm`、`EveryNYearsForm`、`PostRenovationForm`）。所有表单均通过 `GlobalKey<FormState>` 校验，**不通过 `setState` 直接提交数据**，由父级 `EscalationPhaseCard` 在"确认"时统一读取。`SteppedForm` 的 DataTable 行数据用 `List<SteppedRow>` 管理，增删行不触发整页重建（用 `ValueNotifier` 精细控制）。表单字段值的类型必须与 `packages/rent_escalation_engine/lib/models/` 中的对应字段类型一致（number 不用 String 传递）。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 6 种递增类型参数表单（`FixedRateForm`、`FixedAmountForm`、`SteppedForm`、`CpiLinkedForm`、`EveryNYearsForm`、`PostRenovationForm`）。所有表单均通过 `el-form` ref + `validate()` 校验，**不直接在事件处理函数中提交数据**，由父级 `EscalationPhaseCard` 在"确认"时统一读取。`SteppedForm` 的 `el-table` 行数据用 `ref<SteppedRow[]>([])` 管理，增删行通过 Vue 响应式精细控制。表单字段值的类型必须与 `packages/rent_escalation_engine/lib/models/` 中的对应字段类型一致（number 不用 String 传递）。
 > 附：`@file:.github/copilot-instructions.md`（架构约束）`@file:docs/ARCH.md`
 
 #### Day 36 · 5月27日（周三）— 模板管理 + 预测图表
 
 - `EscalationTemplatePage`（保存当前配置为命名模板，按业态分类，支持搜索/编辑/删除/设为默认）
-- `RentForecastChart`（`fl_chart` 折线图：X 轴年月，Y 轴月租金，全合同期预测，支持年/月切换）
-- `ContractFormPage` 集成配置器：保存时将阶段列表序化为 API JSON 格式
+- `RentForecastChart`（admin 端 ECharts 折线图：X 轴年月，Y 轴月租金，全合同期预测，支持年/月切换）
+- `ContractFormPage` 集成配置器：保存时将阶段列表序列化为 API JSON 格式
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `EscalationTemplatePage`（模板管理）和 `RentForecastChart`（预测折线图）。**`RentForecastChart` 计算逻辑必须调用 `packages/rent_escalation_engine` 的函数，Widget 内不做任何租金数学计算。** 预测期跨越合同全生命周期（可能 5~10 年），数据点可能超过 120 个月，`fl_chart` 需设置 `minX/maxX` 并按需聚合为年度数据降低点数。模板保存时，阶段配置序列化为 `List<Map<String,dynamic>>`，通过 `EscalationTemplateCubit.saveTemplate()` 提交，不直接调用 HTTP。
+> 💬 **Copilot 提示语**（模板：`/admin-view`）：
+> 实现 `EscalationTemplatePage`（模板管理）和 `RentForecastChart`（预测折线图）。**`RentForecastChart` 的数据来自后端 API（`packages/rent_escalation_engine` 计算），组件内不做任何租金数学计算。** 预测期跨越合同全生命周期（可能 5~10 年），数据点可能超过 120 个月，ECharts 需设置 `dataZoom` 并按需聚合为年度数据。模板保存时，阶段配置序列化为 JSON 数组，通过 `useEscalationTemplateStore.saveTemplate()` 提交，不直接调用 HTTP。
 > 附：`@file:.github/copilot-instructions.md``@file:docs/backend/data_model.md`（递增规则 JSONB 结构）
 
 #### Day 37 · 5月28日（周四）— 配置器联调 + 混合分段验证
@@ -547,18 +545,18 @@
 - 测试 3 种混合分段场景（如"第1~2年固定 + 第3~4年5%递增 + 第5年CPI挂钩"）与手工计算对比
 - 续签对比组件：显示原合同末期租金 vs 新合同起始租金、涨跌幅百分比
 
-> 💬 **Copilot 提示语**（模板：`/flutter-data`）：
-> 联调租金递增配置器：配置器保存 → `PUT /api/contracts/:id/escalation-rules` → 触发 `GET /api/contracts/:id/rent-forecast` → `RentForecastChart` 更新。联调过程中若发现前后端数据字段名不一致，修改 Flutter 的 `fromJson` 映射来适配后端（**不修改后端枚举/字段命名**）。随后对 3 种混合分段场景：分别用配置器构造、提交、查看预测图，**同时用 `packages/rent_escalation_engine` 本地计算同一场景进行对比断言（误差 < 0.01）**，将测试用例写入 `test/rent_escalation_integration_test.dart`。
+> 💬 **Copilot 提示语**（联调用）：
+> 联调租金递增配置器：配置器保存 → `PUT /api/contracts/:id/escalation-rules` → 触发 `GET /api/contracts/:id/rent-forecast` → `RentForecastChart` 更新。联调过程中若发现前后端数据字段名不一致，修改前端 TypeScript 接口映射来适配后端（**不修改后端枚举/字段命名**）。随后对 3 种混合分段场景：分别用配置器构造、提交、查看预测图，**同时用 `packages/rent_escalation_engine` 本地计算同一场景进行对比断言（误差 < 0.01）**，将测试用例写入 `test/rent_escalation_integration_test.dart`。
 > 附：`@file:docs/backend/data_model.md`（递增规则 JSONB 格式）`@file:.github/copilot-instructions.md`
 
 #### Day 38 · 5月29日（周五）— WALE 瀑布图 + M2 集成测试
 
-- `LeaseExpiryWaterfallChart`（`fl_chart` 分组柱状图：X 轴年份，Y 轴到期面积 m²，按业态颜色区分）
+- `LeaseExpiryWaterfallChart`（admin 端 ECharts 分组柱状图：X 轴年份，Y 轴到期面积 m²，按业态颜色区分）
 - M2 全功能集成测试：合同全状态流转、递增规则联动账单预算、预警生成验证
 - RBAC 测试：租务专员可新建合同，不可删除；财务人员不可修改合同
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `LeaseExpiryWaterfallChart`，X 轴年份（2025~2035），Y 轴 m²（三业态叠加柱）。颜色严格遵守：写字楼→`colorScheme.primary`，商铺→`colorScheme.secondary`，公寓→`colorScheme.tertiary`，**不使用固定 hex 颜色**。接着执行 M2 集成测试：①合同 active→expiring_soon→terminated 全状态流转；②递增规则配置后 `GET /api/contracts/:id/rent-forecast` 返回 12 个月预测金额与期望值对比；③RBAC：用财务角色 JWT 调 `DELETE /api/contracts/:id` 期望 403。
+> 💬 **Copilot 提示语**（模板：`/admin-view`）：
+> 实现 `LeaseExpiryWaterfallChart`，X 轴年份（2025~2035），Y 轴 m²（三业态叠加柱）。颜色严格遵守 CSS 变量 / ECharts 主题色：写字楼→primary，商铺→success，公寓→warning，**不使用固定 hex 颜色**。接着执行 M2 集成测试：①合同 active→expiring_soon→terminated 全状态流转；②递增规则配置后 `GET /api/contracts/:id/rent-forecast` 返回 12 个月预测金额与期望值对比；③RBAC：用财务角色 JWT 调 `DELETE /api/contracts/:id` 期望 403。
 > 附：`@file:.github/copilot-instructions.md`（RBAC、颜色token）`@file:docs/backend/API_INVENTORY_v1.7.md`
 
 ### 第 9 周（6/1 — 6/5）· M2 收尾
@@ -575,21 +573,21 @@
 
 #### Day 40 · 6月2日（周二）— 合同附件管理完善
 
-- `AttachmentWidget`（前端）：上传 PDF（file_picker）+ 文件预览/下载（通过 `/api/files/contracts/...` 代理）+ 单个删除确认弹窗
+- 附件管理组件（前端）：上传 PDF（uni-app `uni.chooseFile` / admin `el-upload`）+ 文件预览/下载（通过 `/api/files/contracts/...` 代理）+ 单个删除确认弹窗
 - 后端 RBAC：附件只有合同所属租务专员/管理层可删除，财务只读
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现合同附件管理 `AttachmentWidget`。文件上传通过 `MultipartFile` 发 `POST /api/contracts/:id/attachments`，进度通过 Dio 的 `onSendProgress` 回调更新本地 `UploadProgressCubit`。文件下载/预览地址固定为 `/api/files/contracts/{contractId}/{filename}`（使用 `api_paths.dart` 中的常量，**不硬编码路径字符串**）。删除附件时先弹 `AlertDialog` 确认（无需二次输入文件名），确认后调用 `DELETE /api/contracts/:id/attachments/:attachmentId`。**上传大小限制通过后端 `MAX_UPLOAD_SIZE_MB` 环境变量控制，前端不做 MB 硬编码判断**。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现合同附件管理组件。文件上传通过 API 函数发 `POST /api/contracts/:id/attachments`，进度通过 `onUploadProgress` 回调更新进度条。文件下载/预览地址固定为 `/api/files/contracts/{contractId}/{filename}`（使用 `api_paths.ts` 中的常量，**不硬编码路径字符串**）。删除附件时先弹确认框（无需二次输入文件名），确认后调用 `DELETE /api/contracts/:id/attachments/:attachmentId`。**上传大小限制通过后端 `MAX_UPLOAD_SIZE_MB` 环境变量控制，前端不做 MB 硬编码判断**。
 > 附：`@file:.github/copilot-instructions.md`（文件存储路径规范）`@file:docs/backend/API_INVENTORY_v1.7.md`
 
 #### Day 41 · 6月3日（周三）— M2 性能优化
 
 - 合同列表 500+ 条分页 SQL `EXPLAIN ANALYZE`：确认 `(unit_id, status)` 复合索引生效
-- Flutter `ContractListPage` 大列表性能：确认 `ListView.builder` 延迟渲染（非全量构建）
+- 前端 `ContractListView` 大列表性能：确认分页加载（非全量渲染）
 - 日期重计算优化：`daysUntilExpiry` 在后端 SQL 计算而非前端循环
 
 > 💬 **Copilot 提示语**（模板：`/backend-module`）：
-> M2 性能调优。执行 `EXPLAIN ANALYZE SELECT ... FROM contracts WHERE unit_id = $1 AND status = $2 LIMIT 20 OFFSET 0`，确认 bitmap index scan 生效，扫描行数 < 总量的 10%。若缺少索引，生成迁移 SQL（`CREATE INDEX CONCURRENTLY`，`CONCURRENTLY` 不阻断写操作）。`daysUntilExpiry` 字段改为在 SQL 中计算：`(end_date - CURRENT_DATE) AS days_until_expiry`，移除前端 Repository 层的日期运算循环。**前端 `ContractListPage` 检查：禁止 `SingleChildScrollView + Column`，必须 `ListView.builder`（Widget 按需构建）**；用 Flutter DevTools Performance 录 5 秒滚动，确认无 jank（目标帧率 ≥ 55fps）。
+> M2 性能调优。执行 `EXPLAIN ANALYZE SELECT ... FROM contracts WHERE unit_id = $1 AND status = $2 LIMIT 20 OFFSET 0`，确认 bitmap index scan 生效，扫描行数 < 总量的 10%。若缺少索引，生成迁移 SQL（`CREATE INDEX CONCURRENTLY`，`CONCURRENTLY` 不阻断写操作）。`daysUntilExpiry` 字段改为在 SQL 中计算：`(end_date - CURRENT_DATE) AS days_until_expiry`，移除前端日期运算循环。**前端合同列表检查：确保使用分页加载（admin 端 `el-table` + `el-pagination`，uni-app 端 `scroll-view` + 触底加载）**；用浏览器 Performance 工具录 5 秒滚动，确认无卡顿。
 > 附：`@file:docs/ARCH.md`（架构约束：性能要求）`@file:.github/copilot-instructions.md`
 
 #### Day 42 · 6月4日（周四）— M2 验收对标
@@ -607,9 +605,9 @@
 - 楼层热区图颜色源改为 M2 合同到期日驱动（expiringSoon ≤90天 → tertiary 色）
 - `TenantDetailPage` 工单 Tab 关联 M4 预留桩（待 M4 完工后回填）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 M1-M2 跨模块联动。`UnitDetailCubit` 在加载单元详情时同步调用 `ContractRepository.getCurrentContractByUnitId(unitId)` 获取当前合同摘要（**不新建单独接口**，复用 M2 已有接口）；若 `daysUntilExpiry ≤ 90`，`UnitDetailPage` 的状态色用 `colorScheme.tertiary`，`≤ 30` 天用 `colorScheme.error`。楼层热区 `FloorMapPage` 的单元颜色逻辑抽取为 `UnitColorMapper.fromStatus(UnitStatus, Contract?)` 纯函数（便于单元测试），**不在 Widget build() 里内联 if-else 颜色判断**。`TenantDetailPage` 工单 Tab 保留占位并添加注释 `// TODO: Day 52 M4 linkage`。
-> 附：`@file:.github/copilot-instructions.md`（UI色彩 token）`@file:docs/ARCH.md`（M1-M2联动设计）
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 M1-M2 跨模块联动。`useUnitDetailStore` 在加载单元详情时同步调用 `contractApi.getCurrentByUnitId(unitId)` 获取当前合同摘要（**不新建单独接口**，复用 M2 已有接口）；若 `daysUntilExpiry ≤ 90`，`UnitDetailPage` 的状态色用 warning，`≤ 30` 天用 danger。楼层热区 `FloorMapPage` 的单元颜色逻辑抽取为 `getUnitStatusColor(status, contract)` 纯函数（便于单元测试），**不在组件模板中内联 if-else 颜色判断**。`TenantDetailPage` 工单 Tab 保留占位并添加注释 `// TODO: Day 52 M4 linkage`。
+> 附：`@file:.github/copilot-instructions.md`（UI色彩规范）`@file:docs/ARCH.md`（M1-M2联动设计）
 
 > **Milestone 2**：合同状态机全流程跑通；租金递增配置器支持 6 种类型 + 混合分段；WALE 计算误差 < 0.01 年；楼层热区颜色实时联动合同到期日。
 
@@ -619,7 +617,7 @@
 
 > **时间**：2026-06-08（W10）— 2026-06-19（W11），共 10 个工作日
 
-### 第 10 周（6/8 — 6/12）· M4 后端 + 前端 Domain/Data/BLoC
+### 第 10 周（6/8 — 6/12）· M4 后端 + 前端类型/Store
 
 #### Day 44 · 6月8日（周一）— M4 API Contract + 后端骨架
 
@@ -652,15 +650,15 @@
 > 实现 `push_service.dart`（FCM HTTP v1 推送）。FCM 接入凭证（`Google Service Account JSON` 内容）从 `FCM_SERVICE_ACCOUNT_JSON` 环境变量读取（配置在 `app_config.dart`，缺失时启动失败）。推送逻辑不阻塞主请求：`push_service.sendToUser(userId, title, body)` 内部异步发送，失败仅打印日志不抛异常（推送不影响工单状态机）。**移动端推送失败时必须降级**：在 `alerts` 表写入同一条通知（`type: work_order_update`），确保桌面端轮询 `GET /api/alerts/unread/count` 仍可感知。`app_config.dart` 中 FCM 凭证验证方式：检查 JSON 中 `client_email` 字段存在且非空。
 > 附：`@file:.github/copilot-instructions.md`（安全：环境变量注入规则）`@file:docs/ARCH.md`
 
-#### Day 47 · 6月11日（周四）— M4 前端 Domain/Data/BLoC
+#### Day 47 · 6月11日（周四）— M4 前端类型/API/Store
 
-- freezed 模型：`WorkOrder`, `WorkOrderStatus`, `Supplier`, `CostEntry`
-- 抽象接口 + HTTP 实现 + Mock 实现（5 条不同状态工单）
-- `WorkOrderListBloc`（状态 Tab 过滤）+ `WorkOrderDetailCubit`（加载详情 + 状态更新）+ `ReportWorkOrderCubit`（表单状态管理）
-- BLoC 单元测试覆盖（bloc_test）
+- TypeScript 接口：`WorkOrder`, `WorkOrderStatus`, `Supplier`, `CostEntry`（`app/src/types/` + `admin/src/types/`）
+- API 函数（`api/modules/workorder.ts`）+ Mock 数据（5 条不同状态工单）
+- `useWorkOrderListStore`（状态 Tab 过滤）+ `useWorkOrderDetailStore`（加载详情 + 状态更新）+ `useReportWorkOrderStore`（表单状态管理）
+- Store 单元测试覆盖（Vitest）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-domain`，接着 `/flutter-bloc`）：
-> M4 前端 Domain 层：`WorkOrder`（freezed，含 `WorkOrderStatus` + `WorkOrderPriority` 枚举，与后端枚举名严格对应）；`IWorkOrderRepository` 抽象接口。Data 层：`HttpWorkOrderRepository` 调用 `api_paths.dart` 的路径常量（**不硬编码 `/api/work-orders`**）。BLoC 层：`WorkOrderListBloc` 若超 200 行，将"关键字搜索"分拆为 `WorkOrderSearchCubit`；`ReportWorkOrderCubit` 管理报修表单（楼栋/楼层/单元/类型/紧急程度/描述），表单提交后 emit `ReportWorkOrderSuccess(workOrderId)` 供 Listener 跳转。测试：每个 BLoC 覆盖 `initial / loading / loaded / error / filter_changed` 五种 case。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> M4 前端类型层：`WorkOrder` TypeScript 接口（含 `WorkOrderStatus` + `WorkOrderPriority` 枚举，与后端枚举名严格对应）。API 层：`workorder.ts` 调用 `api_paths.ts` 的路径常量（**不硬编码 `/api/work-orders`**）。Store 层：`useWorkOrderListStore` 若超 200 行，将"关键字搜索"分拆为 `useWorkOrderSearchStore`；`useReportWorkOrderStore` 管理报修表单（楼栋/楼层/单元/类型/紧急程度/描述），表单提交成功后通过返回值供页面跳转。测试：每个 Store 覆盖 `initial / loading / loaded / error / filter_changed` 五种 case。
 > 附：`@file:.github/copilot-instructions.md`（领域分层规则）`@file:docs/api/m4_workorders.md`
 
 #### Day 48 · 6月12日（周五）— M4 UI 工单列表 + 详情
@@ -668,9 +666,9 @@
 - `WorkOrderListPage`（状态 Tab：待审核 / 处理中 / 待验收 / 已完成）+ `WorkOrderCard`（优先级色标 + 楼栋单元 + 提报时间）
 - `WorkOrderDetailPage`：状态时间轴 `Stepper` + 照片网格 `GridView` + 费用明细 `ListTile` + 角色操作按钮（派单/完工/验收/拒绝）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `WorkOrderListPage` 和 `WorkOrderDetailPage`。优先级色标：critical→error，urgent→tertiary，normal→secondary（全部通过 `colorScheme` token）。`WorkOrderDetailPage` 的操作按钮依据当前登录用户角色（从 `AuthCubit.state.user.role` 读取）动态渲染，**不在 Widget 内硬编码角色字符串**，提取为 `WorkOrderPermissions.canDispatch(role)` 等纯函数。状态时间轴用 Flutter 内置 `Stepper`（`StepState.complete/active/disabled`）。照片列表通过 `/api/files/workorders/{id}/{index}.jpg` 代理加载（`CachedNetworkImage`），**不直接暴露存储地址**。
-> 附：`@file:.github/copilot-instructions.md`（颜色token、文件存储路径规范）`@file:docs/ARCH.md`
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 `WorkOrderListPage` 和 `WorkOrderDetailPage`。优先级色标：critical→danger，urgent→warning，normal→success（全部通过 CSS 变量 / Element Plus Tag type）。`WorkOrderDetailPage` 的操作按钮依据当前登录用户角色（从 `useAuthStore().user.role` 读取）动态渲染，**不在组件内硬编码角色字符串**，提取为 `canDispatch(role)` 等工具函数。状态时间轴用 `wd-steps`（uni-app）或 `el-steps`（admin）。照片列表通过 `/api/files/workorders/{id}/{index}.jpg` 代理加载，**不直接暴露存储地址**。
+> 附：`@file:.github/copilot-instructions.md`（色彩规范、文件存储路径规范）`@file:docs/ARCH.md`
 
 ### 第 11 周（6/15 — 6/19）· M4 前端 报修 + 推送 + 联调
 
@@ -678,10 +676,10 @@
 
 - `ReportWorkOrderPage`：楼栋选择 → 楼层选择 → 单元选择（三级联动 Dropdown，数据从 M1 API 拉取）
 - 问题类型选择（列表：水电 / 空调 / 消防 / 结构 / 其他）+ 紧急程度（一般 / 紧急 / 非常紧急）+ 描述文本框
-- `image_picker` 照片选择（最多 5 张）+ 预览网格 + 多张并发上传进度条
+- `image_picker` / `uni.chooseImage` 照片选择（最多 5 张）+ 预览网格 + 多张并发上传进度条
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现移动端报修页 `ReportWorkOrderPage`。三级联动（楼栋→楼层→单元）每级选择后触发下级数据加载，用 `ReportWorkOrderCubit` 中的三个 `late final` Stream 字段管理，**不在 Widget 内 setState 控制级联逻辑**。图片上传：最多 5 张，通过 `image_picker` 选取后存入本地 `List<XFile>`，点击 UI 预览网格；提交时并发上传（`Future.wait([...])` 并发，每张独立上传接口 `POST /api/work-orders/:id/photos`），并发上传进度通过 `MultipartFile.fromFile` 的 `onSendProgress` 分别更新。紧急程度枚举必须引用 `WorkOrderPriority`（`domain` 层定义），**禁止 Widget 内出现字符串 "normal/urgent/critical"**。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page`）：
+> 实现移动端报修页 `ReportWorkOrderPage`。三级联动（楼栋→楼层→单元）每级选择后触发下级数据加载，用 `useReportWorkOrderStore` 中的 action 管理级联逻辑，**不在组件内直接控制级联状态**。图片上传：最多 5 张，通过 `uni.chooseImage` 选取后存入本地列表，点击 UI 预览网格；提交时并发上传（每张独立调用 `POST /api/work-orders/:id/photos`），并发上传进度分别更新。紧急程度枚举必须引用 TypeScript 类型定义（`WorkOrderPriority`），**禁止组件内出现字符串 "normal/urgent/critical"**。
 > 附：`@file:.github/copilot-instructions.md`（架构分层）`@file:docs/ARCH.md`（文件存储规范）
 
 #### Day 50 · 6月16日（周二）— QR 扫码 + 平台差异化
@@ -690,8 +688,8 @@
 - `PlatformUtils.supportsQrScan` 判断：桌面/Web 端隐藏扫码入口，降级展示手动选择楼栋/楼层/单元的完整表单
 - 相机权限请求封装（iOS `permission_handler`）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `QrScanPage` 和平台差异化入口。`mobile_scanner` 回调函数中解析格式 `propos://units/{unitId}`（使用 `Uri.parse` + scheme/host 校验，**不用正则直接匹配字符串**，防止格式变更导致漏解析）；解析成功后调用 `context.go('/report-workorder?unitId=$unitId')`。`PlatformUtils.supportsQrScan` 返回 `Platform.isIOS || Platform.isAndroid`（确保未 import `dart:io` 时使用 `kIsWeb` 兼容判断）。iOS 相机权限：在扫码按钮点击时先 `await Permission.camera.request()`，被拒绝时显示 `SnackBar` 引导至系统设置（`openAppSettings()`），**不在 Widget 初始化时主动申请权限**。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page`）：
+> 实现 `QrScanPage` 和平台差异化入口。uni-app 使用 `uni.scanCode` 扫码，解析格式 `propos://units/{unitId}`（使用 URL 解析 + scheme/host 校验，**不用正则直接匹配字符串**，防止格式变更导致漏解析）；解析成功后 `uni.navigateTo({ url: '/pages/workorders/report?unitId=${unitId}' })`。admin 端隐藏扫码入口，降级展示手动选择楼栋/楼层/单元的完整表单。
 > 附：`@file:.github/copilot-instructions.md`（平台差异化）`@file:docs/ARCH.md`
 
 #### Day 51 · 6月17日（周三）— 费用录入 + 供应商管理
@@ -700,8 +698,8 @@
 - `SupplierListPage`（供应商列表 + 搜索 + 类型筛选）+ `SupplierFormPage`（新增/编辑）
 - 后端：`POST /api/work-orders/:id/cost-entry`，费用写入 `expenses` 表并设 `source: work_order`（M3 NOI 联动接口预留）
 
-> 💬 **Copilot 提示语**（模板：`/backend-module`，接着 `/flutter-ui`）：
-> 后端：`POST /api/work-orders/:id/cost-entry` 校验工单状态必须为 `pending_acceptance` 或 `completed`（其他状态抛 `AppException('INVALID_WORK_ORDER_STATE', ..., 422)`）；写入 `expenses` 表时设 `source = 'work_order'` 和 `source_id = workOrderId`（为 M3 NOI 联动预留，**不修改 M3 expenses 表，只写 source 字段**）。前端 `CostEntryPage`：供应商选择通过 `SupplierPickerDialog`（SearchDelegate 风格），**不用 DropdownButton 内联全部供应商**（避免大量数据渲染）；完工照片上传复用 Day 49 的并发上传逻辑（抽取为 `MultiPhotoUploader` 组件）。
+> 💬 **Copilot 提示语**（模板：`/backend-module`，接着 `/uniapp-page` + `/admin-view`）：
+> 后端：`POST /api/work-orders/:id/cost-entry` 校验工单状态必须为 `pending_acceptance` 或 `completed`（其他状态抛 `AppException('INVALID_WORK_ORDER_STATE', ..., 422)`）；写入 `expenses` 表时设 `source = 'work_order'` 和 `source_id = workOrderId`（为 M3 NOI 联动预留，**不修改 M3 expenses 表，只写 source 字段**）。前端 `CostEntryPage`：供应商选择通过搜索弹窗（admin `el-dialog` + 搜索框，uni-app `wd-search` + 列表），**不用下拉菜单内联全部供应商**（避免大量数据渲染）；完工照片上传复用 Day 49 的并发上传逻辑（抽取为 `MultiPhotoUploader` 组件）。
 > 附：`@file:.github/copilot-instructions.md`（架构约束）`@file:docs/ARCH.md`（M3 NOI 联动预留接口）
 
 #### Day 52 · 6月18日（周四）— M4 前后端联调
@@ -710,8 +708,8 @@
 - FCM 推送验证（iOS/Android 测试设备，状态变更 → 通知栏出现推送）
 - 桌面端轮询验证：工单状态变更 → 10 秒内 `/api/alerts/unread/count` 数值更新
 
-> 💬 **Copilot 提示语**（模板：`/flutter-data`）：
-> M4 全链路联调。联调顺序：①移动端 `ReportWorkOrderPage` 提交 → 后端 `work_orders` 表出现新记录；②PC 端 `WorkOrderListPage` 刷新列表 → 出现新工单；③派单 `PATCH /api/work-orders/:id/status {status: reviewed, assigneeId: ...}` → FCM 推送到指派人手机；④工单完工录入费用 → `expenses` 表出现 `source: work_order` 记录；⑤验收 `pending_acceptance→completed` → 提单人手机收到推送或桌面端未读数 +1。联调中若发现字段名不一致，只修改 Flutter `fromJson` 映射，**不修改后端字段名**（保持 API 约定稳定）。
+> 💬 **Copilot 提示语**（联调用）：
+> M4 全链路联调。联调顺序：①移动端 `ReportWorkOrderPage` 提交 → 后端 `work_orders` 表出现新记录；②PC 端 `WorkOrderListView` 刷新列表 → 出现新工单；③派单 `PATCH /api/work-orders/:id/status {status: reviewed, assigneeId: ...}` → FCM 推送到指派人手机；④工单完工录入费用 → `expenses` 表出现 `source: work_order` 记录；⑤验收 `pending_acceptance→completed` → 提单人手机收到推送或桌面端未读数 +1。联调中若发现字段名不一致，只修改前端 TypeScript 接口映射，**不修改后端字段名**（保持 API 约定稳定）。
 > 附：`@file:docs/api/m4_workorders.md``@file:.github/copilot-instructions.md`
 
 #### Day 53 · 6月19日（周五）— M4 验收 + 微信小程序骨架
@@ -720,7 +718,7 @@
 - 微信小程序骨架：`app.json` 配置 2 页（报修表单页 + 工单状态查询页），API 接口复用后端（不开发推送）
 
 > 💬 **Copilot 提示语**（模板：`/security-and-test`）：
-> M4 验收 + 微信小程序骨架。RBAC 测试：用 `frontline_staff` 角色 JWT 调 `PATCH /api/work-orders/:id/status {status: reviewed}` → 期望 403；用 `manager` 角色调相同接口 → 期望 200。微信小程序骨架（**仅骨架，不完整实现**）：`app.json` 配置 2 个页面（`pages/report/index` + `pages/status/index`）；`report/index` 表单字段与 Flutter 端一致（楼栋/楼层/单元/类型/描述），`wx.request` 调用同一后端 API（注意小程序不支持 `Authorization: Bearer`，改用 `wx.setStorageSync` 存储 token 并在 header 注入）；**推送能力完全不实现，文档注释标记 [Phase 2]**。小程序代码放入 `/miniprogram/` 目录。
+> M4 验收 + 微信小程序骨架。RBAC 测试：用 `frontline_staff` 角色 JWT 调 `PATCH /api/work-orders/:id/status {status: reviewed}` → 期望 403；用 `manager` 角色调相同接口 → 期望 200。微信小程序骨架（**仅骨架，不完整实现**）：`app.json` 配置 2 个页面（`pages/report/index` + `pages/status/index`）；`report/index` 表单字段与 uni-app 端一致（楼栋/楼层/单元/类型/描述），`wx.request` 调用同一后端 API（注意小程序不支持 `Authorization: Bearer`，改用 `wx.setStorageSync` 存储 token 并在 header 注入）；**推送能力完全不实现，文档注释标记 [Phase 2]**。小程序代码放入 `/miniprogram/` 目录。
 > 附：`@file:.github/copilot-instructions.md`（架构约束：Phase 2 功能不超前实现）`@file:docs/ARCH.md`
 
 > **Milestone 3**：工单从提报到完工全链路跑通；移动端 FCM 推送验证成功；维修成本写入 expenses 表接口联调确认。
@@ -841,45 +839,45 @@
 
 ### 第 14 周（7/6 — 7/10）· M3 前端 账单 + NOI
 
-#### Day 64 · 7月6日（周一）— M3 前端 Domain/Data/BLoC
+#### Day 64 · 7月6日（周一）— M3 前端类型/API/Store
 
-- freezed 模型：`Invoice`, `InvoiceItem`, `Payment`, `Expense`, `NoiSummary`, `KpiScheme`, `KpiSnapshot`, `KpiMetricScore`
-- HTTP 实现 + Mock 实现（各 5 条样本，含已核销 / 逾期 / 待核销三种状态）
-- BLoC：`InvoiceListBloc`, `PaymentCubit`, `ExpenseListBloc`, `NoiDashboardCubit`, `KpiDashboardCubit`
-- 全部 BLoC 单元测试 pass
+- TypeScript 接口：`Invoice`, `InvoiceItem`, `Payment`, `Expense`, `NoiSummary`, `KpiScheme`, `KpiSnapshot`, `KpiMetricScore`（`app/src/types/` + `admin/src/types/`）
+- API 函数（`api/modules/finance.ts` + `api/modules/kpi.ts`）+ Mock 数据（各 5 条样本，含已核销/逾期/待核销三种状态）
+- Pinia Store：`useInvoiceListStore`, `usePaymentStore`, `useExpenseListStore`, `useNoiDashboardStore`, `useKpiDashboardStore`
+- 全部 Store 单元测试 pass（Vitest）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-domain`，接着 `/flutter-bloc`）：
-> M3 前端 Domain 层：`Invoice`（freezed，含 `InvoiceStatus` 枚举同后端值一一对应；`totalAmount` 从 `items` 计算的 getter，**不存冗余字段**）；`NoiSummary`（含 `pgi, vacancyLoss, otherIncome, opEx, noi` 五个字段）；`KpiMetricScore`（含 `metricCode, metricName, actualValue, score, weight`）。BLoC：若 `InvoiceListBloc` 超 200 行，将"账单核销操作"拆为独立 `InvoiceReconcileCubit`；`NoiDashboardCubit` 通过注入 `INoiRepository`（**不注入 Dio**），调用 `getNoiSummary(month)` 和 `getNoiTrend(months: 12)`。所有 BLoC 单元测试覆盖 initial/loading/loaded/error，`KpiDashboardCubit` 额外测试 `computeKpi` 触发后 state 更新流。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> M3 前端类型层：`Invoice` TypeScript 接口（含 `InvoiceStatus` 枚举同后端值一一对应；`totalAmount` 从 `items` 计算的 computed，**不存冗余字段**）；`NoiSummary`（含 `pgi, vacancyLoss, otherIncome, opEx, noi` 五个字段）；`KpiMetricScore`（含 `metricCode, metricName, actualValue, score, weight`）。Store：若 `useInvoiceListStore` 超 200 行，将"账单核销操作"拆为独立 `useInvoiceReconcileStore`；`useNoiDashboardStore` 通过 API 模块函数调用（**不直接使用 axios/luch-request**），调用 `getNoiSummary(month)` 和 `getNoiTrend(months: 12)`。所有 Store 单元测试覆盖 initial/loading/loaded/error，`useKpiDashboardStore` 额外测试 `computeKpi` 触发后 state 更新流。
 > 附：`@file:.github/copilot-instructions.md`（分层规则）`@file:docs/api/m3_finance.md`
 
 #### Day 65 · 7月7日（周二）— 账单列表 + 详情 + 核销
 
 - `InvoiceListPage`（Tab 过滤：全部 / 待核销 / 逾期 / 已核销，展示收款进度对比条）
-- `InvoiceDetailPage`（费项明细 DataTable + 核销操作 + 发票号录入 + 状态色标）
+- `InvoiceDetailPage`（费项明细 `el-table` + 核销操作 + 发票号录入 + 状态色标）
 - `PaymentFormPage`（录入到账信息：金额 / 到账日期 / 备注）+ 自动匹配账单提示
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现账单管理 UI 三屏。`InvoiceListPage` 状态色：paid→secondary，overdue→error，pending→outlineVariant，partial→tertiary（**严格遵守 colorScheme Token**）。收款进度条：`LinearProgressIndicator(value: paidAmount / totalAmount)`，`paidAmount` 已支付总额，`value` 超出 1.0 时 clamp 到 1.0 防止溢出。`InvoiceDetailPage` 的核销按钮须做权限保护：`BlocBuilder<AuthCubit, AuthState>` 检查角色有 `canReconcile` 权限后才渲染，**不在后端查数据之前渲染操作按钮**。`PaymentFormPage` 的到账日期选择器用 `showDatePicker`（locale 中文），选择后更新 `PaymentCubit.state.toAccountDate`，格式化为 ISO 8601 传 API。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现账单管理 UI 三屏。`InvoiceListPage` 状态色：paid→success（绿），overdue→danger（红），pending→info（灰），partial→warning（橙）（**严格遵守 CSS 变量 / Element Plus type Token**）。收款进度条：`el-progress :percentage="Math.min(paidAmount / totalAmount * 100, 100)"`，`paidAmount` 已支付总额，超出 100% 时 clamp 防止溢出。`InvoiceDetailPage` 的核销按钮须做权限保护：通过 `useAuthStore` 检查角色有 `canReconcile` 权限后才用 `v-if` 渲染，**不在后端查数据之前渲染操作按钮**。`PaymentFormPage` 的到账日期选择器用 `el-date-picker`（中文 locale），选择后更新 Store 的 `toAccountDate`，格式化为 ISO 8601 传 API。
 > 附：`@file:.github/copilot-instructions.md`（UI主题色、状态语义）`@file:docs/api/m3_finance.md`
 
 #### Day 66 · 7月8日（周三）— NOI 实时看板
 
 - `NoiDashboardPage`：月度三栏卡片（EGI / OpEx / NOI 数值 + 环比变化箭头）
 - 三业态 NOI 拆分 `Row`（写字楼 / 商铺 / 公寓各自 NOI 柱状对比）
-- 12 月 NOI 趋势折线图（`fl_chart` LineChart）+ 月份横向滑动选择
+- 12 月 NOI 趋势折线图（ECharts line）+ 月份横向滑动选择
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `NoiDashboardPage`。顶部三栏数值卡（EGI / OpEx / NOI）数据来自 `NoiDashboardCubit.state`（`.when()` 渲染，**禁止 `if(state is NoiLoaded)`**）。环比变化箭头：`changePercent > 0` 显示 `Icon(Icons.arrow_upward, color: colorScheme.secondary)`（绿色好），`< 0` 显示 `Icon(Icons.arrow_downward, color: colorScheme.error)`（红色坏），`== 0` 显示 `Icon(Icons.remove, color: colorScheme.outlineVariant)`（灰色持平）。三业态柱状对比：使用 `fl_chart` 的 `BarChart`，Y 轴金额格式化为 `¥{金额/万}万`（如 `¥12.3万`，精确到0.1万）。月份选择：横向 `ListView`（月份标签），选中月份高亮为 `colorScheme.primaryContainer`。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 `NoiDashboardPage`。顶部三栏数值卡（EGI / OpEx / NOI）数据来自 `useNoiDashboardStore` state（`v-if="!loading"` 条件渲染，**禁止 `v-if="state === 'loaded'"` 硬编码状态名**）。环比变化箭头：`changePercent > 0` 显示上箭头图标（CSS 变量 `--color-success` 绿色好），`< 0` 显示下箭头图标（`--color-danger` 红色坏），`== 0` 显示横线图标（`--color-neutral` 灰色持平）。三业态柱状对比：使用 ECharts 的 bar 图，Y 轴金额格式化为 `¥{金额/万}万`（如 `¥12.3万`，精确到 0.1 万）。月份选择：横向可滚动月份标签组，选中月份高亮为主色。
 > 附：`@file:.github/copilot-instructions.md`（核心计算公式：NOI=EGI-OpEx、UI色彩）`@file:docs/ARCH.md`
 
 #### Day 67 · 7月9日（周四）— NOI 细项 + 出租率仪表盘
 
-- 出租率 `CircularProgressIndicator` 仪表盘（全局 + 三业态下钻 Tab）
+- 出租率环形进度图（ECharts gauge / `el-progress type="circle"`，全局 + 三业态下钻 Tab）
 - 空置损失测算展示（空置单元数 × 市值单价 × 面积）
-- 本月收款进度 `LinearProgressIndicator`（应收 vs 实收，点击展开未缴款租户列表）
+- 本月收款进度 `el-progress`（应收 vs 实收，点击展开未缴款租户列表）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 NOI 细项仪表盘。出租率环形进度：使用 `CircularProgressIndicator(value: occupancyRate, backgroundColor: colorScheme.surfaceVariant)`，超过 95% 时颜色用 `colorScheme.secondary`（绿色达标），低于 80% 时用 `colorScheme.error`（红色预警），**颜色阈值常量定义在 `business_rules.dart`（`kOccupancyGoodThreshold = 0.95`、`kOccupancyWarnThreshold = 0.80`），不硬编码数字**。空置损失金额显示：`¥{vacancyLoss}` 来自 `NoiSummary.vacancyLoss`（后端已计算，Widget **不做面积×单价计算**）。收款进度 `LinearProgressIndicator` 点击展开 `BottomSheet`，`BottomSheet` 内列出未缴款租户（懒加载，分页 `pageSize = kDefaultPageSize`）。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 NOI 细项仪表盘。出租率环形进度：使用 `el-progress type="circle" :percentage="occupancyRate * 100"`，超过 95% 时颜色用 CSS 变量 `--color-success`（绿色达标），低于 80% 时用 `--color-danger`（红色预警），**颜色阈值常量定义在 `business_rules.ts`（`OCCUPANCY_GOOD_THRESHOLD = 0.95`、`OCCUPANCY_WARN_THRESHOLD = 0.80`），不硬编码数字**。空置损失金额显示：`¥{vacancyLoss}` 来自 `NoiSummary.vacancyLoss`（后端已计算，组件**不做面积×单价计算**）。收款进度 `el-progress` 点击展开 `el-drawer`，`el-drawer` 内列出未缴款租户（懒加载，分页 `pageSize = DEFAULT_PAGE_SIZE`）。
 > 附：`@file:.github/copilot-instructions.md`（常量管理、UI主题）`@file:docs/ARCH.md`
 
 #### Day 68 · 7月10日（周五）— 运营支出录入 UI
@@ -887,8 +885,8 @@
 - `ExpenseListPage`（按类目 Tab：维修 / 物管 / 保险 / 税金 / 其他；包含工单来源标记）
 - `ExpenseFormPage`（手动新增支出：类目 / 金额 / 付款日期 / 楼栋关联 / 备注）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `ExpenseListPage` 和 `ExpenseFormPage`。`ExpenseListPage` 中工单来源费用条目显示标签 Chip（`source == 'work_order'` 时显示 `Chip(label: Text('工单'), backgroundColor: colorScheme.secondaryContainer)`）；工单来源条目不可编辑/删除（操作按钮隐藏）。`ExpenseFormPage` 的楼栋选择从 `IAssetRepository.getBuildings()` 获取（**复用 M1 接口**，不新建楼栋接口）；类目 Dropdown 的选项使用 `ExpenseCategory.values.map()` 遍历渲染，**枚举显示名称**通过 `ExpenseCategory.label` 扩展 getter 实现，不在 Widget 内 switch 枚举转中文字符串。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 `ExpenseListPage` 和 `ExpenseFormPage`。`ExpenseListPage` 中工单来源费用条目显示 `el-tag`（`source === 'work_order'` 时显示 `<el-tag type="info">工单</el-tag>`）；工单来源条目不可编辑/删除（操作按钮隐藏）。`ExpenseFormPage` 的楼栋选择从资产 API `getBuildings()` 获取（**复用 M1 接口**，不新建楼栋接口）；类目 `el-select` 的选项使用 `ExpenseCategory` 枚举遍历渲染，**枚举显示名称**通过 `EXPENSE_CATEGORY_LABEL` 映射对象实现，不在组件内 switch 枚举转中文字符串。
 > 附：`@file:.github/copilot-instructions.md`（UI主题色）`@file:docs/ARCH.md`（M3-M4联动设计）
 
 ### 第 15 周（7/13 — 7/17）· M3 前端 KPI 仪表盘 + 联调
@@ -897,33 +895,33 @@
 
 - `KpiSchemePage`（方案列表 + 新建入口 + 当前生效标记）
 - `KpiSchemeFormPage`：
-  - 指标勾选 `CheckboxListTile`（10 个预定义指标，含说明文字）
-  - 权重输入 `TextFormField`（实时合计校验 = 100% 提示）
-  - 满分/及格阈值微调 `Slider`
+  - 指标勾选 `el-checkbox`（10 个预定义指标，含说明文字）
+  - 权重输入 `el-input-number`（实时合计校验 = 100% 提示）
+  - 满分/及格阈值微调 `el-slider`
   - 评估周期、适用对象（部门/员工）配置
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 KPI 方案配置器。`KpiSchemeFormPage` 权重合计实时校验：在 `KpiSchemeFormCubit` 中维护 `Map<String, double> weights`，每次输入变更计算 `totalWeight = weights.values.reduce(+)`；若 `(totalWeight - 1.0).abs() > 0.0001` 则在页面顶部显示 `Banner(message: '权重合计 ${(totalWeight*100).toStringAsFixed(1)}%，请调整至 100%')`，保存按钮禁用（**不提交不合法权重**）。`Slider` 组件满分阈值范围 50~100（`divisions: 50`）；及格阈值不能高于满分阈值（`Slider.max = customFullScore`，响应式联动）。方案表单超 150 行时拆出 `widgets/kpi_metric_weight_item.dart` 和 `widgets/kpi_threshold_slider.dart`。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 KPI 方案配置器。`KpiSchemeFormPage` 权重合计实时校验：在 `useKpiSchemeFormStore` 中维护 `weights: Record<string, number>` ref，每次输入变更计算 `totalWeight = Object.values(weights).reduce((a, b) => a + b, 0)`；若 `Math.abs(totalWeight - 1.0) > 0.0001` 则在页面顶部显示 `el-alert`（`权重合计 ${(totalWeight*100).toFixed(1)}%，请调整至 100%`），保存按钮禁用（**不提交不合法权重**）。`el-slider` 组件满分阈值范围 50~100；及格阈值不能高于满分阈值（`:max="customFullScore"`，响应式联动）。方案表单超 150 行时拆出 `components/KpiMetricWeightItem.vue` 和 `components/KpiThresholdSlider.vue`。
 > 附：`@file:.github/copilot-instructions.md`（文件复杂度拆分规则）`@file:docs/ARCH.md`
 
 #### Day 70 · 7月14日（周二）— KPI 评分看板
 
-- `KpiDashboardPage`：当期方案总览卡（总分 + 等级标签）+ 各指标得分 `RadarChart`（`fl_chart`）
-- 员工/部门排名 `ListTile` 列表（头像 + 姓名 + 得分 + 名次变化箭头）
-- 指标下钻：点击雷达图某顶点 → `BottomSheet` 展示原始数据明细
+- `KpiDashboardPage`：当期方案总览卡（总分 + 等级标签）+ 各指标得分雷达图（ECharts radar）
+- 员工/部门排名列表（头像 + 姓名 + 得分 + 名次变化箭头）
+- 指标下钻：点击雷达图某顶点 → `el-drawer` 展示原始数据明细
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `KpiDashboardPage`。等级标签：`totalScore >= 90` → 等级"优秀"（colorScheme.secondary），`>= 75` → "良好"（colorScheme.primary），`>= 60` → "合格"（colorScheme.tertiary），`< 60` → "不合格"（colorScheme.error）；**等级阈值存入 `business_rules.dart`（`kKpiExcellentScore = 90`等），不硬编码**。雷达图用 `fl_chart` 的 `RadarChart`，每个顶点对应一个 KPI 指标，`dataSets` 用当期指标得分（0~100）；点击顶点事件通过 `RadarChart` 的 `radarTouchData` 回调获取 `touchedSpotIndex`，映射到 `KpiMetricScore` 后调用 `showModalBottomSheet`。排名箭头：`changeFromLastPeriod > 0` → `Icons.arrow_upward`（secondary），`< 0` → `Icons.arrow_downward`（error），`null` 或 `0` → `Icons.remove`（outlineVariant）。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 `KpiDashboardPage`。等级标签：`totalScore >= 90` → 等级"优秀"（`el-tag type="success"`），`>= 75` → "良好"（`type="primary"`），`>= 60` → "合格"（`type="warning"`），`< 60` → "不合格"（`type="danger"`）；**等级阈值存入 `business_rules.ts`（`KPI_EXCELLENT_SCORE = 90` 等），不硬编码**。雷达图用 ECharts 的 radar 图，每个顶点对应一个 KPI 指标，`data` 用当期指标得分（0~100）；点击顶点事件通过 ECharts 的 `click` 回调获取指标索引，映射到 `KpiMetricScore` 后打开 `el-drawer`。排名箭头：`changeFromLastPeriod > 0` → 上箭头（success 色），`< 0` → 下箭头（danger 色），`null` 或 `0` → 横线（neutral 色）。
 > 附：`@file:.github/copilot-instructions.md`（UI色彩 token、常量管理）`@file:docs/ARCH.md`
 
 #### Day 71 · 7月15日（周三）— KPI 历史趋势 + 导出
 
 - 历史折线图（过去 6~12 月 KPI 总分曲线 + 各指标分项趋势可切换）
 - 同比/环比数值对比显示（与上月、去年同期）
-- `KpiExportButton`（调用 `POST /api/kpi/snapshots/:id/export` 下载 PDF 报告，`file_picker` 保存路径）
+- `KpiExportButton`（调用 `POST /api/kpi/snapshots/:id/export` 下载 PDF 报告，浏览器下载）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 KPI 历史趋势和导出。折线图用 `fl_chart` 的 `LineChart`，支持"总分"和"各指标分项"两种视图切换（`SegmentedButton`）；分项视图时叠加多条折线（每条颜色来自 `colorScheme` 的不同 token，不使用固定颜色数组）。同比/环比：`KpiDashboardCubit` 提供 `monthOverMonth`（与上月差值）和 `yearOverYear`（与去年同期快照差值），快照不存在时显示 `'N/A'`。`KpiExportButton` 点击流程：调用 API → 收到 `Uint8List` bytes → `FileSaver.saveFile(name: 'kpi_{period}.pdf', bytes: bytes)` 保存（**不用 `file_picker` 的保存对话框直接覆盖写入**，使用 `file_saver` package 统一处理多平台路径）。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> 实现 KPI 历史趋势和导出。折线图用 ECharts 的 line 图，支持"总分"和"各指标分项"两种视图切换（`el-radio-group`）；分项视图时叠加多条折线（每条颜色来自 CSS 变量的不同 token，不使用固定颜色数组）。同比/环比：`useKpiDashboardStore` 提供 `monthOverMonth`（与上月差值）和 `yearOverYear`（与去年同期快照差值），快照不存在时显示 `'N/A'`。`KpiExportButton` 点击流程：调用 API → 收到 `Blob` 响应 → `URL.createObjectURL(blob)` + `<a>` 标签触发下载（`kpi_{period}.pdf`），**不弹文件保存对话框**。
 > 附：`@file:.github/copilot-instructions.md`（UI主题色）`@file:docs/api/m3_finance.md`（KPI导出接口）
 
 #### Day 72 · 7月16日（周四）— M3 前后端联调
@@ -932,8 +930,8 @@
 - KPI 联调：配置方案 → `POST /api/kpi/compute` → 前端雷达图更新
 - NOI 联调：工单费用录入 → expenses 更新 → NOI 看板数值变化
 
-> 💬 **Copilot 提示语**（模板：`/flutter-data`）：
-> M3 全链路联调。联调清单（按顺序执行，每步截图记录结果）：①`POST /api/invoices/generate {month: "2026-06"}` → 前端 `InvoiceListPage` 刷新（BLoC 在 `invoicesGenerated` 事件后主动 `add(LoadInvoicesEvent())`）；②配置 KPI 方案 A → `POST /api/kpi/compute {schemeId, period}` → `KpiDashboardPage` 雷达图数值更新；③工单录入费用 1000 元 → `GET /api/noi/summary?month=2026-06` opEx +1000 → 前端 NOI 看板减少 1000。联调发现字段不一致时，**统一修改 Flutter `fromJson` 映射，记录到 `docs/api/m3_finance.md` 的"联调备注"节**（不同步修改后端）。
+> 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
+> M3 全链路联调。联调清单（按顺序执行，每步截图记录结果）：①`POST /api/invoices/generate {month: "2026-06"}` → 前端 `InvoiceListPage` 刷新（Store 在操作完成后主动调用 `fetchInvoices()`）；②配置 KPI 方案 A → `POST /api/kpi/compute {schemeId, period}` → `KpiDashboardPage` 雷达图数值更新；③工单录入费用 1000 元 → `GET /api/noi/summary?month=2026-06` opEx +1000 → 前端 NOI 看板减少 1000。联调发现字段不一致时，**统一修改前端 TypeScript 接口映射，记录到 `docs/api/m3_finance.md` 的"联调备注"节**（不同步修改后端）。
 > 附：`@file:docs/api/m3_finance.md``@file:.github/copilot-instructions.md`
 
 #### Day 73 · 7月17日（周五）— M3 验收对标
@@ -943,7 +941,7 @@
 - 记录 M3 → M5 穿透视角联动待办（NOI 看板增加穿透口径切换）
 
 > 💬 **Copilot 提示语**（模板：`/security-and-test`）：
-> M3 验收对标。生成 `docs/m3_acceptance_checklist.md`，逐项记录：①NOI 数值对标（Flutter 展示值 vs 数据库查询值，误差 < 0.01 元）；②账单生成 639 条计时（记录实际毫秒数）；③KPI 方案 A/B 打分与手工计算一致（记录手工公式和实际得分）。RBAC 安全测试：用 `finance_staff` 角色 JWT 调 `POST /api/kpi/schemes` → 期望 403；用 `manager` 角色调相同接口 → 期望 200。M3→M5 穿透联动待办：在 `NoiDashboardCubit` 内添加注释 `// TODO: Day 82 M5 penetration mode - add subLandlord scope toggle for occupancy calculation`，**不现在实现**。
+> M3 验收对标。生成 `docs/m3_acceptance_checklist.md`，逐项记录：①NOI 数值对标（前端展示值 vs 数据库查询值，误差 < 0.01 元）；②账单生成 639 条计时（记录实际毫秒数）；③KPI 方案 A/B 打分与手工计算一致（记录手工公式和实际得分）。RBAC 安全测试：用 `finance_staff` 角色 JWT 调 `POST /api/kpi/schemes` → 期望 403；用 `manager` 角色调相同接口 → 期望 200。M3→M5 穿透联动待办：在 `useNoiDashboardStore` 内添加注释 `// TODO: Day 82 M5 penetration mode - add subLandlord scope toggle for occupancy calculation`，**不现在实现**。
 > 附：`@file:.github/copilot-instructions.md`（RBAC约定）`@file:docs/PRD.md`（PRD §七验收标准）
 
 > **Milestone 4**：账单自动生成完成（三业态多费项）；NOI 三业态拆分正确；KPI 两套方案自动打分与手工一致；工单费用 → NOI 支出链路打通。
@@ -986,49 +984,49 @@
 > 实现 M5 Controller 层。`SubleaseController` 区分两套路由：内部管理 `/api/subleases`（需 `is_internal_admin` 或 `leasing_manager` 角色）、外部门户 `/api/portal/subleases`（需 `sub_landlord` 角色，**额外中间件验证 `subLandlordScope` 非空**）。`POST /api/portal/subleases` 中间件流水线：`authMiddleware → roleMiddleware('sub_landlord') → subLandlordScopeMiddleware → controller`（`subLandlordScopeMiddleware` 解析 JWT 中 `subLandlordScope` 字段并注入 `context.locals`，若为空则 403 拒绝）。`run-sublease-reminders` 接口要求 `scheduler` 角色（内部定时任务专用角色，**不对外暴露**），实际发送渠道（邮件/短信）通过 `NotificationService` 抽象，Phase 1 仅写日志（实现为 console 输出）。
 > 附：`@file:.github/copilot-instructions.md`（RBAC、架构分层）`@file:docs/backend/API_INVENTORY_v1.7.md`
 
-#### Day 77 · 7月23日（周四）— 外部二房东填报门户（Flutter Web，独立路由）
+#### Day 77 · 7月23日（周四）— 外部二房东填报门户（admin 端独立路由）
 
-- 独立路由 `/sublease-portal`（与主 App 同代码库，`go_router` 条件分支：sub_landlord 角色自动重定向此路由）
-- `SubleasePortalLoginPage`（独立登录页，Logo/文案与主 App 区分）
+- 独立路由 `/sublease-portal`（admin 端同代码库，Vue Router `beforeEach` 守卫：sub_landlord 角色自动重定向此路由）
+- `SubleasePortalLoginPage`（独立登录页，Logo/文案与主管理后台区分）
 - `SubleasePortalHomePage`：显示自身主合同覆盖单元列表，空置/已租/待审核状态标记
 - `SubleaseFormPage`（逐条填报：租客信息 / 租金 / 入住状态，含字段实时校验）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现二房东外部填报门户（Flutter Web 专属路由，**不是独立项目，共享同一代码库**）。`go_router` 路由守卫：登录后若 `user.role == 'sub_landlord'` 自动 `redirect('/sublease-portal')`，**禁止 sub_landlord 角色访问 `/buildings`、`/contracts` 等内部路由**（在 `RouteGuard.redirectByRole()` 中统一处理，不在每个页面 Widget 内做角色判断）。`SubleasePortalLoginPage` 继承与主 App 相同的 `AuthBloc`（**不实现独立登录逻辑**，复用）；UI 仅替换 Logo 图片（`assets/sub_portal_logo.png`）和页面标题文字。`SubleaseFormPage` 的证件号（`idNumber`）字段必须 `obscureText: true`（密码模式），提交时发 `/api/portal/subleases` 接口。
+> 💬 **Copilot 提示语**（模板：`/admin-view`）：
+> 实现二房东外部填报门户（admin 端独立路由，**不是独立项目，共享同一代码库**）。Vue Router `beforeEach` 守卫：登录后若 `user.role === 'sub_landlord'` 自动 `next('/sublease-portal')`，**禁止 sub_landlord 角色访问 `/buildings`、`/contracts` 等内部路由**（在 `router/index.ts` 的全局守卫中统一处理，不在每个页面组件内做角色判断）。`SubleasePortalLoginPage` 复用 `useAuthStore`（**不实现独立登录逻辑**）；UI 仅替换 Logo 图片和页面标题文字。`SubleaseFormPage` 的证件号（`idNumber`）字段必须 `type="password"`（密码模式），提交时发 `/api/portal/subleases` 接口。
 > 附：`@file:.github/copilot-instructions.md`（架构约束：行级隔离）`@file:docs/ARCH.md`（路由设计）
 
 #### Day 78 · 7月24日（周五）— 外部门户 Excel 上传 + 提交确认
 
 - 模板下载按钮（`GET /api/subleases/template`，返回预填表头的 Excel 文件）
-- Excel 批量上传 + 后端返回校验结果（成功行数 + 失败行明细），前端 `DataTable` 展示错误行
+- Excel 批量上传 + 后端返回校验结果（成功行数 + 失败行明细），前端 `el-table` 展示错误行
 - 提交后：状态变为"待审核"，不可再次编辑（只读显示），展示提交时间戳
 - 变更历史 Tab：按时间排序的历史提交记录（修改前后字段对比）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现外部门户 Excel 上传流程。前端：`file_picker` 选择 `.xlsx` 文件（`allowedExtensions: ['xlsx']`）→ `MultipartFile` 上传到 `POST /api/portal/subleases/import`；后端返回 `{data: {successCount: N, failedRows: [{rowIndex, reason}]}}`，前端用 `DataTable` 展示失败行（行号 + 错误原因）。提交确认按钮：先显示 `AlertDialog`（"共 N 条记录将提交审核，提交后不可修改，确认？"），确认后调 `POST /api/portal/subleases/submit`，提交成功后整个表单变为只读（`SubleasePortalCubit.state.isSubmitted = true`，所有 `TextFormField` 改为 `enabled: false`）。历史记录 Tab：按 `submittedAt DESC` 排列，每次提交显示 `Chip` 标签（已审核/待审核/已拒绝），点击展开差异对比（简单 `Diff` 格式：前值 → 后值）。
+> 💬 **Copilot 提示语**（模板：`/admin-view`）：
+> 实现外部门户 Excel 上传流程。前端：`el-upload` 选择 `.xlsx` 文件（`accept=".xlsx"`）→ `FormData` 上传到 `POST /api/portal/subleases/import`；后端返回 `{data: {successCount: N, failedRows: [{rowIndex, reason}]}}`，前端用 `el-table` 展示失败行（行号 + 错误原因）。提交确认按钮：先显示 `ElMessageBox.confirm`（"共 N 条记录将提交审核，提交后不可修改，确认？"），确认后调 `POST /api/portal/subleases/submit`，提交成功后整个表单变为只读（`useSubleasePortalStore` 的 `isSubmitted = true`，所有 `el-input` 改为 `disabled`）。历史记录 Tab：按 `submittedAt DESC` 排列，每次提交显示 `el-tag`（已审核/待审核/已拒绝），点击展开差异对比（简单 `Diff` 格式：前值 → 后值）。
 > 附：`@file:.github/copilot-instructions.md`（安全：文件上传限制）`@file:docs/api/m5_subleases.md`
 
 ### 第 17 周（7/27 — 7/31）· M5 前端 内部管理 + 穿透看板
 
-#### Day 79 · 7月27日（周一）— M5 前端 Domain/Data/BLoC
+#### Day 79 · 7月27日（周一）— M5 前端类型/API/Store
 
-- freezed 模型：`Sublease`, `SubleaseStatus`, `SublandlordOverview`, `SubleaseReviewRecord`
-- 抽象接口 + HTTP 实现 + Mock 实现
-- `SubleaseListBloc`（按主合同/状态过滤）+ `SubleaseReviewCubit`（加载审核相关详情）
+- TypeScript 接口：`Sublease`, `SubleaseStatus`, `SublandlordOverview`, `SubleaseReviewRecord`（`admin/src/types/`）
+- API 函数（`api/modules/sublease.ts`）+ Mock 数据
+- `useSubleaseListStore`（按主合同/状态过滤）+ `useSubleaseReviewStore`（加载审核相关详情）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-domain`，接着 `/flutter-bloc`）：
-> M5 前端 Domain 层。`Sublease` freezed 模型：`idNumber` 字段类型 `String`，添加文档注释 `/// Already masked: only last 4 digits. Never store raw value on client.`。`SublandlordOverview` 含 `masterContractRent`（主合同租金）和 `terminalTotalRent`（终端租金合计，用于溢价计算），这两个字段由后端计算返回，**Widget 不做除法计算溢价率**。BLoC：`SubleaseListBloc` 过滤维度有"全部/待审核/已审核/已拒绝"；`SubleaseReviewCubit` 加载详情时同步加载审核历史（`loadDetail()` 调用两个 Repository 方法）。测试：`SubleaseReviewCubit` 测试审核"同意"和"拒绝缺少 reason"两种场景，后者期望 emit `SubleaseReviewError('rejection_reason_required')`。
+> 💬 **Copilot 提示语**（模板：`/admin-view`）：
+> M5 前端类型层。`Sublease` TypeScript 接口：`idNumber` 字段类型 `string`，添加文档注释 `/** Already masked: only last 4 digits. Never store raw value on client. */`。`SublandlordOverview` 含 `masterContractRent`（主合同租金）和 `terminalTotalRent`（终端租金合计，用于溢价计算），这两个字段由后端计算返回，**组件不做除法计算溢价率**。Store：`useSubleaseListStore` 过滤维度有"全部/待审核/已审核/已拒绝"；`useSubleaseReviewStore` 加载详情时同步加载审核历史（`loadDetail()` 调用两个 API 函数）。测试：`useSubleaseReviewStore` 测试审核"同意"和"拒绝缺少 reason"两种场景，后者期望 `error.value` 为 `'rejection_reason_required'`。
 > 附：`@file:.github/copilot-instructions.md`（证件号安全要求）`@file:docs/api/m5_subleases.md`
 
 #### Day 80 · 7月28日（周二）— M5 内部管理 UI
 
-- `SubleaseManagementPage`：按主合同分组 `ExpansionTile`，子租赁列表（单元号 / 终端租客 / 租金 / 状态）
-- 待审核条目高亮（使用 `colorScheme.tertiary` 背景）+ 快速审批操作按钮
+- `SubleaseManagementPage`：按主合同分组 `el-collapse`，子租赁列表（单元号 / 终端租客 / 租金 / 状态）
+- 待审核条目高亮（使用 CSS 变量 `--color-warning` 背景）+ 快速审批操作按钮
 - `SubleaseDetailPage`（查看子租赁详情 + 审核历史 + 证件脱敏展示）
 - `SubleaseFormPage`（内部录入：单元下拉限主合同范围，起止日期校验）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 M5 内部管理 UI。`SubleaseManagementPage` 按主合同分组：`ExpansionTile` 的 `title` 展示主合同编号 + 二房东名称，`children` 懒加载该主合同下的子租赁列表（**不一次性加载全部**，点击 `ExpansionTile` 时触发 `SubleaseListBloc.add(LoadByMasterContractEvent(contractId))`）。待审核条目：`ListTile(tileColor: colorScheme.tertiaryContainer)` + 行尾 `TextButton('审核')` 点击跳转 `SubleaseDetailPage`（附带 subleaseId 参数）。`SubleaseDetailPage` 中证件号字段显示时**使用 model 中已脱敏的 `idNumber` 字段**，不做任何额外处理（后端已保证脱敏）；快速审核弹窗（`showDialog`）中拒绝时必须弹出 `TextField` 填写理由，**不允许空理由提交**。
+> 💬 **Copilot 提示语**（模板：`/admin-view`）：
+> 实现 M5 内部管理 UI。`SubleaseManagementPage` 按主合同分组：`el-collapse-item` 的标题展示主合同编号 + 二房东名称，内容懒加载该主合同下的子租赁列表（**不一次性加载全部**，点击展开时触发 `useSubleaseListStore.fetchByMasterContract(contractId)`）。待审核条目：行背景高亮（CSS 变量 `--color-warning` 浅色背景）+ 行尾 `el-button type="primary" size="small"` "审核"按钮，点击跳转 `SubleaseDetailPage`（附带 subleaseId 参数）。`SubleaseDetailPage` 中证件号字段显示时**使用 model 中已脱敏的 `idNumber` 字段**，不做任何额外处理（后端已保证脱敏）；快速审核弹窗（`ElMessageBox.prompt`）中拒绝时必须填写理由，**不允许空理由提交**。
 > 附：`@file:.github/copilot-instructions.md`（UI色彩、证件号安全）`@file:docs/ARCH.md`
 
 #### Day 81 · 7月29日（周三）— M5 穿透分析看板
@@ -1040,8 +1038,8 @@
   - 子租赁集中到期预警时间轴
   - 填报完整度监控（已填报单元数 / 主合同覆盖总单元数 + 进度环）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现 `SublandlordDashboardPage` 穿透分析看板。溢价率 = `(terminalAvgRent - masterContractUnitRent) / masterContractUnitRent * 100%`（**使用 `SublandlordOverview` 中后端已计算的 `premiumRate` 字段，Widget 中无除法计算**）；溢价率 > 0 时 `ColoredBox` 填色 `colorScheme.secondaryContainer`（绿色，转租增值），< 0 时填 `colorScheme.errorContainer`（红色，亏损）。双条进度条：`Column` 叠两个 `LinearProgressIndicator`，一个 `value = penetrationOccupancyRate`（穿透出租率），一个 `value = overallOccupancyRate`（整体出租率），显示各自百分比标签。填报完整度进度环：`CircularProgressIndicator(value: reportedCount / totalUnits)`，`totalUnits = 0` 时不渲染（防 NaN）。
+> 💬 **Copilot 提示语**（模板：`/admin-view`）：
+> 实现 `SublandlordDashboardPage` 穿透分析看板。溢价率 = `(terminalAvgRent - masterContractUnitRent) / masterContractUnitRent * 100%`（**使用 `SublandlordOverview` 中后端已计算的 `premiumRate` 字段，组件中无除法计算**）；溢价率 > 0 时填色 CSS 变量 `--color-success` 浅色背景（绿色，转租增值），< 0 时填 `--color-danger` 浅色背景（红色，亏损）。双条进度条：纵向排列两个 `el-progress`，一个 `:percentage="penetrationOccupancyRate * 100"`（穿透出租率），一个 `:percentage="overallOccupancyRate * 100"`（整体出租率），显示各自百分比标签。填报完整度进度环：`el-progress type="circle" :percentage="totalUnits ? reportedCount / totalUnits * 100 : 0"`，`totalUnits === 0` 时不渲染（防 NaN）。
 > 附：`@file:.github/copilot-instructions.md`（UI色彩 token）`@file:docs/backend/data_model.md`（子租赁穿透视角）
 
 #### Day 82 · 7月30日（周四）— 楼层热区穿透模式 + 跨模块联动
@@ -1051,8 +1049,8 @@
 - `ContractDetailPage` 增加"子租赁"Tab（展示该主合同下所有子租赁记录列表）
 - M3 `NoiDashboardPage` 增加"穿透视角"切换（按终端口径统计出租率，区别于主合同口径）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-ui`）：
-> 实现楼层热区穿透模式联动。`FloorMapCubit` 增加 `isPenetrationMode` bool 字段；`AppBar` 的 `Switch` 变更时 `cubit.togglePenetrationMode()`。穿透模式下：`UnitHotspot` 组件加载 `SubleaseRepository.getByUnitId(unitId)` 数据（**懒加载，仅点击展开 Tooltip 时发请求**，防止热区初始化 639 个并发请求）；`ContractDetailPage` 新增"子租赁"Tab（`DefaultTabController` 增加一个 Tab，`SubleaseListWidget` 展示由 `SubleaseListBloc` 提供的数据）。M3 `NoiDashboardPage` 穿透视角切换：`SegmentedButton`（"主合同口径" / "终端口径"）选中后更新 `NoiDashboardCubit.state.viewMode`，重新拉取对应 API（`GET /api/noi/summary?mode=penetration`）；**总计算公式不变，只是数据来源切换**。
+> 💬 **Copilot 提示语**（模板：`/admin-view`）：
+> 实现楼层热区穿透模式联动。`useFloorMapStore` 增加 `isPenetrationMode` ref；顶栏 `el-switch` 切换时更新该状态。穿透模式下：单元热区组件加载 sublease API `getByUnitId(unitId)` 数据（**懒加载，仅点击展开 Tooltip 时发请求**，防止热区初始化 639 个并发请求）；`ContractDetailPage` 新增"子租赁" Tab（`el-tabs` 增加一个 TabPane，子租赁列表由 `useSubleaseListStore` 提供数据）。M3 `NoiDashboardPage` 穿透视角切换：`el-radio-group`（"主合同口径" / "终端口径"）选中后更新 `useNoiDashboardStore.viewMode`，重新拉取对应 API（`GET /api/noi/summary?mode=penetration`）；**总计算公式不变，只是数据来源切换**。
 > 附：`@file:.github/copilot-instructions.md`（架构约束、UI色彩）`@file:docs/ARCH.md`（M5穿透设计）
 
 #### Day 83 · 7月31日（周五）— M5 联调 + 验收 + 安全测试
@@ -1113,11 +1111,11 @@
 
 - 写字楼单元数据批量导入（约 441 套），验证导入结果（楼层 / 单元号 / 面积核对）
 - 商铺 + 公寓批量导入（约 198 套）
-- 实际 CAD 文件处理：.dwg → SVG 批量转换，在 Flutter App 楼层平面图真实渲染验证
+- 实际 CAD 文件处理：.dwg → SVG 批量转换，在前端楼层平面图真实渲染验证
 - 历史在租合同导入（预估 500+ 条，分批次）
 
 > 💬 **Copilot 提示语**：
-> 配合运营团队执行实际数据导入。导入脚本 `scripts/import_units.dart` 需支持"预演模式"（`--dry-run` 标志：校验所有数据但不写库，输出校验报告），**生产导入前必须先跑 dry-run**。导入时每批 50 条，每批完成后打印进度（`已导入 N / 总计 M 条`），出错则停止当批并输出错误列表（**不中断剩余批次**）。CAD 转 SVG：对每栋楼拿到实际 .dwg 文件后，用已有 `scripts/convert_cad.dart` 处理，输出到 `floors/{building_id}/{floor_id}.svg`；转换完成后在 Flutter App 中打开对应楼层的 `FloorMapPage`，**目测验证单元轮廓与实际平面图一致**（如不一致记录不一致楼层编号，转入 Phase 2 处理）。合同导入：分批每次 100 条，验证 `contracts` 表 `escalation_rules` 字段 JSONB 格式正确（不为 null 的记录随机抽 10 条用 `packages/rent_escalation_engine` 解析验证）。
+> 配合运营团队执行实际数据导入。导入脚本 `scripts/import_units.dart` 需支持"预演模式"（`--dry-run` 标志：校验所有数据但不写库，输出校验报告），**生产导入前必须先跑 dry-run**。导入时每批 50 条，每批完成后打印进度（`已导入 N / 总计 M 条`），出错则停止当批并输出错误列表（**不中断剩余批次**）。CAD 转 SVG：对每栋楼拿到实际 .dwg 文件后，用已有 `scripts/convert_cad.dart` 处理，输出到 `floors/{building_id}/{floor_id}.svg`；转换完成后在前端打开对应楼层的 `FloorMapPage`，**目测验证单元轮廓与实际平面图一致**（如不一致记录不一致楼层编号，转入 Phase 2 处理）。合同导入：分批每次 100 条，验证 `contracts` 表 `escalation_rules` 字段 JSONB 格式正确（不为 null 的记录随机抽 10 条用 `packages/rent_escalation_engine` 解析验证）。
 > 附：`@file:.github/copilot-instructions.md`（文件存储路径规范：floors/{building_id}/{floor_id}.svg）`@file:docs/ARCH.md`
 
 #### Day 88 · 8月7日（周五）— 财务 + KPI 初始数据
@@ -1147,7 +1145,7 @@
 - `hey -n 500 -c 50 https://localhost:8080/api/dashboard` 并发压测，目标：P99 < 3 秒
 - 账单批量生成 639 条压测：`time curl -X POST /api/invoices/generate`，目标 < 30 秒
 - PostgreSQL 慢查询分析：`pg_stat_statements` 找出 Top 5 慢查询 + `EXPLAIN ANALYZE` 优化
-- Flutter DevTools Timeline：Dashboard 页首屏帧率检查（目标 60fps 无掉帧）
+- 浏览器 Performance / Vue DevTools：Dashboard 页首屏渲染检查
 
 > 💬 **Copilot 提示语**（模板：`/security-and-test`）：
 > 执行性能测试并生成报告 `docs/qa/performance_test_report.md`。测试步骤：①`hey -n 500 -c 50 -H "Authorization: Bearer {token}" http://localhost:8080/api/noi/summary` 记录 P50/P95/P99（目标 P99 < 3000ms）；②`time curl -s -X POST -H "Authorization: Bearer {manager_token}" -H "Content-Type: application/json" -d '{"month":"2026-08"}' http://localhost:8080/api/invoices/generate` 记录实际耗时；③`SELECT query, calls, mean_exec_time FROM pg_stat_statements ORDER BY mean_exec_time DESC LIMIT 5` 找出极慢查询；④对最慢查询跑 `EXPLAIN (ANALYZE, BUFFERS)` 分析索引命中情况，若 `Seq Scan` 替换为 `Index Scan` 可减少超 10 倍扫描行数，则生成`CREATE INDEX CONCURRENTLY` 迁移 SQL。报告中记录每项实际数值，**高亮未达标项并附优化方案**。
@@ -1185,7 +1183,7 @@
 - 生产环境 Checklist（防止上线遗漏）
 
 > 💬 **Copilot 提示语**：
-> 准备部署文件。`README.md` 必须包含：①6 个必填环境变量清单（`DATABASE_URL`、`JWT_SECRET`、`JWT_EXPIRES_IN_HOURS`、`FILE_STORAGE_PATH`、`ENCRYPTION_KEY`、`APP_PORT`）及说明；②数据库初始化顺序（`001_init.sql → 002_seed_kpi_metrics.sql → ...`，不跳步骤）；③Flutter Web 构建命令 `flutter build web --dart-define=...`。`.env.example` 每行含注释（`# 说明`），JWT_SECRET 旁注明 `# 最少 32 个字符`，**不在 `.env.example` 中放真实密钥**。`Dockerfile` 多阶段构建：Stage 1 基于 `dart:stable` AOT 编译（`dart compile exe`），Stage 2 基于 `debian:bookworm-slim`（不用 dart:stable 作 runtime，减小镜像体积）。生产环境 Checklist 保存为 `docs/ops/production_launch_checklist.md`（检查项含：所有环境变量已配置 / 数据库已备份 / CORS 非 `*` / HTTPS 证书有效）。
+> 准备部署文件。`README.md` 必须包含：①6 个必填环境变量清单（`DATABASE_URL`、`JWT_SECRET`、`JWT_EXPIRES_IN_HOURS`、`FILE_STORAGE_PATH`、`ENCRYPTION_KEY`、`APP_PORT`）及说明；②数据库初始化顺序（`001_init.sql → 002_seed_kpi_metrics.sql → ...`，不跳步骤）；③前端构建命令 `cd app && npm run build` / `cd admin && npm run build`。`.env.example` 每行含注释（`# 说明`），JWT_SECRET 旁注明 `# 最少 32 个字符`，**不在 `.env.example` 中放真实密钥**。`Dockerfile` 多阶段构建：Stage 1 基于 `dart:stable` AOT 编译（`dart compile exe`），Stage 2 基于 `debian:bookworm-slim`（不用 dart:stable 作 runtime，减小镜像体积）。生产环境 Checklist 保存为 `docs/ops/production_launch_checklist.md`（检查项含：所有环境变量已配置 / 数据库已备份 / CORS 非 `*` / HTTPS 证书有效）。
 > 附：`@file:.github/copilot-instructions.md`（必填环境变量清单、安全规范）`@file:docs/ARCH.md`
 
 > **Milestone 6**：全部 PRD 验收项 Pass；50 并发压测 P99 < 3 秒；实际 639 套数据导入完成；安全审查无 P0 漏洞。
@@ -1203,7 +1201,7 @@
 - M1 发现问题即时修复（当天修复当天验证）
 
 > 💬 **Copilot 提示语**：
-> UAT 第一天：M1 资产台账与楼层热区演示。使用生产等量的真实导入数据（639 套），**不使用测试 Mock 数据**。演示前检查：①楼层热区颜色与合同到期日一致（随机抽查 3 套单元，对比热区色块与 `GET /api/units/:id` 返回的 `daysUntilExpiry`）；②`leased`/`expiring_soon`/`vacant`/`non_leasable` 四种状态色使用的是 `colorScheme.secondary/tertiary/error/outlineVariant`，**不是硬编码 hex**。UAT 问题单格式保存到 `docs/qa/uat_feedback.md`（表格列：`| 功能点 | 反馈描述 | 优先级P0/P1/P2 | 处理方案 | 负责人 |`）。当场发现 P0（崩溃/数据错误）立即修复后重演示；P1 UI 问题记录后**继续演示，不中断 UAT**。
+> UAT 第一天：M1 资产台账与楼层热区演示。使用生产等量的真实导入数据（639 套），**不使用测试 Mock 数据**。演示前检查：①楼层热区颜色与合同到期日一致（随机抽查 3 套单元，对比热区色块与 `GET /api/units/:id` 返回的 `daysUntilExpiry`）；②`leased`/`expiring_soon`/`vacant`/`non_leasable` 四种状态色使用的是 CSS 变量 `--color-success/--color-warning/--color-danger/--color-neutral`（或 Element Plus `type="success/warning/danger/info"`），**不是硬编码 hex**。UAT 问题单格式保存到 `docs/qa/uat_feedback.md`（表格列：`| 功能点 | 反馈描述 | 优先级P0/P1/P2 | 处理方案 | 负责人 |`）。当场发现 P0（崩溃/数据错误）立即修复后重演示；P1 UI 问题记录后**继续演示，不中断 UAT**。
 > 附：`@file:docs/PRD.md`（§七 验收标准）`@file:.github/copilot-instructions.md`
 
 #### Day 95 · 8月18日（周二）— UAT 合同 + 工单模块
@@ -1223,7 +1221,7 @@
 - UAT 问题单汇总，确认上线阻断项
 
 > 💬 **Copilot 提示语**：
-> UAT 第三天：M3 财务 + KPI 演示。财务演示要点：①批量账单生成（演示 `POST /api/invoices/generate`，显示已生成条数和金额合计）；②核销一笔账单（状态从 `pending` → `paid`，确认列表颜色变为 `colorScheme.secondary` 绿色）；③NOI 看板显示公式说明 `NOI = EGI - OpEx`，数字可与财务手工计算对比。KPI 演示要点：查看当月 KPI 评分仪表盘，雷达图 10 个指标均有数值（满意度指标为手动录入，其余 9 个自动，**空值显示 0 分而非报错**）；尝试提交 KPI 申诉（提交后状态变 `appealing`，管理层端显示待审申诉提醒）。UAT 问题汇总后，在 `docs/qa/uat_feedback.md` 末尾添加"上线阻断项清单"区块，标明 P0/P1 问题数量及全部确认"已修复"方可批准上线。
+> UAT 第三天：M3 财务 + KPI 演示。财务演示要点：①批量账单生成（演示 `POST /api/invoices/generate`，显示已生成条数和金额合计）；②核销一笔账单（状态从 `pending` → `paid`，确认列表状态标签变为 `type="success"` 绿色）；③NOI 看板显示公式说明 `NOI = EGI - OpEx`，数字可与财务手工计算对比。KPI 演示要点：查看当月 KPI 评分仪表盘，雷达图 10 个指标均有数值（满意度指标为手动录入，其余 9 个自动，**空值显示 0 分而非报错**）；尝试提交 KPI 申诉（提交后状态变 `appealing`，管理层端显示待审申诉提醒）。UAT 问题汇总后，在 `docs/qa/uat_feedback.md` 末尾添加"上线阻断项清单"区块，标明 P0/P1 问题数量及全部确认"已修复"方可批准上线。
 > 附：`@file:docs/PRD.md`（§七 验收标准）`@file:.github/copilot-instructions.md`
 
 #### Day 97 · 8月20日（周四）— UAT 缺陷修复
