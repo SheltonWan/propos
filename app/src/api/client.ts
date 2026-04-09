@@ -10,7 +10,7 @@
  */
 
 import Request from 'luch-request'
-import type { HttpRequestConfig } from 'luch-request'
+import type { HttpRequestConfig, HttpData, HttpMethod } from 'luch-request'
 import { ApiError } from '@/types/api'
 import type { ApiResponse, ApiListResponse, ApiErrorBody } from '@/types/api'
 import { API_AUTH_REFRESH } from '@/constants/api_paths'
@@ -113,14 +113,15 @@ export async function apiGetList<T>(
 }
 
 /** POST 创建 */
-export async function apiPost<T>(url: string, data?: unknown): Promise<T> {
+export async function apiPost<T>(url: string, data?: HttpData): Promise<T> {
   const res = await http.post<ApiResponse<T>>(url, data)
   return res.data.data
 }
 
 /** PATCH 局部更新 */
-export async function apiPatch<T>(url: string, data?: unknown): Promise<T> {
-  const res = await http.request<ApiResponse<T>>({ url, method: 'PATCH', data })
+export async function apiPatch<T>(url: string, data?: HttpData): Promise<T> {
+  // luch-request 3.1.1 HttpMethod 类型定义缺失 PATCH，运行时实际支持，此处做类型断言
+  const res = await http.request<ApiResponse<T>>({ url, method: 'PATCH' as unknown as HttpMethod, data })
   return res.data.data
 }
 
