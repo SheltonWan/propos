@@ -1,6 +1,6 @@
 # PropOS 前后端并发开发指南
 
-> **版本**: v1.0
+> **版本**: v2.0
 > **日期**: 2026-04-05
 > **适用范围**: Phase 1 全部模块（M1~M5）
 
@@ -8,7 +8,7 @@
 
 ## 一、核心原则：API Contract 先行
 
-前后端并发开发的唯一前提是**先签订 API Contract**。Contract 是双方的接口约定，一旦确认即可独立开发，联调时只替换前端 Mock 实现，BLoC 与 UI 层零改动。
+前后端并发开发的唯一前提是**先签订 API Contract**。Contract 是双方的接口约定，一旦确认即可独立开发，联调时只需将前端 Mock 数据切换为真实 API 调用，Pinia Store 与 UI 层零改动。
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -24,7 +24,7 @@
 ┌─────────────────┐          ┌──────────────────────┐
 │    后端开发      │          │      前端开发          │
 │  实现真实业务逻辑 │          │  基于 Mock 驱动 UI    │
-│  数据库 Schema  │          │  BLoC + 页面 + 测试   │
+│  数据库 Schema  │          │  Pinia Store + 页面 + 测试 │
 └────────┬────────┘          └──────────┬───────────┘
          └──────────────┬───────────────┘
                         ↓
@@ -183,165 +183,122 @@ controllers/（替换骨架 Mock → 真实 Service 调用）
 ### 4.1 三阶段开发模式
 
 ```
-阶段 1：Contract 确认后 → 建立 domain 层（freezed 类 + Repository 接口）
-阶段 2：Mock 实现 → 建立 BLoC + 页面 UI（本地 Mock 驱动）
-阶段 3：联调 → 替换 Mock Repository 为真实 HTTP 实现
+阶段 1：Contract 确认后 → 建立 TypeScript 类型定义（types/）+ API 函数（api/modules/）
+阶段 2：Mock 数据 → 建立 Pinia Store + 页面 UI（本地 Mock 驱动）
+阶段 3：联调 → Store 中的 API 调用切换到真实后端
 ```
 
-### 4.2 阶段 1：domain 层（最先建立）
+### 4.2 阶段 1：类型定义与 API 函数（最先建立）
 
-拿到 Contract JSON 示例后，立即定义 `freezed` 数据类和 Repository 抽象接口：
+拿到 Contract JSON 示例后，立即定义 TypeScript 接口和 API 调用函数：
 
-```dart
-// features/assets/domain/unit.dart
-@freezed
-class Unit with _$Unit {
-  const factory Unit({
-    required String id,
-    required String unitNo,
-    required PropertyType propertyType,
-    required double grossArea,
-    double? netArea,
-    required UnitStatus currentStatus,
-    required FloorSummary floor,
-    required BuildingSummary building,
-    String? currentContractId,
-    int? daysUntilExpiry,          // 计算字段，来自 API
-    List<HotzonePoint>? svgHotzoneCoords,
-  }) = _Unit;
-
-  factory Unit.fromJson(Map<String, dynamic> json) => _$UnitFromJson(json);
+```typescript
+// app/src/types/unit.ts  或  admin/src/types/unit.ts
+export interface Unit {
+  id: string
+  unitNo: string
+  propertyType: 'office' | 'retail' | 'apartment'
+  grossArea: number
+  netArea?: number
+  currentStatus: 'vacant' | 'leased' | 'non_leasable'
+  floor: FloorSummary
+  building: BuildingSummary
+  currentContractId?: string
+  daysUntilExpiry?: number
+  svgHotzoneCoords?: HotzonePoint[]
 }
 
-// features/assets/domain/unit_repository.dart
-abstract class UnitRepository {
-  Future<PagedResult<Unit>> listUnits({
-    int page = 1,
-    int pageSize = 20,
-    String? buildingId,
-    PropertyType? propertyType,
-    UnitStatus? status,
-  });
+// app/src/api/modules/unit.ts
+import { apiGet } from '../client'
+import { API_PATHS } from '@/constants/api_paths'
+import type { PagedResponse } from '@/types/api'
+import type { Unit } from '@/types/unit'
 
-  Future<Unit> getUnit(String id);
+export function listUnits(params?: {
+  page?: number
+  pageSize?: number
+  buildingId?: string
+  propertyType?: string
+  status?: string
+}) {
+  return apiGet<PagedResponse<Unit>>(API_PATHS.UNITS, { params })
 }
 ```
 
-### 4.3 阶段 2：Mock 实现（驱动 UI 开发）
+### 4.3 阶段 2：Pinia Store + Mock 数据（驱动 UI 开发）
 
-在 `data/` 层建立 Mock 实现，**注册到 `get_it` 的开关控制**：
+建立 Pinia Store，在后端未就绪时使用 Mock 数据：
 
-```dart
-// features/assets/data/mock_unit_repository.dart
-class MockUnitRepository implements UnitRepository {
-  @override
-  Future<PagedResult<Unit>> listUnits({
-    int page = 1,
-    int pageSize = 20,
-    String? buildingId,
-    PropertyType? propertyType,
-    UnitStatus? status,
-  }) async {
-    // 模拟网络延迟
-    await Future.delayed(const Duration(milliseconds: 300));
+```typescript
+// app/src/stores/unit.ts  或  admin/src/stores/unit.ts
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import { listUnits as apiListUnits } from '@/api/modules/unit'
+import type { Unit } from '@/types/unit'
+import type { PageMeta } from '@/types/api'
 
-    return PagedResult(
-      items: List.generate(20, (i) => _mockUnit(i)),
-      page: page,
-      pageSize: pageSize,
-      total: 100,
-    );
-  }
-
-  Unit _mockUnit(int index) => Unit(
-    id: 'mock-unit-$index',
-    unitNo: '${10 + index}A',
-    propertyType: PropertyType.office,
-    grossArea: 120.0 + index * 5,
-    currentStatus: index % 3 == 0 ? UnitStatus.vacant : UnitStatus.leased,
-    floor: const FloorSummary(id: 'floor-1', floorName: '10F', floorNumber: 10),
-    building: const BuildingSummary(id: 'building-1', name: 'A座'),
-    daysUntilExpiry: index % 3 != 0 ? 30 + index : null,
-  );
-}
-```
-
-**DI 注册（`main.dart`）**：
-
-```dart
-// 开发期使用 Mock，联调时切换
-const bool useMock = bool.fromEnvironment('USE_MOCK', defaultValue: false);
-
-void setupDependencies() {
-  if (useMock) {
-    getIt.registerLazySingleton<UnitRepository>(() => MockUnitRepository());
-  } else {
-    getIt.registerLazySingleton<UnitRepository>(
-      () => HttpUnitRepository(dio: getIt<Dio>()),
-    );
+// -- Mock 数据（联调后删除）--
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
+function mockUnit(i: number): Unit {
+  return {
+    id: `unit-${i}`,
+    unitNo: `A-${1001 + i}`,
+    propertyType: 'office',
+    grossArea: 120.5,
+    currentStatus: 'vacant',
+    floor: { id: 'f1', name: '1F' },
+    building: { id: 'b1', name: 'A栋' },
   }
 }
-```
 
-运行时通过 `--dart-define=USE_MOCK=true` 切换到 Mock 模式。
+export const useUnitStore = defineStore('unit', () => {
+  const list = ref<Unit[]>([])
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+  const meta = ref<PageMeta>({ page: 1, pageSize: 20, total: 0 })
 
-### 4.4 阶段 3：真实 HTTP 实现（联调）
-
-后端路由骨架就绪后，补充 `HttpXxxRepository` 实现，替换 Mock：
-
-```dart
-// features/assets/data/http_unit_repository.dart
-class HttpUnitRepository implements UnitRepository {
-  final Dio _dio;
-  HttpUnitRepository({required Dio dio}) : _dio = dio;
-
-  @override
-  Future<PagedResult<Unit>> listUnits({
-    int page = 1,
-    int pageSize = 20,
-    String? buildingId,
-    PropertyType? propertyType,
-    UnitStatus? status,
-  }) async {
+  async function fetchList(params?: Record<string, unknown>) {
+    loading.value = true
+    error.value = null
     try {
-      final response = await _dio.get(
-        ApiPaths.units,
-        queryParameters: {
-          'page': page,
-          'pageSize': pageSize,
-          if (buildingId != null) 'buildingId': buildingId,
-          if (propertyType != null) 'propertyType': propertyType.name,
-          if (status != null) 'status': status.name,
-        },
-      );
-      final envelope = response.data as Map<String, dynamic>;
-      final items = (envelope['data'] as List)
-          .map((e) => Unit.fromJson(e as Map<String, dynamic>))
-          .toList();
-      final meta = envelope['meta'] as Map<String, dynamic>;
-      return PagedResult(
-        items: items,
-        page: meta['page'] as int,
-        pageSize: meta['pageSize'] as int,
-        total: meta['total'] as int,
-      );
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);  // 统一包装，不透传 DioException
+      if (USE_MOCK) {
+        // Mock 模式：模拟延迟
+        await new Promise(r => setTimeout(r, 300))
+        list.value = Array.from({ length: 20 }, (_, i) => mockUnit(i))
+        meta.value = { page: 1, pageSize: 20, total: 100 }
+      } else {
+        const res = await apiListUnits(params)
+        list.value = res.data
+        meta.value = res.meta
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '操作失败，请重试'
+    } finally {
+      loading.value = false
     }
   }
-}
+
+  return { list, loading, error, meta, fetchList }
+})
 ```
+
+> **Mock 切换**：通过 `.env.development` 中设置 `VITE_USE_MOCK=true`，联调时改为 `false` 或删除该变量。
+
+### 4.4 阶段 3：切换到真实 API（联调）
+
+后端就绪后，只需将 `.env.development` 中 `VITE_USE_MOCK` 改为 `false`（或删除），Store 中的 API 调用会自动走真实后端。无需修改 Store 或页面代码。
 
 ### 4.5 前端开发检查清单
 
-每个 feature 完成前确认：
+每个模块完成前确认：
 
-- [ ] `domain/` 层无任何 Flutter SDK import（纯 Dart）
-- [ ] BLoC 通过构造函数注入 Repository **接口**，未直接实例化实现类
-- [ ] `State` 使用 `freezed` sealed union，Widget 中全部用 `.when()` 渲染
-- [ ] Widget 无 HTTP 调用、日期计算、业务判断
-- [ ] 所有颜色 / 字号通过 `Theme.of(context)` 取值，无硬编码
-- [ ] 状态色使用语义 Token（`secondary` / `tertiary` / `error` / `outlineVariant`）
+- [ ] TypeScript 接口已定义在 `types/` 目录，与 Contract 一致
+- [ ] API 函数封装在 `api/modules/` 中，使用 `api_paths` 常量
+- [ ] Pinia Store 使用 `defineStore(id, setup)` 风格，state 含 `list / item / loading / error / meta`
+- [ ] Store 通过 `api/client` 调用后端，未直接使用 `fetch` / `axios`
+- [ ] Page / Component 只访问 Store 的 state / action，不内联 HTTP 请求
+- [ ] 所有颜色通过 CSS 变量（uni-app）或 Element Plus `type` 属性（admin）取值，无硬编码
+- [ ] 状态色使用语义映射（`success` / `warning` / `danger` / `info`）
 - [ ] 常量已归入对应的常量文件，无魔法数字
 
 ---
@@ -363,12 +320,13 @@ Step 1：后端部署到本地或开发服务器
          dart run bin/server.dart
 
 Step 2：前端切换到真实模式
-         flutter run --dart-define=USE_MOCK=false
+         # .env.development 中设置 VITE_USE_MOCK=false
+         npm run dev
 
 Step 3：逐端点验证
          ✓ 正常响应结构与 Contract 一致
          ✓ 分页参数有效
-         ✓ 错误场景返回正确 error.code（前端 BLoC 按 code 处理）
+         ✓ 错误场景返回正确 error.code（前端 Store 按 code 处理）
          ✓ 加密字段已脱敏（仅显示后4位）
          ✓ 日期字段格式正确（ISO 8601 UTC）
 
@@ -383,8 +341,8 @@ Step 4：发现偏差时
 | 角色 | 本地配置 |
 |------|---------|
 | 后端开发 | `.env` 文件注入环境变量，`dart run bin/server.dart` 启动 |
-| 前端开发（Mock 阶段） | `flutter run --dart-define=USE_MOCK=true`，无需后端启动 |
-| 前端开发（联调阶段） | `flutter run --dart-define=USE_MOCK=false --dart-define=API_BASE_URL=http://localhost:8080` |
+| 前端开发（Mock 阶段） | `.env.development` 中 `VITE_USE_MOCK=true`，`npm run dev` 启动 |
+| 前端开发（联调阶段） | `.env.development` 中 `VITE_USE_MOCK=false` + `VITE_API_BASE_URL=http://localhost:8080`，`npm run dev` |
 
 ---
 
@@ -395,21 +353,21 @@ Step 4：发现偏差时
 | 模块 | Contract 依赖 | 推荐启动顺序 | 说明 |
 |------|-------------|------------|------|
 | M1 资产与空间 | 无 | **第1批** | 其他模块依赖 Unit/Building，须先完成 |
-| Auth（登录鉴权） | 无 | **第1批** | BLoC 状态管理 + JWT 存储，须先完成 |
+| Auth（登录鉴权） | 无 | **第1批** | Pinia 状态管理 + JWT 存储，须先完成 |
 | M2 租务合同 | 依赖 M1 Unit | 第2批 | Contract 实体依赖 Unit 已存在 |
 | M4 工单系统 | 依赖 M1 Unit | 第2批 | WorkOrder 定位依赖 Unit/Floor |
 | M3 财务 NOI | 依赖 M2 Contract | 第3批 | Invoice 依赖 Contract |
 | M5 二房东穿透 | 依赖 M1 + M2 | 第3批 | SubLease 依赖 Contract + Unit |
 
-> **并发原则**：同批次内的模块前后端可完全并发；跨批次模块等上一批次的 **domain 层**（`freezed` 类 + Repository 接口）完成后即可启动，无需等待真实 API 完成。
+> **并发原则**：同批次内的模块前后端可完全并发；跨批次模块等上一批次的 **TypeScript 类型定义**（`types/` + API 函数）完成后即可启动，无需等待真实 API 完成。
 
 ---
 
 ## 七、常见问题
 
-**Q：后端字段返回 `snake_case`，前端 `freezed` 用 `camelCase`，如何处理？**
+**Q：后端字段返回 `snake_case`，前端 TypeScript 接口用 `camelCase`，如何处理？**
 
-后端 API 统一返回 `camelCase`（在 Controller 序列化时转换），不使用 `snake_case`。`freezed` 的 `@JsonKey` 只在少数特殊情况使用。
+后端 API 统一返回 `camelCase`（在 Controller 序列化时转换），不使用 `snake_case`。前端 TypeScript 接口直接对应即可。
 
 **Q：前端 Mock 数据与真实 API 响应结构不一致怎么办？**
 
@@ -417,12 +375,12 @@ Step 4：发现偏差时
 
 **Q：后端某端点比预期晚完成，前端如何处理？**
 
-前端保持 Mock 模式继续开发，对该端点的 `HttpXxxRepository` 可先留空实现（抛出 `UnimplementedError`），等后端就绪后直接补充实现即可。
+前端保持 Mock 模式继续开发，该端点的 Store 中 API 调用保持 Mock 分支即可，等后端就绪后切换 `VITE_USE_MOCK=false`。
 
 **Q：多个开发者同时修改同一模块如何避免冲突？**
 
 - 后端：按 `models → repositories → services → controllers` 顺序分工，单人负责一个子模块
-- 前端：按 `domain → data → bloc → pages/widgets` 分工，`domain` 层优先由一人完成，其余层可并行
+- 前端：按 `types → api → store → pages/components` 分工，`types/` 和 `api/` 层优先由一人完成，其余层可并行
 
 **Q：`env` 环境变量本地如何管理？**
 

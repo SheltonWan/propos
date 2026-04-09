@@ -1,6 +1,6 @@
 # PropOS CI/CD 流水线文档
 
-> **版本**: v1.0
+> **版本**: v2.0
 > **日期**: 2026-04-08
 > **依据文档**: DEPLOYMENT v1.0 / TEST_PLAN v1.0 / ARCH v1.2 / DEV_ENV_SETUP v1.0
 > **适用阶段**: Phase 1（单机部署 + GitHub Actions）
@@ -14,7 +14,7 @@
 3. [触发规则](#三触发规则)
 4. [Stage 1：代码质量检查](#四stage-1代码质量检查)
 5. [Stage 2：后端构建与测试](#五stage-2后端构建与测试)
-6. [Stage 3：Flutter 构建与测试](#六stage-3flutter-构建与测试)
+6. [Stage 3：前端构建与测试](#六stage-3前端构建与测试)
 7. [Stage 4：Docker 镜像构建](#七stage-4docker-镜像构建)
 8. [Stage 5：部署](#八stage-5部署)
 9. [环境定义](#九环境定义)
@@ -33,15 +33,15 @@
 ```
 ┌───────────┐     ┌───────────┐     ┌───────────┐     ┌───────────┐     ┌───────────┐
 │  Stage 1  │────▶│  Stage 2  │────▶│  Stage 3  │────▶│  Stage 4  │────▶│  Stage 5  │
-│  Lint &   │     │  Backend  │     │  Flutter   │     │  Docker   │     │  Deploy   │
+│  Lint &   │     │  Backend  │     │ Frontend  │     │  Docker   │     │  Deploy   │
 │  Analyze  │     │  Build &  │     │  Build &  │     │  Image    │     │           │
 │           │     │  Test     │     │  Test     │     │  Build    │     │           │
 └───────────┘     └───────────┘     └───────────┘     └───────────┘     └───────────┘
      │                 │                 │                 │                 │
- dart analyze     Unit Tests       BLoC Tests        dart compile      docker compose
- dart format      Integration      Widget Tests      docker build         up -d
- flutter          API E2E          flutter build      push registry
-  analyze                            web
+ dart analyze     Unit Tests       Vitest (app)      dart compile      docker compose
+ dart format      Integration      Vitest (admin)    docker build         up -d
+ eslint           API E2E          vite build         push registry
+                                     (app + admin)
 ```
 
 **关键原则**：
@@ -109,24 +109,30 @@ steps:
     # 输出依赖树，确认无意外间接依赖
 ```
 
-### 4.2 Flutter 检查
+### 4.2 前端检查
 
 ```yaml
 steps:
-  - name: flutter analyze --fatal-infos
-  - name: dart format --set-exit-if-changed lib/ test/
+  - name: npm run lint (app)
+    run: cd app && npm ci && npm run lint
+  - name: npm run lint (admin)
+    run: cd admin && npm ci && npm run lint
+  - name: vue-tsc type check (app)
+    run: cd app && npx vue-tsc --noEmit
+  - name: vue-tsc type check (admin)
+    run: cd admin && npx vue-tsc --noEmit
 ```
 
 ### 4.3 自定义 Lint 规则
 
-基于项目架构约束做强制检查（可用 shell 脚本或 custom_lint）：
+基于项目架构约束做强制检查（可用 shell 脚本或 ESLint 插件）：
 
 | 检查项 | 命令 | 失败说明 |
 |--------|------|---------|
-| BLoC 不依赖 data 层 | `grep -r "import.*data/" lib/features/*/presentation/` | presentation 层禁止直接导入 data 层 |
+| Store 不直接写 fetch/axios | `grep -r "fetch(\|axios\." app/src/stores/ admin/src/stores/` | Store 必须通过 api/client 调用 |
+| Page/Component 不含 HTTP 调用 | `grep -rn "apiGet\|apiPost\|apiPatch\|apiDelete" app/src/pages/` | 页面只访问 store |
+| 无硬编码 API 路径 | `grep -rn '"/api/' app/src/pages/ app/src/stores/ admin/src/views/ admin/src/stores/` | 统一使用 constants/api_paths |
 | Controller 不直接返回 Response | `grep -r "return Response\." backend/lib/modules/` | Controller 只抛 AppException |
-| UI 无硬编码颜色 | `grep -rn "Color(0x\|Colors\." lib/features/*/presentation/pages/` | 必须通过 Theme.of(context) |
-| 不使用 Either | `grep -r "Either" lib/features/` | 项目规模不需要 Either 模式 |
 | SQL 无字符串拼接 | `grep -rn '"\$' backend/lib/modules/*/repositories/` | 防 SQL 注入 |
 | 无 ORM 引入 | `grep -rn "drift\|sqflite\|floor" backend/pubspec.yaml` | 项目约束：原生 SQL |
 
@@ -245,49 +251,60 @@ steps:
 
 ---
 
-## 六、Stage 3：Flutter 构建与测试
+## 六、Stage 3：前端构建与测试
 
-**目标**：BLoC 单元测试 + Widget 测试 + Web 构建，8 分钟内完成。
+**目标**：uni-app 端 + admin 端 Lint / 单元测试 / 构建，8 分钟内完成。
 
 ### 6.1 构建步骤
 
 ```yaml
 steps:
-  - uses: subosito/flutter-action@v2
+  - uses: actions/setup-node@v4
     with:
-      flutter-version: "3.x"
-      channel: stable
+      node-version: "20"
 
-  - name: Flutter pub get
-    run: cd frontend && flutter pub get
+  # uni-app 端
+  - name: Install app dependencies
+    run: cd app && npm ci
 
-  - name: Code generation
-    run: cd frontend && dart run build_runner build --delete-conflicting-outputs
+  - name: App lint
+    run: cd app && npm run lint
 
-  # BLoC 单元测试
-  - name: Flutter unit & BLoC tests
-    run: cd frontend && flutter test --reporter=github --coverage
+  - name: App unit tests
+    run: cd app && npm run test -- --reporter=github --coverage
 
-  # 覆盖率
-  - name: Check BLoC coverage ≥ 80%
-    run: |
-      cd frontend
-      lcov --summary coverage/lcov.info | grep "lines" | awk '{print $2}'
-      # BLoC 文件覆盖率 ≥ 80%
+  - name: App build (H5)
+    run: cd app && npm run build:h5
 
-  # Web 构建
-  - name: Flutter build web
-    run: cd frontend && flutter build web --release --base-href /
+  # Admin 端
+  - name: Install admin dependencies
+    run: cd admin && npm ci
+
+  - name: Admin lint
+    run: cd admin && npm run lint
+
+  - name: Admin unit tests
+    run: cd admin && npm run test -- --reporter=github --coverage
+
+  - name: Admin build
+    run: cd admin && npm run build
 ```
 
 ### 6.2 构建制品
 
 ```yaml
-  - name: Upload web artifact
+  - name: Upload app H5 artifact
     uses: actions/upload-artifact@v4
     with:
-      name: flutter-web-${{ github.sha }}
-      path: frontend/build/web/
+      name: app-h5-${{ github.sha }}
+      path: app/dist/build/h5/
+      retention-days: 30
+
+  - name: Upload admin artifact
+    uses: actions/upload-artifact@v4
+    with:
+      name: admin-web-${{ github.sha }}
+      path: admin/dist/
       retention-days: 30
 ```
 
@@ -379,7 +396,7 @@ deploy-staging:
           # 滚动更新后端
           docker compose up -d backend
           
-          # 更新 Flutter Web 静态文件
+          # 更新前端静态文件（app H5 + admin）
           # (从 CI 制品下载或通过 rsync 同步)
           
           # 健康检查
@@ -569,9 +586,9 @@ gunzip -c "$BACKUP_FILE" | docker compose exec -T postgres psql -U propos propos
 echo "Database restored from $BACKUP_FILE"
 ```
 
-### 11.3 Flutter Web 回滚
+### 11.3 前端静态文件回滚
 
-Flutter Web 为静态文件，每次部署前保存上一版本：
+前端为静态文件（app H5 + admin），每次部署前保存上一版本：
 
 ```bash
 # 部署时自动执行
@@ -590,7 +607,7 @@ docker compose restart nginx
 | 后端 API 500 | 镜像回滚（`rollback.sh`） | < 2 分钟 |
 | 数据库迁移错误 | 反向迁移脚本 + 镜像回滚 | < 10 分钟 |
 | 数据损坏 | 数据库备份恢复（`db_rollback.sh`） | < 15 分钟 |
-| Flutter UI 问题 | 静态文件回滚 | < 1 分钟 |
+| 前端 UI 问题 | 静态文件回滚 | < 1 分钟 |
 | 全栈问题 | 全量回滚（镜像 + DB + Web） | < 20 分钟 |
 
 ---
@@ -614,7 +631,7 @@ concurrency:
 
 env:
   DART_SDK_VERSION: "3.6"
-  FLUTTER_VERSION: "3.x"
+  NODE_VERSION: "20"
 
 jobs:
   # ────────────────────────────────────────────
@@ -631,10 +648,9 @@ jobs:
         with:
           sdk: ${{ env.DART_SDK_VERSION }}
 
-      - uses: subosito/flutter-action@v2
+      - uses: actions/setup-node@v4
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          node-version: ${{ env.NODE_VERSION }}
 
       # 后端 Lint
       - name: Backend format check
@@ -651,19 +667,20 @@ jobs:
           dart format --set-exit-if-changed packages/rent_escalation_engine/
           dart format --set-exit-if-changed packages/kpi_scorer/
 
-      # Flutter Lint
-      - name: Flutter format check
-        run: dart format --set-exit-if-changed frontend/lib/ frontend/test/
+      # 前端 Lint（app）
+      - name: App lint
+        run: cd app && npm ci && npm run lint
 
-      - name: Flutter analyze
-        run: cd frontend && flutter pub get && flutter analyze --fatal-infos
+      # 前端 Lint（admin）
+      - name: Admin lint
+        run: cd admin && npm ci && npm run lint
 
       # 架构约束检查
       - name: Architecture constraints
         run: |
-          echo "--- Checking BLoC does not import data layer ---"
-          ! grep -r "import.*data/" frontend/lib/features/*/presentation/ 2>/dev/null || \
-            (echo "FAIL: presentation imports data layer" && exit 1)
+          echo "--- Checking stores do not use fetch/axios directly ---"
+          ! grep -rn "fetch(\|axios\." app/src/stores/ admin/src/stores/ 2>/dev/null || \
+            (echo "FAIL: store imports fetch/axios directly" && exit 1)
 
           echo "--- Checking no ORM ---"
           ! grep -rn "drift\|sqflite\|floor" backend/pubspec.yaml 2>/dev/null || \
@@ -781,60 +798,101 @@ jobs:
           path: backend/coverage/lcov.info
 
   # ────────────────────────────────────────────
-  # Stage 3: Flutter Build & Test
+  # Stage 3: Frontend Build & Test
   # ────────────────────────────────────────────
-  flutter-test:
-    name: "Stage 3: Flutter Tests"
+  frontend-test:
+    name: "Stage 3: Frontend Tests"
     needs: lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - uses: actions/setup-node@v4
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          node-version: ${{ env.NODE_VERSION }}
 
       - uses: actions/cache@v4
         with:
           path: |
-            ~/.pub-cache
-            frontend/.dart_tool
-          key: flutter-${{ hashFiles('frontend/pubspec.lock') }}
-          restore-keys: flutter-
+            app/node_modules
+            admin/node_modules
+          key: npm-${{ hashFiles('app/package-lock.json', 'admin/package-lock.json') }}
+          restore-keys: npm-
 
-      - name: Install dependencies
-        run: cd frontend && flutter pub get
+      # uni-app 端
+      - name: Install app dependencies
+        run: cd app && npm ci
 
-      - name: Code generation
-        run: cd frontend && dart run build_runner build --delete-conflicting-outputs
+      - name: App unit tests with coverage
+        run: cd app && npm run test -- --reporter=github --coverage
 
-      - name: Run tests with coverage
-        run: cd frontend && flutter test --reporter=github --coverage
+      - name: Build app (H5)
+        run: cd app && npm run build:h5
 
-      - name: Build Flutter Web
-        run: cd frontend && flutter build web --release --base-href /
+      # Admin 端
+      - name: Install admin dependencies
+        run: cd admin && npm ci
 
-      - name: Upload web build
+      - name: Admin unit tests with coverage
+        run: cd admin && npm run test -- --reporter=github --coverage
+
+      - name: Build admin
+        run: cd admin && npm run build
+
+      - name: Upload app H5 build
         uses: actions/upload-artifact@v4
         with:
-          name: flutter-web-${{ github.sha }}
-          path: frontend/build/web/
+          name: app-h5-${{ github.sha }}
+          path: app/dist/build/h5/
+          retention-days: 30
+
+      - name: Upload admin build
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-web-${{ github.sha }}
+          path: admin/dist/
           retention-days: 30
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
           name: frontend-coverage
-          path: frontend/coverage/lcov.info
+          path: |
+            app/coverage/
+            admin/coverage/
+
+      - name: Build app H5
+        run: cd app && npm run build:h5
+
+      - name: Upload app H5 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-h5-${{ github.sha }}
+          path: app/dist/build/h5/
+          retention-days: 30
+
+      - name: Upload admin build
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-web-${{ github.sha }}
+          path: admin/dist/
+          retention-days: 30
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: |
+            app/coverage/
+            admin/coverage/
 
   # ────────────────────────────────────────────
   # Stage 4: Docker Image Build
   # ────────────────────────────────────────────
   build-image:
     name: "Stage 4: Docker Image"
-    needs: [backend-test, flutter-test]
+    needs: [backend-test, frontend-test]
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -891,10 +949,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download web build
+      - name: Download web builds
         uses: actions/download-artifact@v4
         with:
-          name: flutter-web-${{ github.sha }}
+          pattern: '*-web-*'
           path: web-dist/
 
       - name: Deploy to staging server
@@ -999,11 +1057,6 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: "3.6"
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.x"
-          channel: stable
-
       # 全量后端测试
       - name: Full backend test suite
         run: |
@@ -1018,12 +1071,11 @@ jobs:
           ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
           APP_PORT: "8080"
 
-      # 全量 Flutter 测试
-      - name: Full Flutter test suite
+      # 全量前端测试
+      - name: Full frontend test suite
         run: |
-          cd frontend && flutter pub get
-          dart run build_runner build --delete-conflicting-outputs
-          flutter test --reporter=github --coverage
+          cd app && npm ci && npm run test
+          cd ../admin && npm ci && npm run test
 ```
 
 ---
@@ -1101,7 +1153,7 @@ echo "All migrations complete."
 | 制品 | 存储位置 | 保留策略 |
 |------|---------|---------|
 | 后端 Docker 镜像 | Docker Registry | 最近 30 个 tag |
-| Flutter Web 构建产物 | GitHub Actions Artifacts | 30 天 |
+| 前端构建产物（app H5 + admin） | GitHub Actions Artifacts | 30 天 |
 | 测试覆盖率报告 | GitHub Actions Artifacts | 30 天 |
 | 数据库备份 | 服务器 `/backups/` | Staging: 7 天 / Production: 90 天 |
 | 迁移 SQL 文件 | Git 仓库 `backend/migrations/` | 永久（随代码版本控制） |

@@ -18,7 +18,7 @@
 7. [Step 5 — M3 财务模块（后端）](#7-step-5--m3-财务模块后端)
 8. [Step 6 — M4 工单模块（后端）](#8-step-6--m4-工单模块后端)
 9. [Step 7 — M5 二房东模块（后端）](#9-step-7--m5-二房东模块后端)
-10. [Step 8 — Flutter 前端脚手架](#10-step-8--flutter-前端脚手架)
+10. [Step 8 — 前端脚手架（uni-app + admin）](#10-step-8--前端脚手架uni-app--admin)
 11. [Step 9 — 开发与 UI 设计同步](#11-step-9--开发与-ui-设计同步)
 12. [Step 10 — 页面逐模块实现](#12-step-10--页面逐模块实现)
 13. [Step 11 — 后端 API 对接（替换 MockData）](#13-step-11--后端-api-对接替换-mockdata)
@@ -38,7 +38,7 @@
 | `docs/ARCH.md` | ✅ 完成（v1.0）|
 | `docs/DEV_UI_SYNC_GUIDE.md` | ✅ 完成 |
 | `backend/` | ❌ 空目录，未初始化 |
-| `frontend/` | ❌ 空目录，未初始化 |
+| `app/` + `admin/` | ❌ 空目录，未初始化 |
 | 数据库 | ❌ 未创建 |
 | Git 远端 | ✅ 已配置（github.com/SheltonWan/propos）|
 
@@ -84,11 +84,17 @@ createdb propos_dev
 ### 2.2 前端工具链
 
 ```bash
-# 检查 Flutter（需要 3.x）
-flutter --version
-flutter doctor
+# 检查 Node.js（需要 18+）
+node --version
+npm --version
 
-# go_router、freezed 等通过 pubspec.yaml 管理，无需全局安装
+# 安装（推荐使用 nvm 管理版本）
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+nvm install 18
+nvm use 18
+
+# 安装 uni-app CLI（全局）
+npm install -g @dcloudio/uni-cli
 ```
 
 ### 2.3 其他工具
@@ -110,7 +116,7 @@ ezdxf --version
 ```bash
 cd /Users/wanxt/app/propos
 ls
-# 期望看到：backend/ docs/ frontend/ pdfdocs/ scripts/
+# 期望看到：app/ admin/ backend/ docs/ pdfdocs/ scripts/
 ```
 
 ---
@@ -506,89 +512,128 @@ Future<List<SubLease>> findByMasterContract(
 
 ---
 
-## 10. Step 8 — Flutter 前端脚手架
+## 10. Step 8 — 前端脚手架（uni-app + admin）
 
-### 10.1 初始化项目
+### 10.1 初始化 uni-app 移动端项目
 
 ```bash
-cd /Users/wanxt/app/propos/frontend
-flutter create . --org com.propos --project-name propos_frontend
+cd /Users/wanxt/app/propos/app
+npm install
 ```
 
-### 10.2 配置 `pubspec.yaml`
+`app/package.json` 核心依赖：
 
-```yaml
-dependencies:
-  flutter:
-    sdk: flutter
-  go_router: ^14.2.7
-  flutter_bloc: ^8.1.6
-  freezed_annotation: ^2.4.4
-  json_annotation: ^4.9.0
-  dio: ^5.7.0
-  cached_network_image: ^3.4.1
-  flutter_svg: ^2.0.10+1
-  fl_chart: ^0.69.0
-  mobile_scanner: ^5.2.3           # QR 扫码（移动端）
-  firebase_messaging: ^15.1.4      # FCM 推送（移动端）
-  file_picker: ^8.1.4
-  image_picker: ^1.1.2
-  excel: ^4.0.3
+```json
+{
+  "dependencies": {
+    "pinia": "^2.1.7",
+    "luch-request": "^3.1.0",
+    "wot-design-uni": "^1.3.0",
+    "dayjs": "^1.11.10"
+  },
+  "devDependencies": {
+    "@dcloudio/vite-plugin-uni": "^4.0.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0"
+  }
+}
+```
 
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  build_runner: ^2.4.12
-  freezed: ^2.5.7
-  json_serializable: ^6.8.0
-  flutter_lints: ^4.0.0
+### 10.2 初始化 admin PC 管理后台
+
+```bash
+cd /Users/wanxt/app/propos/admin
+npm install
+```
+
+`admin/package.json` 核心依赖：
+
+```json
+{
+  "dependencies": {
+    "vue": "^3.4.0",
+    "vue-router": "^4.3.0",
+    "pinia": "^2.1.7",
+    "element-plus": "^2.7.0",
+    "axios": "^1.7.0",
+    "dayjs": "^1.11.10"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0"
+  }
+}
 ```
 
 ### 10.3 建立目录骨架
 
+**uni-app 端**（`app/src/`）：
+
 ```
-frontend/lib/
-├── main.dart
+app/src/
+├── main.ts
+├── App.vue
+├── pages.json                    # uni-app 页面路由配置
+├── manifest.json                 # 平台配置
+├── uni.scss                      # 全局 CSS 变量 + Design Token
+├── api/
+│   ├── client.ts                 # luch-request 封装，apiGet/apiPost/apiPatch/apiDelete
+│   ├── modules/                  # 按业务模块拆分的 API 函数
+│   └── index.ts                  # 桶导出
+├── constants/
+│   ├── api_paths.ts             # API 路径常量
+│   ├── business_rules.ts        # 业务规则常量
+│   └── ui_constants.ts          # UI 展示常量
+├── stores/                       # Pinia stores（defineStore setup 风格）
+├── types/                        # TypeScript 接口定义
+├── composables/                  # 可复用 Composition API 函数
+├── pages/                        # 按 pages.json 结构组织页面
+├── components/                   # 全局共享组件
+└── static/                       # 静态资源
+```
+
+**admin 端**（`admin/src/`）：
+
+```
+admin/src/
+├── main.ts
+├── App.vue
+├── api/
+│   ├── client.ts                 # axios 封装，含 refresh subscriber queue
+│   └── modules/
+├── constants/
+│   ├── api_paths.ts
+│   ├── business_rules.ts
+│   └── ui_constants.ts
+├── stores/                       # Pinia stores
 ├── router/
-│   └── app_router.dart           # go_router 路由树（全部35+路由注册）
-├── shared/
-│   ├── platform_utils.dart       # 平台能力检测（见 ARCH.md）
-│   ├── theme/
-│   │   └── app_theme.dart        # Design Token + ThemeData
-│   ├── widgets/
-│   │   ├── status_badge.dart     # 状态色块（leased/expiring/vacant）
-│   │   ├── metric_card.dart      # NOI/WALE 数据卡片
-│   │   ├── empty_state.dart      # 空状态占位组件
-│   │   └── loading_overlay.dart  # 加载覆盖层
-│   └── api/
-│       └── api_client.dart       # Dio 封装 + JWT 拦截器
-├── mock/
-│   ├── mock_dashboard_data.dart
-│   ├── mock_building_data.dart
-│   ├── mock_contract_data.dart
-│   ├── mock_invoice_data.dart
-│   ├── mock_workorder_data.dart
-│   └── mock_sublease_data.dart
-└── modules/
-    ├── auth/
-    ├── dashboard/
-    ├── assets/
-    ├── contracts/
-    ├── finance/
-    ├── workorders/
-    └── subleases/
+│   └── index.ts                  # Vue Router 4，含 beforeEach 守卫
+├── views/
+│   ├── layout/                   # AppLayout（侧边栏 + 顶部栏）
+│   ├── auth/                     # LoginView
+│   ├── dashboard/
+│   ├── assets/
+│   ├── contracts/
+│   ├── finance/
+│   ├── workorders/
+│   └── subleases/
+├── components/                   # 全局共享组件
+├── types/                        # TypeScript 接口定义
+└── styles/
+    └── variables.scss            # Element Plus 主题变量覆盖
 ```
 
 ### 10.4 MockData 覆盖要求
 
 | Mock 文件 | 覆盖内容 |
 |----------|---------|
-| `mock_dashboard_data.dart` | NOI、EGI、OpEx、出租率、WALE（三业态分别）、K01~K10 当前值 |
-| `mock_building_data.dart` | 3 栋楼 × 多楼层 × 单元列表（含四种状态的单元）|
-| `mock_contract_data.dart` | 10 份合同（覆盖全部 7 种状态机状态）|
-| `mock_invoice_data.dart` | 20 条账单（pending/paid/overdue/waived 均覆盖）|
-| `mock_workorder_data.dart` | 8 条工单（覆盖全部 7 种工单状态）|
-| `mock_sublease_data.dart` | 二房东视角：主合同 + 子租赁列表（含空置单元）|
+| `mockDashboardData` | NOI、EGI、OpEx、出租率、WALE（三业态分别）、K01~K10 当前值 |
+| `mockBuildingData` | 3 栋楼 × 多楼层 × 单元列表（含四种状态的单元）|
+| `mockContractData` | 10 份合同（覆盖全部 7 种状态机状态）|
+| `mockInvoiceData` | 20 条账单（pending/paid/overdue/waived 均覆盖）|
+| `mockWorkOrderData` | 8 条工单（覆盖全部 7 种工单状态）|
+| `mockSubleaseData` | 二房东视角：主合同 + 子租赁列表（含空置单元）|
 
 > **字段名一致性**：MockData 字段命名必须与 `ARCH.md §3` 数据库列名（转 camelCase）完全一致，便于后续直接替换为 API 响应。
 
@@ -619,21 +664,21 @@ frontend/lib/
 
 | 角色 | 任务 |
 |------|------|
-| 开发者 | 完善 BLoC 状态管理、go_router 守卫、表单验证、三态 UI（空/加载/错误）|
+| 开发者 | 完善 Pinia 状态管理、Vue Router 守卫、表单验证、三态 UI（空/加载/错误）|
 | 设计师 | Figma 高保真（P0 优先）、输出 Design Token 表格 |
 
 ### 11.3 Design Token 接入（Day 12）
 
-设计师以表格提交 Token（颜色/字体/间距/圆角），开发者填入 `lib/shared/theme/app_theme.dart`。
+设计师以表格提交 Token（颜色/字体/间距/圆角），开发者填入 `app/src/uni.scss` 和 `admin/src/styles/variables.scss`。
 
 **固定语义色（设计师不得改变含义）**：
 
-| 颜色常量 | 业务含义 |
-|---------|---------|
-| `AppColors.unitLeased` | 已租 → 绿色系 |
-| `AppColors.unitExpiring` | 即将到期 → 黄/橙色系 |
-| `AppColors.unitVacant` | 空置 → 红色系 |
-| `AppColors.unitNonLeasable` | 非可租 → 中性灰 |
+| CSS 变量 | 业务含义 |
+|---------|--------|
+| `--color-success` | 已租 → 绿色系 |
+| `--color-warning` | 即将到期 → 黄/橙色系 |
+| `--color-danger` | 空置 → 红色系 |
+| `--color-neutral` / `info` | 非可租 → 中性灰 |
 
 ---
 
@@ -676,22 +721,30 @@ frontend/lib/
 
 ### 每个页面实现规范
 
+**uni-app 端（`app/src/`）**：
 ```
-lib/modules/<module>/
-├── bloc/
-│   ├── <page>_bloc.dart     # BLoC 定义（Event / State）
-│   ├── <page>_event.dart
-│   └── <page>_state.dart
-├── pages/
-│   └── <page>_page.dart     # 顶层页面 Widget（BlocProvider 注入）
-└── widgets/
-    └── <component>.dart     # 复用子组件
+api/modules/<module>.ts       # API 函数
+stores/<module>.ts             # Pinia store（defineStore setup 风格）
+pages/<module>/
+├── index.vue                # 列表页
+└── detail.vue               # 详情页
+components/<Component>.vue     # 复用子组件
+```
+
+**admin 端（`admin/src/`）**：
+```
+api/modules/<module>.ts        # API 函数
+stores/<module>.ts             # Pinia store
+views/<module>/
+├── IndexView.vue            # 列表页
+└── DetailView.vue           # 详情页
+components/<Component>.vue     # 复用子组件
 ```
 
 **三态 UI 强制要求**（每个数据驱动页面）：
-- `LoadingState` → 显示 `CircularProgressIndicator`
-- `EmptyState` → 显示 `EmptyStateWidget`（含提示文字+操作按钮）
-- `ErrorState` → 显示错误信息 + 重试按钮
+- `loading` → 显示加载骨屏 / Skeleton
+- 空状态 → 显示提示文字 + 操作按钮
+- 错误状态 → 显示错误信息 + 重试按钮
 
 ---
 
@@ -701,26 +754,29 @@ lib/modules/<module>/
 
 每个模块后端完成后，对应前端页面替换 MockData：
 
-1. `api_client.dart` 添加对应模块的 API 方法
-2. BLoC Event 改为调用 `api_client` 而非 Mock 函数
-3. 在 `app_config.dart`（前端）配置 `baseUrl`（`.env` 注入）
+1. `api/modules/<module>.ts` 添加对应模块的 API 函数
+2. Pinia store 的 action 改为调用 API 函数而非 Mock 数据
+3. 在 `.env` 中配置 `VITE_API_BASE_URL`
 
-```dart
+```typescript
 // 替换前（MockData）
-on<LoadDashboard>((event, emit) async {
-  emit(DashboardLoaded(MockDashboardData.get()));
-});
+async function fetchDashboard() {
+  loading.value = true
+  list.value = mockDashboardData
+  loading.value = false
+}
 
 // 替换后（真实 API）
-on<LoadDashboard>((event, emit) async {
-  emit(DashboardLoading());
+async function fetchDashboard() {
+  loading.value = true
   try {
-    final data = await apiClient.getDashboardSummary();
-    emit(DashboardLoaded(data));
+    list.value = await apiGet<DashboardSummary>(API_PATHS.DASHBOARD)
   } catch (e) {
-    emit(DashboardError(e.toString()));
+    error.value = e instanceof ApiError ? e.message : '加载失败，请重试'
+  } finally {
+    loading.value = false
   }
-});
+}
 ```
 
 ### 13.2 API 对接顺序
@@ -751,14 +807,16 @@ Auth（登录/Token 刷新）
 
 ### 14.2 开发时机
 
-**待 Flutter App P1 页面稳定后再开始**，复用同一后端 API，不单独维护数据层。
+**待 uni-app 移动端 P1 页面稳定后再开始**，复用同一后端 API，不单独维护数据层。
 
-### 14.3 与 Flutter App 的分工
+> 注：微信小程序已纳入 uni-app 多端编译范围，通过条件编译（`#ifdef MP-WEIXIN`）复用主体代码，仅小程序特有功能需单独处理。
 
-| 功能 | Flutter App | 微信小程序 |
+### 14.3 与 uni-app 移动端的分工
+
+| 功能 | uni-app 移动端 | 微信小程序 |
 |------|------------|----------|
 | 完整工单流程 | ✅ | ❌ |
-| 推送通知 | ✅ APNs/FCM | ❌ |
+| 推送通知 | ✅ APNs/FCM/鸿蒙推送 | ❌ |
 | CAD 楼层快查 | ✅ | ❌ |
 | 管理后台功能 | ✅ | ❌ |
 | 扫码报修 | ✅ | ✅ 核心场景 |
@@ -824,9 +882,9 @@ Auth（登录/Token 刷新）
 
 | 禁止行为 | 原因 |
 |---------|------|
-| 设计师直接修改 Flutter 代码 | 破坏代码分层约定 |
+| 设计师直接修改 Vue 代码 | 破坏代码分层约定 |
 | 开发者绕过 Figma 自行美化 | 产生设计漂移 |
-| 以 Figma 截图替代模拟器验收 | Figma 不模拟真实字体渲染和屏幕密度 |
+| 以 Figma 截图替代真机/浏览器验收 | Figma 不模拟真实字体渲染和屏幕密度 |
 | 改变状态色彩的业务语义 | `expiring_soon` 必须是黄/橙色，这是业务约束非美观偏好 |
 
 ### 16.3 Phase 1 范围红线
@@ -845,4 +903,4 @@ Auth（登录/Token 刷新）
 
 ---
 
-*PropOS Phase 1 开发启动手册 v1.0 · 2026-04-04*
+*PropOS Phase 1 开发启动手册 v2.0 · 2026-04-09*
