@@ -1,8 +1,8 @@
 # PropOS 系统架构设计文档
 
-> **版本**: v1.3  
+> **版本**: v1.4  
 > **日期**: 2026-04-09  
-> **对应 PRD**: v1.7  
+> **对应 PRD**: v1.8  
 > **范围**: Phase 1 全模块
 
 ---
@@ -109,26 +109,19 @@
 
 > **扫码替代方案**：桌面端 `QrScanPage` 降级为 `WorkOrderFormPage`（手动输入楼栋/楼层/单元号）。  
 > **通知替代方案**：桌面端 / Web 使用应用内 Badge 角标 + 30 秒轮询 `/api/alerts/unread`，不依赖 FCM。  
-> **平台判断统一封装**：所有 `Platform.isXxx` / `kIsWeb` 判断集中在 `lib/shared/platform_utils.dart`，页面层不散落平台检测代码。
+> **平台判断统一封装**：所有平台差异通过 uni-app 条件编译处理，集中在各功能模块内部，页面层不散落平台检测代码。
 
-```dart
-// lib/shared/platform_utils.dart
-import 'dart:io';
-import 'package:flutter/foundation.dart';
-
-class PlatformUtils {
-  static bool get isMobile =>
-      !kIsWeb && (Platform.isIOS || Platform.isAndroid);
-
-  static bool get isDesktop =>
-      !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
-
-  static bool get supportsCamera => isMobile;
-
-  static bool get supportsQrScan => isMobile;
-
-  static bool get supportsPushNotification => isMobile;
-}
+```typescript
+// 通过 uni-app 条件编译处理平台差异（app/src 各模块内部使用）
+// #ifdef APP-PLUS
+//   iOS / Android / HarmonyOS 原生 App（支持相机、扫码、uni-push 推送）
+// #endif
+// #ifdef MP-WEIXIN
+//   微信小程序（扫码受限，使用 wx.scanCode；推送用模板消息）
+// #endif
+// #ifdef H5
+//   H5 浏览器端（无扫码，使用手动输入降级；Admin PC 端归于此类）
+// #endif
 ```
 
 ---
@@ -297,7 +290,7 @@ backend/
 │   │   │   │   └── supplier_repository.dart
 │   │   │   ├── services/
 │   │   │   │   ├── work_order_service.dart   # 状态机转换 + 成本归口
-│   │   │   │   └── push_service.dart         # APNs/FCM 推送封装
+│   │   │   │   └── push_service.dart         # uni-push 推送封装（APNs/FCM/HarmonyOS 统一通道）
 │   │   │   └── controllers/
 │   │   │       └── work_order_controller.dart
 │   │   │
@@ -419,221 +412,127 @@ dependencies:
 
 ---
 
-## 4. Flutter App 页面路由结构
+## 4. 客户端页面路由结构
 
 ### 4.1 技术选型
 
-- 路由库：`go_router 14.x`
-- 状态管理：`flutter_bloc`
-- 鉴权守卫：`GoRouter.redirect` 函数（检查 JWT + 角色权限）
-- 导航结构：`ShellRoute`（保持底部栏状态） + 嵌套路由
+| 端 | 路由方案 | 守卫方式 | 状态管理 |
+|----|---------|---------|---------|
+| uni-app（App + 小程序） | `pages.json` 静态注册 | `uni.addInterceptor('navigateTo')` | Pinia |
+| Admin（PC Web） | Vue Router 4 `createWebHistory` | `router.beforeEach` | Pinia |
 
-### 4.2 路由树定义
+- **uni-app 路由**：所有页面在 `pages.json` 中声明，底部 tabBar 5 个 Tab；路由跳转使用 `uni.navigateTo` / `uni.switchTab`；守卫通过 `uni.addInterceptor` 拦截器在跳转前检查 JWT
+- **Admin 路由**：Vue Router 4，`AppLayout.vue` 作为根布局（侧边栏 + 顶部栏），`router.beforeEach` 检查 `localStorage.access_token`，公开路由通过 `meta.public: true` 标记
 
-```dart
-// lib/router/app_router.dart
+### 4.2 uni-app 页面路由（pages.json）
 
-final appRouter = GoRouter(
-  initialLocation: '/login',
-  redirect: _authGuard,   // 全局守卫
-
-  routes: [
-    // ─── 认证路由 ───
-    GoRoute(path: '/login', builder: (ctx, s) => const LoginPage()),
-    GoRoute(path: '/forgot-password', builder: (ctx, s) => const ForgotPasswordPage()),
-
-    // ─── 主导航骨架（底部 TabBar） ───
-    ShellRoute(
-      builder: (ctx, s, child) => MainScaffold(child: child),
-      routes: [
-
-        // ── Tab 1: 概览 Dashboard ──
-        GoRoute(
-          path: '/dashboard',
-          builder: (ctx, s) => const DashboardPage(),    // NOI + 出租率 + WALE 汇总
-          routes: [
-            GoRoute(path: 'noi-detail', builder: (ctx, s) => const NoiDetailPage()),
-            GoRoute(path: 'wale-detail', builder: (ctx, s) => const WaleDetailPage()),
-            GoRoute(path: 'kpi',        builder: (ctx, s) => const KpiDashboardPage()),
-            GoRoute(
-              path: 'kpi/scheme/:schemeId',
-              builder: (ctx, s) => KpiSchemeDetailPage(schemeId: s.pathParameters['schemeId']!),
-            ),
-          ],
-        ),
-
-        // ── Tab 2: 资产 Assets ──
-        GoRoute(
-          path: '/assets',
-          builder: (ctx, s) => const AssetOverviewPage(),   // 三业态出租率看板
-          routes: [
-            GoRoute(
-              path: 'building/:buildingId',
-              builder: (ctx, s) => BuildingDetailPage(id: s.pathParameters['buildingId']!),
-              routes: [
-                GoRoute(
-                  path: 'floor/:floorId',
-                  builder: (ctx, s) => FloorMapPage(           // CAD 热区图
-                    buildingId: s.pathParameters['buildingId']!,
-                    floorId: s.pathParameters['floorId']!,
-                  ),
-                  routes: [
-                    GoRoute(
-                      path: 'unit/:unitId',
-                      builder: (ctx, s) => UnitDetailPage(unitId: s.pathParameters['unitId']!),
-                      routes: [
-                        GoRoute(path: 'renovation/add',   builder: (ctx, s) => RenovationFormPage(unitId: s.pathParameters['unitId']!)),
-                        GoRoute(path: 'renovation/:rid',  builder: (ctx, s) => RenovationDetailPage(id: s.pathParameters['rid']!)),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            GoRoute(path: 'import', builder: (ctx, s) => const UnitImportPage()),   // Excel 批量导入
-          ],
-        ),
-
-        // ── Tab 3: 租务 Contracts ──
-        GoRoute(
-          path: '/contracts',
-          builder: (ctx, s) => const ContractListPage(),
-          routes: [
-            GoRoute(path: 'new',        builder: (ctx, s) => const ContractFormPage()),
-            GoRoute(
-              path: ':contractId',
-              builder: (ctx, s) => ContractDetailPage(id: s.pathParameters['contractId']!),
-              routes: [
-                GoRoute(path: 'edit',          builder: (ctx, s) => ContractEditPage(id: s.pathParameters['contractId']!)),
-                GoRoute(path: 'escalation',    builder: (ctx, s) => EscalationConfigPage(contractId: s.pathParameters['contractId']!)),
-                GoRoute(path: 'subleases',     builder: (ctx, s) => SubleaseListPage(masterContractId: s.pathParameters['contractId']!)),
-                GoRoute(path: 'subleases/new', builder: (ctx, s) => SubleaseFormPage(masterContractId: s.pathParameters['contractId']!)),
-                GoRoute(path: 'renew',         builder: (ctx, s) => ContractRenewPage(parentId: s.pathParameters['contractId']!)),
-                GoRoute(path: 'terminate',     builder: (ctx, s) => ContractTerminatePage(contractId: s.pathParameters['contractId']!)),
-                GoRoute(path: 'deposits',      builder: (ctx, s) => DepositListPage(contractId: s.pathParameters['contractId']!)),
-                GoRoute(path: 'deposits/new',  builder: (ctx, s) => DepositFormPage(contractId: s.pathParameters['contractId']!)),
-              ],
-            ),
-          ],
-        ),
-
-        GoRoute(
-          path: '/tenants',
-          builder: (ctx, s) => const TenantListPage(),
-          routes: [
-            GoRoute(path: 'new',      builder: (ctx, s) => const TenantFormPage()),
-            GoRoute(path: ':tenantId', builder: (ctx, s) => TenantDetailPage(id: s.pathParameters['tenantId']!)),
-          ],
-        ),
-
-        // ── Tab 4: 财务 Finance ──
-        GoRoute(
-          path: '/finance',
-          builder: (ctx, s) => const FinanceOverviewPage(),    // NOI 看板入口
-          routes: [
-            GoRoute(
-              path: 'invoices',
-              builder: (ctx, s) => const InvoiceListPage(),
-              routes: [
-                GoRoute(path: ':invoiceId',      builder: (ctx, s) => InvoiceDetailPage(id: s.pathParameters['invoiceId']!)),
-                GoRoute(path: ':invoiceId/pay',  builder: (ctx, s) => PaymentFormPage(invoiceId: s.pathParameters['invoiceId']!)),
-              ],
-            ),
-            GoRoute(path: 'expenses',     builder: (ctx, s) => const ExpenseListPage()),
-            GoRoute(path: 'expenses/new', builder: (ctx, s) => const ExpenseFormPage()),
-            GoRoute(path: 'meter-readings',     builder: (ctx, s) => const MeterReadingListPage()),
-            GoRoute(path: 'meter-readings/new', builder: (ctx, s) => const MeterReadingFormPage()),
-            GoRoute(path: 'turnover-reports',     builder: (ctx, s) => const TurnoverReportListPage()),
-            GoRoute(path: 'turnover-reports/:reportId', builder: (ctx, s) => TurnoverReportDetailPage(id: s.pathParameters['reportId']!)),
-          ],
-        ),
-
-        // ── Tab 5: 工单 Workorders ──
-        GoRoute(
-          path: '/workorders',
-          builder: (ctx, s) => const WorkOrderListPage(),
-          routes: [
-            GoRoute(path: 'new', builder: (ctx, s) => const WorkOrderFormPage()),     // 移动端报修入口
-            GoRoute(path: 'scan', builder: (ctx, s) => const QrScanPage()),           // 扫码报修
-            GoRoute(
-              path: ':orderId',
-              builder: (ctx, s) => WorkOrderDetailPage(id: s.pathParameters['orderId']!),
-              routes: [
-                GoRoute(path: 'approve',  builder: (ctx, s) => WorkOrderApprovePage(id: s.pathParameters['orderId']!)),
-                GoRoute(path: 'complete', builder: (ctx, s) => WorkOrderCompletePage(id: s.pathParameters['orderId']!)),
-              ],
-            ),
-          ],
-        ),
-
-      ],
-    ),
-
-    // ─── 二房东独立入口（脱离主导航骨架） ───
-    GoRoute(
-      path: '/sublease-portal',
-      builder: (ctx, s) => const SubLandlordPortalPage(),    // 独立简洁界面
-      routes: [
-        GoRoute(path: 'units',         builder: (ctx, s) => const SubLandlordUnitListPage()),
-        GoRoute(path: 'units/:unitId/fill', builder: (ctx, s) => SubleaseFillingPage(unitId: s.pathParameters['unitId']!)),
-        GoRoute(path: 'import',        builder: (ctx, s) => const SubleaseImportPage()),
-      ],
-    ),
-
-    // ─── 系统设置（仅 super_admin / ops_manager） ───
-    GoRoute(
-      path: '/settings',
-      builder: (ctx, s) => const SettingsPage(),
-      routes: [
-        GoRoute(path: 'users',        builder: (ctx, s) => const UserManagementPage()),
-        GoRoute(path: 'users/new',    builder: (ctx, s) => const UserFormPage()),
-        GoRoute(path: 'kpi/schemes',  builder: (ctx, s) => const KpiSchemeListPage()),
-        GoRoute(path: 'kpi/schemes/new', builder: (ctx, s) => const KpiSchemeFormPage()),
-        GoRoute(path: 'escalation/templates', builder: (ctx, s) => const EscalationTemplateListPage()),
-        GoRoute(path: 'alerts',       builder: (ctx, s) => const AlertCenterPage()),
-      ],
-    ),
+```json
+{
+  "pages": [
+    { "path": "pages/auth/login",             "style": { "navigationBarTitleText": "登录", "navigationStyle": "custom" } },
+    { "path": "pages/dashboard/index",        "style": { "navigationBarTitleText": "总览" } },
+    { "path": "pages/assets/index",           "style": { "navigationBarTitleText": "资产总览" } },
+    { "path": "pages/assets/building-detail", "style": { "navigationBarTitleText": "楼栋详情" } },
+    { "path": "pages/assets/floor-plan",      "style": { "navigationBarTitleText": "楼层热区图" } },
+    { "path": "pages/assets/unit-detail",     "style": { "navigationBarTitleText": "房源详情" } },
+    { "path": "pages/contracts/index",        "style": { "navigationBarTitleText": "合同管理" } },
+    { "path": "pages/contracts/detail",       "style": { "navigationBarTitleText": "合同详情" } },
+    { "path": "pages/finance/index",          "style": { "navigationBarTitleText": "财务总览" } },
+    { "path": "pages/finance/invoices",       "style": { "navigationBarTitleText": "发票账单" } },
+    { "path": "pages/finance/kpi",            "style": { "navigationBarTitleText": "KPI 考核" } },
+    { "path": "pages/workorders/index",       "style": { "navigationBarTitleText": "工单管理" } },
+    { "path": "pages/workorders/detail",      "style": { "navigationBarTitleText": "工单详情" } },
+    { "path": "pages/workorders/new",         "style": { "navigationBarTitleText": "新建工单" } },
+    { "path": "pages/subleases/index",        "style": { "navigationBarTitleText": "二房东管理" } },
+    { "path": "pages/subleases/detail",       "style": { "navigationBarTitleText": "二房东详情" } }
   ],
-);
-```
-
-### 4.3 路由守卫（角色路由映射）
-
-```dart
-// lib/router/auth_guard.dart
-
-String? _authGuard(BuildContext context, GoRouterState state) {
-  final authState = context.read<AuthBloc>().state;
-
-  // 未登录 → 跳登录页
-  if (authState is AuthUnauthenticated) {
-    if (state.matchedLocation == '/login') return null;
-    return '/login';
+  "tabBar": {
+    "color": "#8c8c8c",
+    "selectedColor": "#1677ff",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/dashboard/index",  "text": "总览", "iconPath": "static/tabbar/dashboard.png",  "selectedIconPath": "static/tabbar/dashboard-active.png" },
+      { "pagePath": "pages/assets/index",     "text": "资产", "iconPath": "static/tabbar/assets.png",     "selectedIconPath": "static/tabbar/assets-active.png" },
+      { "pagePath": "pages/contracts/index",  "text": "合同", "iconPath": "static/tabbar/contracts.png",  "selectedIconPath": "static/tabbar/contracts-active.png" },
+      { "pagePath": "pages/workorders/index", "text": "工单", "iconPath": "static/tabbar/workorders.png", "selectedIconPath": "static/tabbar/workorders-active.png" },
+      { "pagePath": "pages/finance/index",    "text": "财务", "iconPath": "static/tabbar/finance.png",    "selectedIconPath": "static/tabbar/finance-active.png" }
+    ]
   }
-
-  final role = authState.user.role;
-  final path = state.matchedLocation;
-
-  // 二房东只能访问 sublease-portal 下的路由
-  if (role == UserRole.subLandlord && !path.startsWith('/sublease-portal')) {
-    return '/sublease-portal';
-  }
-
-  // 前线员工只能访问工单、只读资产
-  if (role == UserRole.frontline) {
-    final allowed = ['/dashboard', '/workorders', '/assets'];
-    if (!allowed.any((p) => path.startsWith(p))) return '/workorders';
-  }
-
-  // 财务只能访问财务模块 + 概览
-  if (role == UserRole.financeStaff) {
-    final allowed = ['/dashboard', '/finance', '/contracts', '/tenants'];
-    if (!allowed.any((p) => path.startsWith(p))) return '/finance';
-  }
-
-  return null; // 放行
 }
 ```
+
+### 4.3 uni-app 路由守卫
+
+```typescript
+// app/src/utils/request-interceptor.ts
+// 统一在页面跳转前检查 JWT，未登录则重定向到登录页
+uni.addInterceptor('navigateTo', {
+  invoke(args) {
+    const token = uni.getStorageSync('access_token')
+    const publicPages = ['/pages/auth/login']
+    if (!token && !publicPages.some(p => (args.url as string).startsWith(p))) {
+      uni.redirectTo({ url: '/pages/auth/login' })
+      return false
+    }
+    return args
+  },
+})
+```
+
+### 4.4 Admin Vue Router 路由（router/index.ts）
+
+```typescript
+// admin/src/router/index.ts
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    { path: '/login', name: 'login', component: () => import('@/views/auth/LoginView.vue'), meta: { public: true } },
+    {
+      path: '/',
+      component: () => import('@/views/layout/AppLayout.vue'),
+      redirect: '/dashboard',
+      children: [
+        { path: 'dashboard',                                    name: 'dashboard',       component: () => import('@/views/dashboard/DashboardView.vue') },
+        { path: 'assets',                                       name: 'assets',          component: () => import('@/views/assets/AssetsView.vue') },
+        { path: 'assets/buildings/:id',                         name: 'building-detail', component: () => import('@/views/assets/BuildingDetailView.vue') },
+        { path: 'assets/buildings/:buildingId/floors/:floorId', name: 'floor-plan',      component: () => import('@/views/assets/FloorPlanView.vue') },
+        { path: 'assets/units/:id',                             name: 'unit-detail',     component: () => import('@/views/assets/UnitDetailView.vue') },
+        { path: 'contracts',                                    name: 'contracts',       component: () => import('@/views/contracts/ContractsView.vue') },
+        { path: 'contracts/:id',                                name: 'contract-detail', component: () => import('@/views/contracts/ContractDetailView.vue') },
+        { path: 'finance',                                      name: 'finance',         component: () => import('@/views/finance/FinanceView.vue') },
+        { path: 'finance/invoices',                             name: 'invoices',        component: () => import('@/views/finance/InvoicesView.vue') },
+        { path: 'finance/kpi',                                  name: 'kpi',             component: () => import('@/views/finance/KpiView.vue') },
+        { path: 'workorders',                                   name: 'workorders',      component: () => import('@/views/workorders/WorkordersView.vue') },
+        { path: 'workorders/:id',                               name: 'workorder-detail',component: () => import('@/views/workorders/WorkorderDetailView.vue') },
+        { path: 'subleases',                                    name: 'subleases',       component: () => import('@/views/subleases/SubleasesView.vue') },
+        { path: 'subleases/:id',                                name: 'sublease-detail', component: () => import('@/views/subleases/SubleaseDetailView.vue') },
+      ],
+    },
+    { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
+  ],
+})
+
+// 导航守卫：JWT 未登录跳转登录页
+router.beforeEach((to) => {
+  if (to.meta.public) return true
+  const token = localStorage.getItem('access_token')
+  if (!token) return { name: 'login', query: { redirect: to.fullPath } }
+  return true
+})
+```
+
+### 4.5 角色路由权限映射
+
+| 角色 | uni-app 可访问 Tab | Admin 可访问路由 |
+|------|------------------|----------------|
+| `super_admin` / `ops_manager` | 全部 5 Tab | 全部路由 |
+| `leasing_agent` | 资产 / 合同 / 工单 | assets / contracts / workorders |
+| `finance_staff` | 财务 / 合同（只读） | finance / contracts（只读） |
+| `frontline` | 工单 / 资产（只读） | workorders |
+| `sub_landlord` | 二房东门户（`subleases/`） | 不开放 Admin |
+
+> 角色在登录后从 JWT Claims 解析写入 Pinia `useAuthStore`；uni-app 守卫读取 store 中的 `role` 字段；Admin `router.beforeEach` 读取 `localStorage.access_token`，完整角色鉴权委托给后端 RBAC 中间件。
 
 ---
 
@@ -1353,17 +1252,16 @@ JobRunner.execute(job)
 |------|------|---------|
 | AES | Advanced Encryption Standard | 高级加密标准，本项目使用 AES-256-GCM 对证件号、手机号等敏感字段加密存储 |
 | API | Application Programming Interface | 应用程序接口，前后端通过 REST API 通信 |
-| APNs | Apple Push Notification service | 苹果推送通知服务，用于 iOS 设备的工单推送 |
+| APNs | Apple Push Notification service | 苹果推送通知服务，并入 uni-push 统一推送通道，做到一套 SDK 覆盖全平台 |
 | ARCH | Architecture | 架构（本文档文件名缩写）|
-| BLoC | Business Logic Component | 业务逻辑组件，Flutter 端状态管理模式，事件驱动 |
 | CAD | Computer-Aided Design | 计算机辅助设计，本项目处理 `.dwg` 格式楼层平面图 |
 | CPI | Consumer Price Index | 消费者价格指数，用于合同租金年度联动递增计算 |
 | CRUD | Create, Read, Update, Delete | 增删改查，数据库基本操作统称 |
 | DDL | Data Definition Language | 数据定义语言，用于创建/修改数据库表结构的 SQL 语句 |
-| DI | Dependency Injection | 依赖注入，本项目使用 `get_it` 作为 DI 容器 |
+| DI | Dependency Injection | 依赖注入，后端通过构造函数注入实现分层解耦（Repository → Service → Controller）；前端通过 Pinia store 共享状态 |
 | DWG | Drawing（AutoCAD 格式） | AutoCAD 专有矢量图格式，楼层 CAD 平面图原始格式 |
 | EGI | Effective Gross Income | 有效总收入，EGI = PGI - VacancyLoss + OtherIncome |
-| FCM | Firebase Cloud Messaging | Firebase 云消息推送服务，用于 Android/iOS 工单通知 |
+| FCM | Firebase Cloud Messaging | Firebase 云消息推送服务，并入 uni-push 统一通道覆盖 Android/iOS 工单通知 |
 | GCM | Galois/Counter Mode | 伽罗华/计数器模式，AES 的一种认证加密工作模式 |
 | GIN | Generalized Inverted Index | 通用倒排索引，PostgreSQL 索引类型，用于 JSONB 字段高效过滤 |
 | HTTP | HyperText Transfer Protocol | 超文本传输协议，客户端与后端服务通信基础协议 |
@@ -1381,7 +1279,8 @@ JobRunner.execute(job)
 | PGI | Potential Gross Income | 潜在总收入，满租状态下的理论最大收入 |
 | PIPL | Personal Information Protection Law | 《个人信息保护法》（中国），要求合同终止后个人信息保留不超过 3 年，脱敏还原须记录完整审计日志 |
 | PNG | Portable Network Graphics | 便携网络图形格式，楼层 SVG 转换后的备用光栅图 |
-| PRD | Product Requirements Document | 产品需求文档，本架构对应 PRD v1.7 |
+| Pinia | Pinia | Vue3 官方状态管理库，uni-app 与 Admin 端统一使用；`defineStore` setup 风格，state = `ref`，getter = `computed`，action 为 async 函数 |
+| PRD | Product Requirements Document | 产品需求文档，本架构对应 PRD v1.8 |
 | QR | Quick Response Code | 快速响应码（二维码），移动端扫码报修入口，桌面端降级为手动填报 |
 | RBAC | Role-Based Access Control | 基于角色的访问控制，所有 API 端点须经 RBAC 中间件验证 |
 | REST | Representational State Transfer | 表述性状态转移，本项目 API 风格 |

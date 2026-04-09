@@ -3,11 +3,11 @@
 #
 # 用法：
 #   bash scripts/check_env.sh          # 全量检查
-#   bash scripts/check_env.sh --quick  # 跳过 flutter doctor 详情
+#   bash scripts/check_env.sh --quick  # 跳过依赖安装状态检查
 #
 # 检查范围：
 #   1. 后端工具链：Dart SDK ≥3.0、PostgreSQL ≥15
-#   2. 前端工具链：Flutter ≥3.0
+#   2. 前端工具链：Node.js ≥18、pnpm ≥8
 #   3. Python 工具链：Python 3、python-docx、ezdxf
 #   4. macOS 专属：Pages App（PDF 导出）、ODA File Converter（CAD）
 #   5. 通用工具：Git
@@ -121,37 +121,50 @@ if ! command -v pg_isready &>/dev/null; then
 fi
 
 # ══════════════════════════════════════════════
-#  2. 前端工具链
+#  2. 前端工具链（uni-app + Vue3 Admin）
 # ══════════════════════════════════════════════
-section "2. 前端工具链"
+section "2. 前端工具链（uni-app + Vue3 Admin）"
 
-# Flutter ≥ 3.0
-if command -v flutter &>/dev/null; then
-    FLUTTER_VER="$(flutter --version 2>/dev/null | grep -oE 'Flutter [0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+' | head -1)"
-    if compare_version "$FLUTTER_VER" "3.0"; then
-        ok "Flutter ${FLUTTER_VER}  （需 ≥3.0）"
+# Node.js ≥ 18（uni-app 4.x 与 Vue3 Admin 编译要求）
+if command -v node &>/dev/null; then
+    NODE_VER="$(node --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+    if compare_version "$NODE_VER" "18.0"; then
+        ok "Node.js ${NODE_VER}  （需 ≥18）"
     else
-        fail "Flutter ${FLUTTER_VER}  （需 ≥3.0，请升级）"
-        info "升级：flutter upgrade"
-    fi
-
-    if [[ "$QUICK_MODE" == false ]]; then
-        echo ""
-        info "运行 flutter doctor..."
-        # 捕获 flutter doctor 输出并重新格式化
-        while IFS= read -r line; do
-            if [[ "$line" == *"[✓]"* ]] || [[ "$line" == *"[√]"* ]]; then
-                echo -e "    ${GREEN}${line}${NC}"
-            elif [[ "$line" == *"[✗]"* ]] || [[ "$line" == *"[!]"* ]]; then
-                echo -e "    ${YELLOW}${line}${NC}"
-            elif [[ -n "$line" ]]; then
-                echo -e "    ${DIM}${line}${NC}"
-            fi
-        done < <(flutter doctor 2>&1)
+        fail "Node.js ${NODE_VER}  （需 ≥18，请升级）"
+        info "升级：brew install node  或使用 nvm install 18"
     fi
 else
-    fail "Flutter 未找到"
-    info "安装：https://docs.flutter.dev/get-started/install"
+    fail "Node.js 未找到"
+    info "安装：brew install node  或 https://nodejs.org"
+fi
+
+# pnpm ≥ 8（项目包管理器）
+if command -v pnpm &>/dev/null; then
+    PNPM_VER="$(pnpm --version 2>&1 | grep -oE '[0-9]+\.[0-9]+' | head -1)"
+    if compare_version "$PNPM_VER" "8.0"; then
+        ok "pnpm ${PNPM_VER}  （需 ≥8）"
+    else
+        fail "pnpm ${PNPM_VER}  （需 ≥8，请升级）"
+        info "升级：npm install -g pnpm@latest"
+    fi
+else
+    fail "pnpm 未找到"
+    info "安装：npm install -g pnpm"
+fi
+
+# 检查 app/ 依赖是否已安装（uni-app）
+if [[ -d "$WORKSPACE/app/node_modules" ]]; then
+    ok "app/node_modules  — uni-app 依赖已安装"
+elif [[ "$QUICK_MODE" == false ]] && [[ -f "$WORKSPACE/app/package.json" ]]; then
+    warn "app/node_modules 不存在  — 请执行 cd app && pnpm install"
+fi
+
+# 检查 admin/ 依赖是否已安装（Vue3 Admin）
+if [[ -d "$WORKSPACE/admin/node_modules" ]]; then
+    ok "admin/node_modules  — Vue3 Admin 依赖已安装"
+elif [[ "$QUICK_MODE" == false ]] && [[ -f "$WORKSPACE/admin/package.json" ]]; then
+    warn "admin/node_modules 不存在  — 请执行 cd admin && pnpm install"
 fi
 
 # ══════════════════════════════════════════════
@@ -319,7 +332,8 @@ check_dir() {
 }
 
 check_dir "backend"   "后端 Dart 项目"
-check_dir "frontend"  "前端 Flutter 项目"
+check_dir "app"       "移动端 uni-app 项目"
+check_dir "admin"     "PC 管理后台 Vue3 Admin"
 check_dir "docs"      "项目文档"
 check_dir "scripts"   "工具脚本"
 check_dir "pdfdocs"   "PDF 文档输出"
@@ -332,12 +346,20 @@ else
     info "初始化：cd backend && dart create -t server-shelf . --force"
 fi
 
-# 检查 frontend 是否已初始化
-if [[ -f "$WORKSPACE/frontend/pubspec.yaml" ]]; then
-    ok "frontend/pubspec.yaml  — Flutter 项目已初始化"
+# 检查 app（uni-app）是否已初始化
+if [[ -f "$WORKSPACE/app/package.json" ]]; then
+    ok "app/package.json  — uni-app 项目已初始化"
 else
-    warn "frontend/pubspec.yaml 未找到  — 前端尚未初始化"
-    info "初始化：cd frontend && flutter create . --org com.propos"
+    warn "app/package.json 未找到  — uni-app 项目尚未初始化"
+    info "初始化：参考 docs/DEV_ENV_SETUP.md  uni-app 章节"
+fi
+
+# 检查 admin（Vue3 Admin）是否已初始化
+if [[ -f "$WORKSPACE/admin/package.json" ]]; then
+    ok "admin/package.json  — Vue3 Admin 项目已初始化"
+else
+    warn "admin/package.json 未找到  — Vue3 Admin 项目尚未初始化"
+    info "初始化：参考 docs/DEV_ENV_SETUP.md  admin 章节"
 fi
 
 # ══════════════════════════════════════════════
