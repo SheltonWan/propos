@@ -1,291 +1,1010 @@
 -- =============================================================================
--- PropOS Seed Data v1.0 — 最小可验证数据集
--- 执行前提：已完成全部 DDL 迁移（data_model.md v1.3 + MIGRATION_DRAFT v1.7）
--- 用途：开发自测、API 联调、AI 实现后快速验证
--- 执行方式：psql -U propos -d propos -f scripts/seed.sql
+-- PropOS Seed Data v1.1 — 全量集成测试数据集
+-- 对应: SEED_DATA_SPEC.md v1.1 / data_model.md v1.3 / API_CONTRACT v1.7
+-- 用途: 开发自测、API 联调、集成测试、WALE/NOI/KPI 验算
+-- 执行方式: psql -U propos -d propos -f scripts/seed.sql
+-- 执行前提: 已完成全部 DDL 迁移 (MIGRATION_DRAFT v1.7)
+-- 安全说明: id_number/phone 字段使用 PLACEHOLDER_ENCRYPTED_值 占位，
+--            生产环境必须替换为真实 AES-256-GCM 密文
 -- =============================================================================
 
 BEGIN;
 
--- ============================================================
--- 0. 辅助变量（使用 CTE 或直接写 UUID literal，便于跨语句引用）
--- ============================================================
-
--- 楼栋 UUID
 DO $$
 DECLARE
-    -- Buildings
-    v_building_office   UUID := 'a0000000-0000-0000-0000-000000000001';
-    v_building_retail   UUID := 'a0000000-0000-0000-0000-000000000002';
-    v_building_apartment UUID := 'a0000000-0000-0000-0000-000000000003';
-    -- Floors (office: 1F-3F; retail: 1F; apartment: 1F-2F)
-    v_floor_office_1f   UUID := 'b0000000-0000-0000-0000-000000000001';
-    v_floor_office_2f   UUID := 'b0000000-0000-0000-0000-000000000002';
-    v_floor_office_3f   UUID := 'b0000000-0000-0000-0000-000000000003';
-    v_floor_retail_1f   UUID := 'b0000000-0000-0000-0000-000000000004';
-    v_floor_apt_1f      UUID := 'b0000000-0000-0000-0000-000000000005';
-    v_floor_apt_2f      UUID := 'b0000000-0000-0000-0000-000000000006';
-    -- Units (20 units across 3 buildings)
-    v_unit_o1           UUID := 'c0000000-0000-0000-0000-000000000001';
-    v_unit_o2           UUID := 'c0000000-0000-0000-0000-000000000002';
-    v_unit_o3           UUID := 'c0000000-0000-0000-0000-000000000003';
-    v_unit_o4           UUID := 'c0000000-0000-0000-0000-000000000004';
-    v_unit_o5           UUID := 'c0000000-0000-0000-0000-000000000005';
-    v_unit_o6           UUID := 'c0000000-0000-0000-0000-000000000006';
-    v_unit_o7           UUID := 'c0000000-0000-0000-0000-000000000007';
-    v_unit_o8           UUID := 'c0000000-0000-0000-0000-000000000008';
-    v_unit_o9           UUID := 'c0000000-0000-0000-0000-000000000009';
-    v_unit_o10          UUID := 'c0000000-0000-0000-0000-000000000010';
-    v_unit_r1           UUID := 'c0000000-0000-0000-0000-000000000011';
-    v_unit_r2           UUID := 'c0000000-0000-0000-0000-000000000012';
-    v_unit_r3           UUID := 'c0000000-0000-0000-0000-000000000013';
-    v_unit_a1           UUID := 'c0000000-0000-0000-0000-000000000014';
-    v_unit_a2           UUID := 'c0000000-0000-0000-0000-000000000015';
-    v_unit_a3           UUID := 'c0000000-0000-0000-0000-000000000016';
-    v_unit_a4           UUID := 'c0000000-0000-0000-0000-000000000017';
-    v_unit_a5           UUID := 'c0000000-0000-0000-0000-000000000018';
-    v_unit_common       UUID := 'c0000000-0000-0000-0000-000000000019';  -- 非可租
-    v_unit_equip        UUID := 'c0000000-0000-0000-0000-000000000020';  -- 非可租
-    -- Tenants
-    v_tenant_corp1      UUID := 'd0000000-0000-0000-0000-000000000001';
-    v_tenant_corp2      UUID := 'd0000000-0000-0000-0000-000000000002';
-    v_tenant_person1    UUID := 'd0000000-0000-0000-0000-000000000003';
-    v_tenant_sublord    UUID := 'd0000000-0000-0000-0000-000000000004';
-    -- Contracts
-    v_contract_1        UUID := 'e0000000-0000-0000-0000-000000000001';
-    v_contract_2        UUID := 'e0000000-0000-0000-0000-000000000002';
-    v_contract_3        UUID := 'e0000000-0000-0000-0000-000000000003';
-    v_contract_sub      UUID := 'e0000000-0000-0000-0000-000000000004';
-    -- Users
-    v_user_admin        UUID := 'f0000000-0000-0000-0000-000000000001';
-    v_user_leasing      UUID := 'f0000000-0000-0000-0000-000000000002';
-    v_user_finance      UUID := 'f0000000-0000-0000-0000-000000000003';
-    v_user_ops          UUID := 'f0000000-0000-0000-0000-000000000004';
-    v_user_manager      UUID := 'f0000000-0000-0000-0000-000000000005';
-    v_user_sublord      UUID := 'f0000000-0000-0000-0000-000000000006';
-    -- Department
-    v_dept_root         UUID := '10000000-0000-0000-0000-000000000001';
-    v_dept_leasing      UUID := '10000000-0000-0000-0000-000000000002';
-    v_dept_finance      UUID := '10000000-0000-0000-0000-000000000003';
-    v_dept_ops          UUID := '10000000-0000-0000-0000-000000000004';
+    -- =====================================================================
+    -- Departments (6) — de 前缀
+    -- =====================================================================
+    v_dept_root         UUID := 'de000000-0000-0000-0000-000000000001'; -- D-ROOT  鼎悦资产管理公司
+    v_dept_lease        UUID := 'de000000-0000-0000-0000-000000000002'; -- D-LEASE 租务部
+    v_dept_fin          UUID := 'de000000-0000-0000-0000-000000000003'; -- D-FIN   财务部
+    v_dept_ops          UUID := 'de000000-0000-0000-0000-000000000004'; -- D-OPS   物业运营部
+    v_dept_lease_office UUID := 'de000000-0000-0000-0000-000000000005'; -- D-LEASE-OFFICE 写字楼组
+    v_dept_lease_apt    UUID := 'de000000-0000-0000-0000-000000000006'; -- D-LEASE-APT   公寓组
+
+    -- =====================================================================
+    -- Users (6) — f0 前缀
+    -- =====================================================================
+    v_user_admin   UUID := 'f0000000-0000-0000-0000-000000000001'; -- U-ADMIN   管理员
+    v_user_mgr     UUID := 'f0000000-0000-0000-0000-000000000002'; -- U-MGR     陈经理
+    v_user_lease   UUID := 'f0000000-0000-0000-0000-000000000003'; -- U-LEASE   王五
+    v_user_fin     UUID := 'f0000000-0000-0000-0000-000000000004'; -- U-FIN     李财务
+    v_user_front   UUID := 'f0000000-0000-0000-0000-000000000005'; -- U-FRONT   赵前线
+    v_user_sublord UUID := 'f0000000-0000-0000-0000-000000000006'; -- U-SUBLORD 鼎盛物业
+
+    -- =====================================================================
+    -- Buildings (3) — a0 前缀
+    -- =====================================================================
+    v_bld_office UUID := 'a0000000-0000-0000-0000-000000000001'; -- B-OFFICE A座
+    v_bld_retail UUID := 'a0000000-0000-0000-0000-000000000002'; -- B-RETAIL 商铺区
+    v_bld_apt    UUID := 'a0000000-0000-0000-0000-000000000003'; -- B-APT    公寓楼
+
+    -- =====================================================================
+    -- Floors (11) — b0 前缀
+    -- =====================================================================
+    v_flr_o_b1  UUID := 'b0000000-0000-0000-0000-000000000001'; -- A座 B1
+    v_flr_o_1f  UUID := 'b0000000-0000-0000-0000-000000000002'; -- A座 1F
+    v_flr_o_2f  UUID := 'b0000000-0000-0000-0000-000000000003'; -- A座 2F
+    v_flr_o_10f UUID := 'b0000000-0000-0000-0000-000000000004'; -- A座 10F
+    v_flr_o_20f UUID := 'b0000000-0000-0000-0000-000000000005'; -- A座 20F
+    v_flr_r_1f  UUID := 'b0000000-0000-0000-0000-000000000006'; -- 商铺区 1F
+    v_flr_r_2f  UUID := 'b0000000-0000-0000-0000-000000000007'; -- 商铺区 2F
+    v_flr_a_1f  UUID := 'b0000000-0000-0000-0000-000000000008'; -- 公寓楼 1F
+    v_flr_a_3f  UUID := 'b0000000-0000-0000-0000-000000000009'; -- 公寓楼 3F
+    v_flr_a_5f  UUID := 'b0000000-0000-0000-0000-000000000010'; -- 公寓楼 5F
+    v_flr_a_8f  UUID := 'b0000000-0000-0000-0000-000000000011'; -- 公寓楼 8F
+
+    -- =====================================================================
+    -- Units (15 spec + 3 sublease virtual sub-units) — c0 前缀
+    -- =====================================================================
+    -- Office
+    v_unit_10a    UUID := 'c0000000-0000-0000-0000-000000000001';
+    v_unit_10b    UUID := 'c0000000-0000-0000-0000-000000000002';
+    v_unit_10c    UUID := 'c0000000-0000-0000-0000-000000000003';
+    v_unit_20a    UUID := 'c0000000-0000-0000-0000-000000000004';
+    v_unit_lobby  UUID := 'c0000000-0000-0000-0000-000000000005'; -- 1-LOBBY 非可租
+    -- Retail
+    v_unit_s101   UUID := 'c0000000-0000-0000-0000-000000000006';
+    v_unit_s102   UUID := 'c0000000-0000-0000-0000-000000000007';
+    v_unit_s103   UUID := 'c0000000-0000-0000-0000-000000000008';
+    v_unit_s201   UUID := 'c0000000-0000-0000-0000-000000000009';
+    v_unit_scomm  UUID := 'c0000000-0000-0000-0000-000000000010'; -- S-COMMON 非可租
+    -- Apartment
+    v_unit_a301   UUID := 'c0000000-0000-0000-0000-000000000011';
+    v_unit_a302   UUID := 'c0000000-0000-0000-0000-000000000012';
+    v_unit_a303   UUID := 'c0000000-0000-0000-0000-000000000013';
+    v_unit_a501   UUID := 'c0000000-0000-0000-0000-000000000014';
+    v_unit_aelec  UUID := 'c0000000-0000-0000-0000-000000000015'; -- A-ELEC 非可租
+    -- 20A 二房东虚拟子单元（用于 subleases 行级隔离，避免触发 uq_sublease_active_unit）
+    v_unit_20a01  UUID := 'c0000000-0000-0000-0000-000000000016'; -- 20A-01 旭日软件 100m²
+    v_unit_20a02  UUID := 'c0000000-0000-0000-0000-000000000017'; -- 20A-02 星光广告  72m²
+    v_unit_20a03  UUID := 'c0000000-0000-0000-0000-000000000018'; -- 20A-03 空置      268m²
+
+    -- =====================================================================
+    -- Tenants (5) — d0 前缀
+    -- =====================================================================
+    v_t_corp_a   UUID := 'd0000000-0000-0000-0000-000000000001'; -- T-CORP-A 明辉科技
+    v_t_corp_b   UUID := 'd0000000-0000-0000-0000-000000000002'; -- T-CORP-B 百恒传媒
+    v_t_corp_c   UUID := 'd0000000-0000-0000-0000-000000000003'; -- T-CORP-C 聚鑫餐饮
+    v_t_ind_d    UUID := 'd0000000-0000-0000-0000-000000000004'; -- T-IND-D  张三
+    v_t_sublord  UUID := 'd0000000-0000-0000-0000-000000000005'; -- T-SUBLORD 鼎盛物业
+
+    -- =====================================================================
+    -- Contracts (4) — e0 前缀
+    -- =====================================================================
+    v_c_office UUID := 'e0000000-0000-0000-0000-000000000001'; -- C-OFFICE-01
+    v_c_retail UUID := 'e0000000-0000-0000-0000-000000000002'; -- C-RETAIL-01
+    v_c_apt    UUID := 'e0000000-0000-0000-0000-000000000003'; -- C-APT-01
+    v_c_sub    UUID := 'e0000000-0000-0000-0000-000000000004'; -- C-SUB-MASTER
+
+    -- =====================================================================
+    -- Suppliers (3) — ab 前缀
+    -- =====================================================================
+    v_sup_001 UUID := 'ab000000-0000-0000-0000-000000000001'; -- SUP-001 顺达空调
+    v_sup_002 UUID := 'ab000000-0000-0000-0000-000000000002'; -- SUP-002 鼎盛水电
+    v_sup_003 UUID := 'ab000000-0000-0000-0000-000000000003'; -- SUP-003 安居锁业
+
+    -- =====================================================================
+    -- Deposits (4) — ad 前缀
+    -- =====================================================================
+    v_dep_001 UUID := 'ad000000-0000-0000-0000-000000000001'; -- DEP-001
+    v_dep_002 UUID := 'ad000000-0000-0000-0000-000000000002'; -- DEP-002
+    v_dep_003 UUID := 'ad000000-0000-0000-0000-000000000003'; -- DEP-003
+    v_dep_004 UUID := 'ad000000-0000-0000-0000-000000000004'; -- DEP-004
+
+    -- =====================================================================
+    -- Invoices (8) — af 前缀
+    -- =====================================================================
+    v_inv_001 UUID := 'af000000-0000-0000-0000-000000000001'; -- INV-001 C-OFFICE 07租金
+    v_inv_002 UUID := 'af000000-0000-0000-0000-000000000002'; -- INV-002 C-OFFICE 07物管
+    v_inv_003 UUID := 'af000000-0000-0000-0000-000000000003'; -- INV-003 C-RETAIL 07租金
+    v_inv_004 UUID := 'af000000-0000-0000-0000-000000000004'; -- INV-004 C-APT    07租金(逾期)
+    v_inv_005 UUID := 'af000000-0000-0000-0000-000000000005'; -- INV-005 C-OFFICE 06免租折算
+    v_inv_006 UUID := 'af000000-0000-0000-0000-000000000006'; -- INV-006 C-RETAIL 03免租
+    v_inv_007 UUID := 'af000000-0000-0000-0000-000000000007'; -- INV-007 C-RETAIL 04免租
+    v_inv_008 UUID := 'af000000-0000-0000-0000-000000000008'; -- INV-008 C-RETAIL 05免租
+
+    -- =====================================================================
+    -- Payments (3) — 9a 前缀
+    -- =====================================================================
+    v_pay_001 UUID := '9a000000-0000-0000-0000-000000000001'; -- PAY-001
+    v_pay_002 UUID := '9a000000-0000-0000-0000-000000000002'; -- PAY-002
+    v_pay_003 UUID := '9a000000-0000-0000-0000-000000000003'; -- PAY-003
+
+    -- =====================================================================
+    -- Work Orders (3) — bf 前缀
+    -- =====================================================================
+    v_wo_001 UUID := 'bf000000-0000-0000-0000-000000000001'; -- WO-001 空调维修
+    v_wo_002 UUID := 'bf000000-0000-0000-0000-000000000002'; -- WO-002 水管漏水
+    v_wo_003 UUID := 'bf000000-0000-0000-0000-000000000003'; -- WO-003 门锁更换
+
+    -- =====================================================================
+    -- KPI Metric Definitions (10) — cc 前缀
+    -- =====================================================================
+    v_km_k01 UUID := 'cc000000-0000-0000-0000-000000000001'; -- K01 出租率
+    v_km_k02 UUID := 'cc000000-0000-0000-0000-000000000002'; -- K02 收款及时率
+    v_km_k03 UUID := 'cc000000-0000-0000-0000-000000000003'; -- K03 租户集中度
+    v_km_k04 UUID := 'cc000000-0000-0000-0000-000000000004'; -- K04 续约率
+    v_km_k05 UUID := 'cc000000-0000-0000-0000-000000000005'; -- K05 工单响应时效
+    v_km_k06 UUID := 'cc000000-0000-0000-0000-000000000006'; -- K06 空置周转天数
+    v_km_k07 UUID := 'cc000000-0000-0000-0000-000000000007'; -- K07 NOI达成率
+    v_km_k08 UUID := 'cc000000-0000-0000-0000-000000000008'; -- K08 逾期率
+    v_km_k09 UUID := 'cc000000-0000-0000-0000-000000000009'; -- K09 租金递增执行率
+    v_km_k10 UUID := 'cc000000-0000-0000-0000-000000000010'; -- K10 租户满意度
+
+    -- =====================================================================
+    -- KPI Schemes (2) — cd 前缀
+    -- =====================================================================
+    v_ks_001 UUID := 'cd000000-0000-0000-0000-000000000001'; -- KS-001 租务部考核方案2026Q3
+    v_ks_002 UUID := 'cd000000-0000-0000-0000-000000000002'; -- KS-002 全员月度试行
+
+    -- KPI Snapshot — ce 前缀
+    v_snap_001 UUID := 'ce000000-0000-0000-0000-000000000001'; -- SNAP-001
+
+    -- NOI Budget — cf 前缀
+    v_noi_bud_001 UUID := 'cf000000-0000-0000-0000-000000000001'; -- BUD-001
+
+    -- Subleases (3) — eb 前缀
+    v_sl_001 UUID := 'eb000000-0000-0000-0000-000000000001'; -- SL-001 旭日软件
+    v_sl_002 UUID := 'eb000000-0000-0000-0000-000000000002'; -- SL-002 星光广告
+    v_sl_003 UUID := 'eb000000-0000-0000-0000-000000000003'; -- SL-003 空置
 
 BEGIN
 
--- ============================================================
--- 1. 组织架构（departments）
--- ============================================================
+-- ==========================================================================
+-- §1  组织架构（departments）— 6 条，三级组织树
+-- ==========================================================================
 INSERT INTO departments (id, name, parent_id, level, sort_order, is_active)
 VALUES
-    (v_dept_root,    '总经办',   NULL,          1, 1, TRUE),
-    (v_dept_leasing, '招商部',   v_dept_root,   2, 1, TRUE),
-    (v_dept_finance, '财务部',   v_dept_root,   2, 2, TRUE),
-    (v_dept_ops,     '运营部',   v_dept_root,   2, 3, TRUE);
+    (v_dept_root,         '鼎悦资产管理公司', NULL,           1, 1, TRUE),
+    (v_dept_lease,        '租务部',           v_dept_root,    2, 1, TRUE),
+    (v_dept_fin,          '财务部',           v_dept_root,    2, 2, TRUE),
+    (v_dept_ops,          '物业运营部',       v_dept_root,    2, 3, TRUE),
+    (v_dept_lease_office, '写字楼组',         v_dept_lease,   3, 1, TRUE),
+    (v_dept_lease_apt,    '公寓组',           v_dept_lease,   3, 2, TRUE);
 
--- ============================================================
--- 2. 用户（users）
--- 密码统一为 'Propos2026!' 的 bcrypt hash（$2a$10$ 开头）
--- 生产环境必须修改，此处仅供开发自测
--- ============================================================
+-- ==========================================================================
+-- §2  用户（users）— 6 条
+-- 密码统一为 'Propos2026!' 的 bcrypt hash（cost=10，开发占位）
+-- 生产环境必须使用 cost≥12 的真实 hash 替换
+-- bound_contract_id 在合同插入后通过 UPDATE 设置（规避临时循环依赖）
+-- ==========================================================================
 INSERT INTO users (id, name, email, password_hash, role, department_id, is_active, session_version)
 VALUES
-    (v_user_admin,   '系统管理员', 'admin@propos.local',   '$2a$10$dummy_hash_for_seed_only_admin', 'super_admin',       v_dept_root,    TRUE, 1),
-    (v_user_leasing, '张招商',     'leasing@propos.local', '$2a$10$dummy_hash_for_seed_only_lease', 'leasing_specialist', v_dept_leasing, TRUE, 1),
-    (v_user_finance, '李财务',     'finance@propos.local', '$2a$10$dummy_hash_for_seed_only_fin',   'finance_staff',      v_dept_finance, TRUE, 1),
-    (v_user_ops,     '王运营',     'ops@propos.local',     '$2a$10$dummy_hash_for_seed_only_ops',   'operations_staff',   v_dept_ops,     TRUE, 1),
-    (v_user_manager, '赵经理',     'manager@propos.local', '$2a$10$dummy_hash_for_seed_only_mgr',   'operations_manager', v_dept_root,    TRUE, 1),
-    (v_user_sublord, '二房东刘',   'sublord@propos.local', '$2a$10$dummy_hash_for_seed_only_sub',   'sub_landlord',       NULL,           TRUE, 1);
+    (v_user_admin,   '管理员',           'admin@propos.local',
+     '$2a$10$YKdJkBpVBhzRnzJeA7EBOe8Klfyr0YgmGq3aTxMm3B3fjkuoF9NOC',
+     'super_admin', v_dept_root, TRUE, 1),
+    (v_user_mgr,     '陈经理',           'chen.mgr@propos.local',
+     '$2a$10$YKdJkBpVBhzRnzJeA7EBOe8Klfyr0YgmGq3aTxMm3B3fjkuoF9NOC',
+     'operations_manager', v_dept_ops, TRUE, 1),
+    (v_user_lease,   '王五',             'wang.lease@propos.local',
+     '$2a$10$YKdJkBpVBhzRnzJeA7EBOe8Klfyr0YgmGq3aTxMm3B3fjkuoF9NOC',
+     'leasing_specialist', v_dept_lease_office, TRUE, 1),
+    (v_user_fin,     '李财务',           'li.fin@propos.local',
+     '$2a$10$YKdJkBpVBhzRnzJeA7EBOe8Klfyr0YgmGq3aTxMm3B3fjkuoF9NOC',
+     'finance_staff', v_dept_fin, TRUE, 1),
+    (v_user_front,   '赵前线',           'zhao.front@propos.local',
+     '$2a$10$YKdJkBpVBhzRnzJeA7EBOe8Klfyr0YgmGq3aTxMm3B3fjkuoF9NOC',
+     'frontline_staff', v_dept_ops, TRUE, 1),
+    (v_user_sublord, '鼎盛物业有限公司', 'dingsheng@external.com',
+     '$2a$10$YKdJkBpVBhzRnzJeA7EBOe8Klfyr0YgmGq3aTxMm3B3fjkuoF9NOC',
+     'sub_landlord', NULL, TRUE, 1);
 
--- ============================================================
--- 3. 楼栋（buildings）
--- ============================================================
-INSERT INTO buildings (id, name, property_type, total_floors, gfa, nla, address, built_year)
+-- ==========================================================================
+-- §3  供应商（suppliers）— 3 条，先于工单插入
+-- [安全] contact_phone 字段应存储 AES-256-GCM 密文，开发环境以原文占位
+-- ==========================================================================
+INSERT INTO suppliers (id, name, category, contact_name, contact_phone, is_active)
 VALUES
-    (v_building_office,    'A座',   'office',    25, 30000.00, 24000.00, '示范路 100 号', 2018),
-    (v_building_retail,    '商铺区', 'retail',     2,  2707.00,  2200.00, '示范路 100 号商业裙房', 2018),
-    (v_building_apartment, '公寓楼', 'apartment',  8,  7293.00,  6000.00, '示范路 102 号', 2019);
+    (v_sup_001, '顺达空调服务公司',   '空调维修', '张技工', '13800110001', TRUE),
+    (v_sup_002, '鼎盛水电工程公司',   '水电维修', '李师傅', '13700220002', TRUE),
+    (v_sup_003, '安居锁业有限公司',   '门锁安防', '王师傅', '13600330003', TRUE);
 
--- ============================================================
--- 4. 楼层（floors）
--- ============================================================
+-- ==========================================================================
+-- §4  楼栋（buildings）— 3 条
+-- ==========================================================================
+INSERT INTO buildings (id, name, property_type, total_floors, gfa, nla)
+VALUES
+    (v_bld_office, 'A座',   'office',    20, 30000.00, 25500.00),
+    (v_bld_retail, '商铺区', 'retail',    2,  2707.00,  2300.00),
+    (v_bld_apt,    '公寓楼', 'apartment', 8,  7300.00,  6200.00);
+
+-- ==========================================================================
+-- §5  楼层（floors）— 11 条（含三栋楼全部楼层）
+-- svg_path/png_path 由 CAD 转换工具写入，此处为 NULL 占位（需 UPDATE 填充）
+-- ==========================================================================
 INSERT INTO floors (id, building_id, floor_number, floor_name, nla)
 VALUES
-    (v_floor_office_1f, v_building_office,    1,  '1F',  960.00),
-    (v_floor_office_2f, v_building_office,    2,  '2F',  960.00),
-    (v_floor_office_3f, v_building_office,    3,  '3F',  960.00),
-    (v_floor_retail_1f, v_building_retail,    1,  '1F', 1100.00),
-    (v_floor_apt_1f,    v_building_apartment, 1,  '1F',  750.00),
-    (v_floor_apt_2f,    v_building_apartment, 2,  '2F',  750.00);
+    -- A座（B1 设备层无 NLA，1F/2F/10F/20F 为主要楼层）
+    (v_flr_o_b1,  v_bld_office, -1, 'B1',  0.00),
+    (v_flr_o_1f,  v_bld_office,  1, '1F',  1200.00),
+    (v_flr_o_2f,  v_bld_office,  2, '2F',  1350.00),
+    (v_flr_o_10f, v_bld_office, 10, '10F', 1350.00),
+    (v_flr_o_20f, v_bld_office, 20, '20F', 1200.00),
+    -- 商铺区
+    (v_flr_r_1f,  v_bld_retail,  1, '1F',  1150.00),
+    (v_flr_r_2f,  v_bld_retail,  2, '2F',  1150.00),
+    -- 公寓楼（1F 机房/管理室无平面图，3F/5F/8F 为住宅层）
+    (v_flr_a_1f,  v_bld_apt,     1, '1F',  750.00),
+    (v_flr_a_3f,  v_bld_apt,     3, '3F',  780.00),
+    (v_flr_a_5f,  v_bld_apt,     5, '5F',  780.00),
+    (v_flr_a_8f,  v_bld_apt,     8, '8F',  750.00);
 
--- ============================================================
--- 5. 单元（units）— 20 个单元覆盖三业态 + 非可租
--- ============================================================
-
--- 写字楼单元（10 个，1F-3F 各 3~4 个）
-INSERT INTO units (id, floor_id, building_id, unit_number, property_type, gross_area, net_area, orientation, ceiling_height, decoration_status, current_status, is_leasable, ext_fields, qr_code, market_rent_reference)
+-- ==========================================================================
+-- §6  单元（units）— 15 spec + 3 虚拟子单元 = 18 条
+-- [安全] 非可租单元标记 is_leasable=FALSE，防止误开合同
+-- ==========================================================================
+INSERT INTO units (id, floor_id, building_id, unit_number, property_type,
+                   gross_area, net_area, orientation, ceiling_height,
+                   decoration_status, current_status, is_leasable,
+                   market_rent_reference, ext_fields)
 VALUES
-    (v_unit_o1,  v_floor_office_1f, v_building_office, '101',  'office', 120.00, 100.00, 'south', 3.00, 'standard', 'leased',  TRUE, '{"workstation_count": 20, "partition_count": 2}', 'QR-A-101', 4.50),
-    (v_unit_o2,  v_floor_office_1f, v_building_office, '102',  'office', 80.00,  68.00,  'north', 3.00, 'standard', 'leased',  TRUE, '{"workstation_count": 12, "partition_count": 1}', 'QR-A-102', 4.50),
-    (v_unit_o3,  v_floor_office_1f, v_building_office, '103',  'office', 200.00, 170.00, 'east',  3.00, 'premium',  'vacant',  TRUE, '{"workstation_count": 35, "partition_count": 4}', 'QR-A-103', 5.00),
-    (v_unit_o4,  v_floor_office_2f, v_building_office, '201',  'office', 150.00, 128.00, 'south', 3.00, 'standard', 'leased',  TRUE, '{"workstation_count": 25, "partition_count": 3}', 'QR-A-201', 4.50),
-    (v_unit_o5,  v_floor_office_2f, v_building_office, '202',  'office', 100.00, 85.00,  'west',  3.00, 'blank',    'vacant',  TRUE, '{"workstation_count": 0, "partition_count": 0}',  'QR-A-202', 3.80),
-    (v_unit_o6,  v_floor_office_2f, v_building_office, '203',  'office', 90.00,  76.00,  'north', 3.00, 'standard', 'vacant',  TRUE, '{"workstation_count": 14, "partition_count": 1}', 'QR-A-203', 4.20),
-    (v_unit_o7,  v_floor_office_3f, v_building_office, '301',  'office', 180.00, 153.00, 'south', 3.00, 'premium',  'leased',  TRUE, '{"workstation_count": 30, "partition_count": 3}', 'QR-A-301', 5.20),
-    (v_unit_o8,  v_floor_office_3f, v_building_office, '302',  'office', 120.00, 102.00, 'east',  3.00, 'standard', 'vacant',  TRUE, '{"workstation_count": 18, "partition_count": 2}', 'QR-A-302', 4.50),
-    (v_unit_o9,  v_floor_office_3f, v_building_office, '303',  'office', 60.00,  51.00,  'north', 3.00, 'standard', 'renovating', TRUE, '{"workstation_count": 8, "partition_count": 1}', 'QR-A-303', 4.00),
-    (v_unit_o10, v_floor_office_3f, v_building_office, '304',  'office', 60.00,  51.00,  'west',  3.00, 'blank',    'non_leasable', FALSE, '{}', NULL, NULL);
+    -- 写字楼单元
+    (v_unit_10a,  v_flr_o_10f, v_bld_office, '10A',     'office',
+     320.00, 280.00, 'south', 3.00, 'refined',  'leased',      TRUE,
+     120.00, '{"workstation_count": 40, "partition_count": 5}'::JSONB),
+    (v_unit_10b,  v_flr_o_10f, v_bld_office, '10B',     'office',
+     160.00, 140.00, 'east',  3.00, 'simple',   'leased',      TRUE,
+     110.00, '{"workstation_count": 18, "partition_count": 2}'::JSONB),
+    (v_unit_10c,  v_flr_o_10f, v_bld_office, '10C',     'office',
+     85.00,  72.00,  'north', 3.00, 'blank',    'vacant',      TRUE,
+     95.00,  '{"workstation_count": 8, "partition_count": 1}'::JSONB),
+    (v_unit_20a,  v_flr_o_20f, v_bld_office, '20A',     'office',
+     500.00, 440.00, 'south', 3.00, 'refined',  'leased',      TRUE,
+     135.00, '{"workstation_count": 60, "partition_count": 8}'::JSONB),
+    (v_unit_lobby, v_flr_o_1f, v_bld_office, '1-LOBBY', 'office',
+     200.00, NULL,   NULL,    5.50, 'refined',  'non_leasable', FALSE,
+     NULL,   '{}'::JSONB),
+    -- 商铺单元
+    (v_unit_s101, v_flr_r_1f,  v_bld_retail, 'S101',    'retail',
+     120.00, 108.00, 'south', 5.20, 'refined',  'leased',      TRUE,
+     250.00, '{"frontage_width": 8.5, "street_facing": true, "retail_ceiling_height": 5.2}'::JSONB),
+    (v_unit_s102, v_flr_r_1f,  v_bld_retail, 'S102',    'retail',
+     80.00,  72.00,  'south', 4.50, 'simple',   'vacant',      TRUE,
+     200.00, '{"frontage_width": 6.0, "street_facing": true, "retail_ceiling_height": 4.5}'::JSONB),
+    (v_unit_s103, v_flr_r_1f,  v_bld_retail, 'S103',    'retail',
+     200.00, 180.00, 'south', 5.20, 'blank',    'vacant',      TRUE,
+     280.00, '{"frontage_width": 12.0, "street_facing": true, "retail_ceiling_height": 5.2}'::JSONB),
+    (v_unit_s201, v_flr_r_2f,  v_bld_retail, 'S201',    'retail',
+     150.00, 135.00, 'east',  4.00, 'simple',   'vacant',      TRUE,
+     150.00, '{"frontage_width": 0, "street_facing": false, "retail_ceiling_height": 4.0}'::JSONB),
+    (v_unit_scomm, v_flr_r_1f, v_bld_retail, 'S-COMMON', 'retail',
+     50.00,  NULL,   NULL,    5.20, 'refined',  'non_leasable', FALSE,
+     NULL,   '{}'::JSONB),
+    -- 公寓单元
+    (v_unit_a301, v_flr_a_3f,  v_bld_apt,    'A301',    'apartment',
+     45.00,  38.00,  'south', 2.80, 'refined',  'vacant',      TRUE,
+     3500.00, '{"bedroom_count": 1, "en_suite_bathroom": true, "occupant_count": null}'::JSONB),
+    (v_unit_a302, v_flr_a_3f,  v_bld_apt,    'A302',    'apartment',
+     65.00,  55.00,  'south', 2.80, 'refined',  'leased',      TRUE,
+     5200.00, '{"bedroom_count": 2, "en_suite_bathroom": true, "occupant_count": null}'::JSONB),
+    (v_unit_a303, v_flr_a_3f,  v_bld_apt,    'A303',    'apartment',
+     35.00,  28.00,  'north', 2.80, 'simple',   'vacant',      TRUE,
+     2800.00, '{"bedroom_count": 1, "en_suite_bathroom": false, "occupant_count": null}'::JSONB),
+    (v_unit_a501, v_flr_a_5f,  v_bld_apt,    'A501',    'apartment',
+     90.00,  78.00,  'south', 2.80, 'refined',  'vacant',      TRUE,
+     7500.00, '{"bedroom_count": 3, "en_suite_bathroom": true, "occupant_count": null}'::JSONB),
+    (v_unit_aelec, v_flr_a_1f, v_bld_apt,    'A-ELEC',  'apartment',
+     15.00,  NULL,   NULL,    2.80, 'raw',      'non_leasable', FALSE,
+     NULL,   '{}'::JSONB),
+    -- 20A 虚拟子单元（二房东拆分转租，PropOS 不直接管理出租）
+    (v_unit_20a01, v_flr_o_20f, v_bld_office, '20A-01', 'office',
+     100.00, 88.00, 'south', 3.00, 'refined', 'non_leasable', FALSE,
+     NULL, '{}'::JSONB),
+    (v_unit_20a02, v_flr_o_20f, v_bld_office, '20A-02', 'office',
+     72.00,  64.00, 'east',  3.00, 'refined', 'non_leasable', FALSE,
+     NULL, '{}'::JSONB),
+    (v_unit_20a03, v_flr_o_20f, v_bld_office, '20A-03', 'office',
+     268.00, 236.00,'south', 3.00, 'blank',   'non_leasable', FALSE,
+     NULL, '{}'::JSONB);
 
--- 商铺单元（3 个）
-INSERT INTO units (id, floor_id, building_id, unit_number, property_type, gross_area, net_area, orientation, ceiling_height, decoration_status, current_status, is_leasable, ext_fields, qr_code, market_rent_reference)
+-- ==========================================================================
+-- §7  租客（tenants）— 5 条
+-- [安全] id_number_encrypted / contact_phone_encrypted 使用开发占位值
+--         生产环境必须替换为真实 AES-256-GCM (base64) 密文
+-- ==========================================================================
+INSERT INTO tenants (id, tenant_type, display_name,
+                     id_number_encrypted, contact_phone_encrypted,
+                     contact_person, credit_rating, overdue_count)
 VALUES
-    (v_unit_r1, v_floor_retail_1f, v_building_retail, 'S101', 'retail', 150.00, 140.00, 'south', 5.20, 'blank',    'leased', TRUE, '{"frontage_width": 8.5, "street_facing": true, "retail_ceiling_height": 5.2}',  'QR-S-101', 8.00),
-    (v_unit_r2, v_floor_retail_1f, v_building_retail, 'S102', 'retail', 200.00, 185.00, 'south', 5.20, 'standard', 'vacant', TRUE, '{"frontage_width": 10.0, "street_facing": true, "retail_ceiling_height": 5.2}', 'QR-S-102', 8.50),
-    (v_unit_r3, v_floor_retail_1f, v_building_retail, 'S103', 'retail', 80.00,  72.00,  'east',  4.80, 'blank',    'vacant', TRUE, '{"frontage_width": 5.0, "street_facing": false, "retail_ceiling_height": 4.8}', 'QR-S-103', 6.00);
+    (v_t_corp_a, 'corporate', '明辉科技有限公司',
+     'PLACEHOLDER_ENC_91440300MA5FKJ1234', 'PLACEHOLDER_ENC_13800001111',
+     '王经理', 'A', 0),
+    (v_t_corp_b, 'corporate', '百恒传媒有限公司',
+     'PLACEHOLDER_ENC_91440300MA5GHK5678', 'PLACEHOLDER_ENC_13900002222',
+     '李总', 'B', 1),
+    (v_t_corp_c, 'corporate', '聚鑫餐饮连锁有限公司',
+     'PLACEHOLDER_ENC_91440300MA5JLN9012', 'PLACEHOLDER_ENC_13700003333',
+     '陈店长', 'A', 0),
+    (v_t_ind_d,  'individual', '张三',
+     'PLACEHOLDER_ENC_440305199001011234', 'PLACEHOLDER_ENC_13600004444',
+     '张三', 'B', 1),
+    (v_t_sublord,'corporate', '鼎盛物业管理有限公司',
+     'PLACEHOLDER_ENC_91440300MA5ABC3456', 'PLACEHOLDER_ENC_13500005555',
+     '赵总', 'A', 0);
 
--- 公寓单元（5 个）
-INSERT INTO units (id, floor_id, building_id, unit_number, property_type, gross_area, net_area, orientation, ceiling_height, decoration_status, current_status, is_leasable, ext_fields, qr_code, market_rent_reference)
+-- ==========================================================================
+-- §8  合同（contracts）— 4 条（含 WALE/NOI 验算基准数据）
+-- ==========================================================================
+INSERT INTO contracts (id, contract_no, tenant_id, status, property_type,
+                       start_date, end_date, free_rent_days, free_rent_end_date,
+                       base_monthly_rent, payment_cycle_months,
+                       management_fee_rate, deposit_months, deposit_amount,
+                       tax_inclusive, applicable_tax_rate,
+                       revenue_share_enabled, min_guarantee_rent, revenue_share_rate,
+                       is_sublease_master, created_by)
 VALUES
-    (v_unit_a1, v_floor_apt_1f, v_building_apartment, 'P101', 'apartment', 45.00,  38.00, 'south', 2.80, 'standard', 'leased', TRUE, '{"bedroom_count": 1, "en_suite_bathroom": true, "occupant_count": 1}',  'QR-P-101', 2.50),
-    (v_unit_a2, v_floor_apt_1f, v_building_apartment, 'P102', 'apartment', 65.00,  55.00, 'south', 2.80, 'premium',  'leased', TRUE, '{"bedroom_count": 2, "en_suite_bathroom": true, "occupant_count": 2}',  'QR-P-102', 3.00),
-    (v_unit_a3, v_floor_apt_1f, v_building_apartment, 'P103', 'apartment', 40.00,  34.00, 'north', 2.80, 'standard', 'vacant', TRUE, '{"bedroom_count": 1, "en_suite_bathroom": false, "occupant_count": null}', 'QR-P-103', 2.20),
-    (v_unit_a4, v_floor_apt_2f, v_building_apartment, 'P201', 'apartment', 45.00,  38.00, 'south', 2.80, 'standard', 'leased', TRUE, '{"bedroom_count": 1, "en_suite_bathroom": true, "occupant_count": 1}',  'QR-P-201', 2.50),
-    (v_unit_a5, v_floor_apt_2f, v_building_apartment, 'P202', 'apartment', 65.00,  55.00, 'east',  2.80, 'standard', 'vacant', TRUE, '{"bedroom_count": 2, "en_suite_bathroom": true, "occupant_count": null}', 'QR-P-202', 2.80);
+    -- C-OFFICE-01: 明辉科技 写字楼 双单元（10A+10B）季付 +5%递增
+    (v_c_office, 'HT-2025-OFFICE-001', v_t_corp_a, 'active', 'office',
+     '2025-06-01', '2028-05-31', 14, '2025-06-14',
+     45500.00, 3,
+     15.0000, 3, 136500.00,
+     FALSE, 0.0900,
+     FALSE, NULL, NULL,
+     FALSE, v_user_lease),
+    -- C-RETAIL-01: 聚鑫餐饮 商铺 保底+8%分成 免租3个月
+    (v_c_retail, 'HT-2025-RETAIL-001', v_t_corp_c, 'active', 'retail',
+     '2025-03-01', '2028-02-28', 92, '2025-05-31',
+     24840.00, 1,
+     0.0000, 6, 149040.00,
+     FALSE, 0.0500,
+     TRUE,  24840.00, 0.0800,
+     FALSE, v_user_lease),
+    -- C-APT-01: 张三 公寓 整套月租 含税 无递增
+    (v_c_apt, 'HT-2025-APT-001', v_t_ind_d, 'active', 'apartment',
+     '2025-07-01', '2026-06-30', 0, NULL,
+     4761.90, 1,
+     0.0000, 2, 10000.00,
+     TRUE, 0.0500,
+     FALSE, NULL, NULL,
+     FALSE, v_user_lease),
+    -- C-SUB-MASTER: 鼎盛物业 二房东整租 20A 2+8%递增
+    (v_c_sub, 'HT-2024-OFFICE-SUB-001', v_t_sublord, 'active', 'office',
+     '2024-01-01', '2029-12-31', 0, NULL,
+     41800.00, 3,
+     0.0000, 6, 250800.00,
+     FALSE, 0.0900,
+     FALSE, NULL, NULL,
+     TRUE, v_user_lease);
 
--- 非可租区域（2 个）
-INSERT INTO units (id, floor_id, building_id, unit_number, property_type, gross_area, net_area, orientation, ceiling_height, decoration_status, current_status, is_leasable, ext_fields, qr_code)
+-- ==========================================================================
+-- §9  合同-单元关联（contract_units）— 5 条
+-- 注意: C-APT-01 公寓整套月租，unit_price 取不含税月租÷计费面积 (4761.90÷55=86.58)
+-- ==========================================================================
+INSERT INTO contract_units (contract_id, unit_id, billing_area, unit_price)
 VALUES
-    (v_unit_common, v_floor_office_1f, v_building_office, '公共大厅', 'office', 300.00, NULL, NULL, 6.00, 'standard', 'non_leasable', FALSE, '{}', NULL),
-    (v_unit_equip,  v_floor_office_1f, v_building_office, '设备间',   'office', 50.00,  NULL, NULL, 3.00, 'blank',    'non_leasable', FALSE, '{}', NULL);
+    (v_c_office, v_unit_10a,  280.00, 110.00), -- 明辉科技 10A 280m² @110
+    (v_c_office, v_unit_10b,  140.00, 105.00), -- 明辉科技 10B 140m² @105
+    (v_c_retail, v_unit_s101, 108.00, 230.00), -- 聚鑫餐饮 S101 108m² @230(保底基准)
+    (v_c_apt,    v_unit_a302,  55.00,  86.58), -- 张三 A302 整套，单价=4761.90÷55
+    (v_c_sub,    v_unit_20a,  440.00,  95.00); -- 鼎盛物业 20A 440m² @95
 
--- ============================================================
--- 6. 租客（tenants）
--- 注意：id_number_encrypted / contact_phone_encrypted 此处用明文占位
--- 实际环境必须用 AES-256-GCM 加密后存入
--- ============================================================
-INSERT INTO tenants (id, tenant_type, display_name, id_number_encrypted, contact_phone_encrypted, contact_person, contact_email, credit_rating, overdue_count, times_overdue_past_12m, max_single_overdue_days)
+-- ==========================================================================
+-- §10  租金递增阶段（rent_escalation_phases）— 8 条
+-- C-APT-01 短租不设递增
+-- ==========================================================================
+INSERT INTO rent_escalation_phases (id, contract_id, phase_order,
+                                    start_month, end_month,
+                                    escalation_type, params)
 VALUES
-    (v_tenant_corp1,  'enterprise', '科技创新有限公司',   '[ENCRYPTED:91110000MA01XXXX]', '[ENCRYPTED:13800001111]', '陈经理', 'chen@techcorp.cn',   'A', 0, 0, 0),
-    (v_tenant_corp2,  'enterprise', '绿叶餐饮管理公司',   '[ENCRYPTED:91110000MA02XXXX]', '[ENCRYPTED:13900002222]', '林店长', 'lin@greenleaf.cn',   'B', 2, 2, 5),
-    (v_tenant_person1,'individual', '王小明',             '[ENCRYPTED:110101199001011234]', '[ENCRYPTED:13700003333]', NULL,     'wang@personal.cn',   'A', 0, 0, 0),
-    (v_tenant_sublord,'enterprise', '鑫辉商务服务公司',   '[ENCRYPTED:91110000MA03XXXX]', '[ENCRYPTED:13600004444]', '刘总',   'liu@xinhui.cn',      'B', 1, 1, 3);
+    -- C-OFFICE-01 混合分段：阶段1 免租后基准 + 阶段2 固定+5%
+    ('6d000000-0000-0000-0000-000000000001', v_c_office, 1, 0,  24,
+     'base_after_free_period', '{}'::JSONB),
+    ('6d000000-0000-0000-0000-000000000002', v_c_office, 2, 24, NULL,
+     'fixed_rate', '{"rate": 0.05}'::JSONB),
+    -- C-RETAIL-01 阶梯式三段（保底单价递增）
+    ('6d000000-0000-0000-0000-000000000003', v_c_retail, 1, 0,  12,
+     'step', '{"base_price": 230.00}'::JSONB),
+    ('6d000000-0000-0000-0000-000000000004', v_c_retail, 2, 12, 24,
+     'step', '{"base_price": 250.00}'::JSONB),
+    ('6d000000-0000-0000-0000-000000000005', v_c_retail, 3, 24, NULL,
+     'step', '{"base_price": 270.00}'::JSONB),
+    -- C-SUB-MASTER 每2年递增8%
+    ('6d000000-0000-0000-0000-000000000006', v_c_sub, 1, 0,  24,
+     'base_after_free_period', '{}'::JSONB),
+    ('6d000000-0000-0000-0000-000000000007', v_c_sub, 2, 24, 48,
+     'periodic', '{"rate": 0.08, "interval_years": 2}'::JSONB),
+    ('6d000000-0000-0000-0000-000000000008', v_c_sub, 3, 48, NULL,
+     'periodic', '{"rate": 0.08, "interval_years": 2}'::JSONB);
 
--- ============================================================
--- 7. 合同（contracts）
--- ============================================================
-
--- 合同1：科技创新 - 写字楼 101+102（active，即将到期 ≤90天）
-INSERT INTO contracts (id, contract_no, tenant_id, status, property_type, start_date, end_date, free_rent_days, free_rent_end_date, base_monthly_rent, payment_cycle_months, management_fee_rate, deposit_months, deposit_amount, tax_inclusive, applicable_tax_rate, created_by)
+-- ==========================================================================
+-- §11  押金（deposits）— 4 条
+-- ==========================================================================
+INSERT INTO deposits (id, contract_id, amount, collection_date, status, created_by)
 VALUES
-    (v_contract_1, 'C-2025-001', v_tenant_corp1, 'expiring_soon', 'office',
-     '2025-04-01', '2026-06-30', 30, '2025-04-30',
-     7560.00, 3, 8.00, 2, 15120.00, TRUE, 0.09, v_user_leasing);
+    (v_dep_001, v_c_office, 136500.00, '2025-06-01', 'collected', v_user_lease),
+    (v_dep_002, v_c_retail, 149040.00, '2025-03-01', 'collected', v_user_lease),
+    (v_dep_003, v_c_apt,     10000.00, '2025-07-01', 'collected', v_user_lease),
+    (v_dep_004, v_c_sub,    250800.00, '2024-01-01', 'collected', v_user_lease);
 
--- 合同2：绿叶餐饮 - 商铺 S101（active，含营业额分成）
-INSERT INTO contracts (id, contract_no, tenant_id, status, property_type, start_date, end_date, free_rent_days, base_monthly_rent, payment_cycle_months, management_fee_rate, deposit_months, deposit_amount, tax_inclusive, applicable_tax_rate, revenue_share_enabled, min_guarantee_rent, revenue_share_rate, created_by)
+-- ==========================================================================
+-- §12  押金流水（deposit_transactions）— 4 条
+-- 所有记录均为初始收取（collection），previous_status 与 new_status 均为 collected
+-- （押金首次入账时无前续状态，使用 collected 表示已入账）
+-- ==========================================================================
+INSERT INTO deposit_transactions (id, deposit_id, transaction_type,
+                                   amount, previous_status, new_status,
+                                   reason, created_by, created_at)
 VALUES
-    (v_contract_2, 'C-2025-002', v_tenant_corp2, 'active', 'retail',
-     '2025-06-01', '2028-05-31', 60,
-     11200.00, 1, 10.00, 3, 33600.00, TRUE, 0.09,
-     TRUE, 11200.00, 0.08, v_user_leasing);
+    ('ae000000-0000-0000-0000-000000000001',
+     v_dep_001, 'collection', 136500.00, 'collected', 'collected',
+     'C-OFFICE-01 签约时收取押金（3个月）', v_user_lease, '2025-06-01 09:00:00+08'),
+    ('ae000000-0000-0000-0000-000000000002',
+     v_dep_002, 'collection', 149040.00, 'collected', 'collected',
+     'C-RETAIL-01 签约时收取押金（6个月）', v_user_lease, '2025-03-01 09:00:00+08'),
+    ('ae000000-0000-0000-0000-000000000003',
+     v_dep_003, 'collection',  10000.00, 'collected', 'collected',
+     'C-APT-01 签约时收取押金（2个月）',   v_user_lease, '2025-07-01 09:00:00+08'),
+    ('ae000000-0000-0000-0000-000000000004',
+     v_dep_004, 'collection', 250800.00, 'collected', 'collected',
+     'C-SUB-MASTER 签约时收取押金（6个月）', v_user_lease, '2024-01-01 09:00:00+08');
 
--- 合同3：王小明 - 公寓 P101+P102（active）
-INSERT INTO contracts (id, contract_no, tenant_id, status, property_type, start_date, end_date, base_monthly_rent, payment_cycle_months, management_fee_rate, deposit_months, deposit_amount, tax_inclusive, applicable_tax_rate, created_by)
+-- ==========================================================================
+-- §13  账单（invoices）— 8 条（含 WALE/NOI 验算核心数据）
+-- ==========================================================================
+INSERT INTO invoices (id, invoice_no, contract_id, period_start, period_end,
+                      total_amount, paid_amount, outstanding_amount,
+                      status, billing_basis, tax_mode, due_date,
+                      reported_revenue, created_by)
 VALUES
-    (v_contract_3, 'C-2026-001', v_tenant_person1, 'active', 'apartment',
-     '2026-01-01', '2027-12-31',
-     2790.00, 1, 0.00, 1, 2790.00, TRUE, 0.05, v_user_leasing);
+    -- INV-001: C-OFFICE-01 2025-07 租金（已结清）
+    (v_inv_001, 'INV-2025-07-001', v_c_office,
+     '2025-07-01', '2025-07-31', 49595.00, 49595.00, 0.00,
+     'paid', 'contract', 'net', '2025-07-10', NULL, v_user_fin),
+    -- INV-002: C-OFFICE-01 2025-07 物管费（已结清）
+    (v_inv_002, 'INV-2025-07-002', v_c_office,
+     '2025-07-01', '2025-07-31', 6867.00, 6867.00, 0.00,
+     'paid', 'contract', 'net', '2025-07-10', NULL, v_user_fin),
+    -- INV-003: C-RETAIL-01 2025-07 租金（已出账，分成溢价 ¥28,000）
+    (v_inv_003, 'INV-2025-07-003', v_c_retail,
+     '2025-07-01', '2025-07-31', 29400.00, 0.00, 29400.00,
+     'issued', 'contract', 'net', '2025-07-10', 350000.00, v_user_fin),
+    -- INV-004: C-APT-01 2025-07 租金（逾期）
+    (v_inv_004, 'INV-2025-07-004', v_c_apt,
+     '2025-07-01', '2025-07-31', 5000.00, 0.00, 5000.00,
+     'overdue', 'contract', 'gross', '2025-07-31', NULL, v_user_fin),
+    -- INV-005: C-OFFICE-01 2025-06 免租折算（已结清）
+    -- 计费16天: 10A 280×110×16/30=16426.67 + 10B 140×105×16/30=7840.00 = 24266.67净
+    -- 含税: 24266.67×1.09 = 26450.67
+    (v_inv_005, 'INV-2025-06-001', v_c_office,
+     '2025-06-01', '2025-06-30', 26450.67, 26450.67, 0.00,
+     'paid', 'daily_prorated', 'net', '2025-06-20', NULL, v_user_fin),
+    -- INV-006~008: C-RETAIL-01 免租期（3月/4月/5月，金额=0, 状态=exempt）
+    (v_inv_006, 'INV-2025-03-001', v_c_retail,
+     '2025-03-01', '2025-03-31', 0.00, 0.00, 0.00,
+     'exempt', 'contract', 'net', '2025-03-31', NULL, v_user_fin),
+    (v_inv_007, 'INV-2025-04-001', v_c_retail,
+     '2025-04-01', '2025-04-30', 0.00, 0.00, 0.00,
+     'exempt', 'contract', 'net', '2025-04-30', NULL, v_user_fin),
+    (v_inv_008, 'INV-2025-05-001', v_c_retail,
+     '2025-05-01', '2025-05-31', 0.00, 0.00, 0.00,
+     'exempt', 'contract', 'net', '2025-05-31', NULL, v_user_fin);
 
--- 合同4：鑫辉（二房东主合同）- 写字楼 201+301（active）
-INSERT INTO contracts (id, contract_no, tenant_id, status, property_type, start_date, end_date, base_monthly_rent, payment_cycle_months, management_fee_rate, deposit_months, deposit_amount, tax_inclusive, applicable_tax_rate, is_sublease_master, created_by)
+-- ==========================================================================
+-- §14  账单明细（invoice_items）— 8 条
+-- amount 为不含税金额，INV-003 含保底+分成溢价两行
+-- ==========================================================================
+INSERT INTO invoice_items (id, invoice_id, item_type, description,
+                           quantity, unit, unit_price, amount)
 VALUES
-    (v_contract_sub, 'C-2025-003', v_tenant_sublord, 'active', 'office',
-     '2025-03-01', '2028-02-28',
-     12636.00, 3, 8.00, 2, 25272.00, TRUE, 0.09,
-     TRUE, v_user_leasing);
+    -- INV-001: 两个单元分别计费
+    ('2d000000-0000-0000-0000-000000000001',
+     v_inv_001, 'rent', '10A租金（280m²×¥110/m²/月）',
+     280.0000, 'm²', 110.0000, 30800.00),
+    ('2d000000-0000-0000-0000-000000000002',
+     v_inv_001, 'rent', '10B租金（140m²×¥105/m²/月）',
+     140.0000, 'm²', 105.0000, 14700.00),
+    -- INV-002: 物管费
+    ('2d000000-0000-0000-0000-000000000003',
+     v_inv_002, 'management_fee', '物管费（420m²×¥15/m²/月）',
+     420.0000, 'm²', 15.0000,  6300.00),
+    -- INV-003: 保底租金 + 分成溢价
+    ('2d000000-0000-0000-0000-000000000004',
+     v_inv_003, 'rent', 'S101保底租金（108m²×¥230/m²/月）',
+     108.0000, 'm²', 230.0000, 24840.00),
+    ('2d000000-0000-0000-0000-000000000005',
+     v_inv_003, 'revenue_share',
+     '7月营业额分成溢价（¥350,000×8%−¥24,840）',
+     1.0000, '月', NULL, 3160.00),
+    -- INV-004: 公寓整套月租（含税折算不含税 5000÷1.05=4761.90）
+    ('2d000000-0000-0000-0000-000000000006',
+     v_inv_004, 'rent', 'A302整套月租（含税¥5,000，不含税¥4,761.90）',
+     1.0000, '月', NULL, 4761.90),
+    -- INV-005: 免租后按日折算（16天/30天）
+    ('2d000000-0000-0000-0000-000000000007',
+     v_inv_005, 'rent',
+     '10A 6月免租后折算（280m²×¥110×16÷30）',
+     NULL, NULL, NULL, 16426.67),
+    ('2d000000-0000-0000-0000-000000000008',
+     v_inv_005, 'rent',
+     '10B 6月免租后折算（140m²×¥105×16÷30）',
+     NULL, NULL, NULL, 7840.00);
 
--- 绑定二房东用户到主合同
-UPDATE users SET bound_contract_id = v_contract_sub WHERE id = v_user_sublord;
-
--- ============================================================
--- 8. 合同-单元关联（contract_units）
--- ============================================================
-INSERT INTO contract_units (contract_id, unit_id, contracted_area, unit_monthly_rent)
+-- ==========================================================================
+-- §15  收款核销（payments + payment_allocations）
+-- ==========================================================================
+INSERT INTO payments (id, paid_amount, paid_at, payment_method,
+                      reference_no, received_by_user_id, notes)
 VALUES
-    (v_contract_1, v_unit_o1, 100.00, 4500.00),
-    (v_contract_1, v_unit_o2,  68.00, 3060.00),
-    (v_contract_2, v_unit_r1, 140.00, 11200.00),
-    (v_contract_3, v_unit_a1,  38.00, 950.00),
-    (v_contract_3, v_unit_a2,  55.00, 1840.00),
-    (v_contract_sub, v_unit_o4, 128.00, 5760.00),
-    (v_contract_sub, v_unit_o7, 153.00, 6876.00);
+    -- PAY-001: C-OFFICE-01 2025-07 租金+物管合并到账
+    (v_pay_001, 56462.00, '2025-07-05 10:00:00+08',
+     'bank_transfer', 'BANK-TF-20250705-001', v_user_fin,
+     'C-OFFICE-01 2025年7月租金（¥49,595）+物管费（¥6,867）合并转账'),
+    -- PAY-002: C-OFFICE-01 2025-06 免租折算到账
+    (v_pay_002, 26450.67, '2025-06-30 15:00:00+08',
+     'bank_transfer', 'BANK-TF-20250630-001', v_user_fin,
+     'C-OFFICE-01 2025年6月免租后折算账单'),
+    -- PAY-003: C-SUB-MASTER 2024-Q4 季付（含税简化）
+    (v_pay_003, 125400.00, '2025-01-05 09:00:00+08',
+     'bank_transfer', 'BANK-TF-20250105-001', v_user_fin,
+     'C-SUB-MASTER 2024年Q4季付款项');
 
--- 更新已租单元的 current_contract_id
-UPDATE units SET current_contract_id = v_contract_1   WHERE id IN (v_unit_o1, v_unit_o2);
-UPDATE units SET current_contract_id = v_contract_2   WHERE id = v_unit_r1;
-UPDATE units SET current_contract_id = v_contract_3   WHERE id IN (v_unit_a1, v_unit_a2);
-UPDATE units SET current_contract_id = v_contract_sub WHERE id IN (v_unit_o4, v_unit_o7);
-
--- ============================================================
--- 9. 押金（deposits）
--- ============================================================
-INSERT INTO deposits (contract_id, original_amount, current_balance, status)
+INSERT INTO payment_allocations (id, payment_id, invoice_id,
+                                  allocated_amount, allocated_by_user_id)
 VALUES
-    (v_contract_1,   15120.00, 15120.00, 'collected'),
-    (v_contract_2,   33600.00, 33600.00, 'collected'),
-    (v_contract_3,    2790.00,  2790.00, 'collected'),
-    (v_contract_sub, 25272.00, 25272.00, 'collected');
+    -- PAY-001 分配至 INV-001 和 INV-002
+    ('3d000000-0000-0000-0000-000000000001',
+     v_pay_001, v_inv_001, 49595.00, v_user_fin),
+    ('3d000000-0000-0000-0000-000000000002',
+     v_pay_001, v_inv_002, 6867.00,  v_user_fin),
+    -- PAY-002 分配至 INV-005
+    ('3d000000-0000-0000-0000-000000000003',
+     v_pay_002, v_inv_005, 26450.67, v_user_fin);
 
--- ============================================================
--- 10. 示例账单（invoices + invoice_items）
--- ============================================================
-
--- 合同1 的 2026 年 Q2 季度账单
-INSERT INTO invoices (id, contract_id, invoice_no, billing_period_start, billing_period_end, due_date, total_amount, outstanding_amount, status, generated_by)
+-- ==========================================================================
+-- §16  运营支出（expenses）— 6 条，合计 ¥33,700（对应 NOI 验算 OpEx）
+-- ==========================================================================
+INSERT INTO expenses (id, building_id, category, description,
+                      amount, expense_date, vendor, created_by)
 VALUES
-    ('11000000-0000-0000-0000-000000000001', v_contract_1, 'INV-2026-Q2-001',
-     '2026-04-01', '2026-06-30', '2026-04-05',
-     22680.00, 22680.00, 'issued', 'system');
+    ('fc000000-0000-0000-0000-000000000001',
+     v_bld_office, 'utility_common',
+     '公共区域水电费（走廊/电梯/大堂）',
+     8500.00, '2025-07-31', NULL, v_user_fin),
+    ('fc000000-0000-0000-0000-000000000002',
+     v_bld_office, 'outsourced_property',
+     '外包物业公司月度服务费',
+     15000.00, '2025-07-31', '广州市鑫诚物业管理有限公司', v_user_fin),
+    ('fc000000-0000-0000-0000-000000000003',
+     v_bld_office, 'repair',
+     'WO-001 空调维修结算（对应 SUP-001 顺达空调）',
+     850.00, '2025-07-25', '顺达空调服务公司', v_user_fin),
+    ('fc000000-0000-0000-0000-000000000004',
+     v_bld_office, 'repair',
+     '其他小修工单汇总',
+     2350.00, '2025-07-31', NULL, v_user_fin),
+    ('fc000000-0000-0000-0000-000000000005',
+     v_bld_office, 'insurance',
+     '财产险月度摊销',
+     2000.00, '2025-07-31', NULL, v_user_fin),
+    ('fc000000-0000-0000-0000-000000000006',
+     v_bld_office, 'tax',
+     '房产税月度摊销',
+     5000.00, '2025-07-31', NULL, v_user_fin);
 
-INSERT INTO invoice_items (invoice_id, item_type, description, amount, unit_id)
+-- ==========================================================================
+-- §17  工单（work_orders）— 3 条
+-- ==========================================================================
+INSERT INTO work_orders (id, order_no, building_id, floor_id, unit_id,
+                         issue_type, priority, description, status,
+                         reporter_user_id, supplier_id,
+                         submitted_at, completed_at,
+                         material_cost, labor_cost, source)
 VALUES
-    ('11000000-0000-0000-0000-000000000001', 'rent',           'Q2 租金（101+102）', 22680.00, NULL);
+    -- WO-001: 10A 空调维修，已完工，费用记入 EXP-003
+    (v_wo_001, 'WO-2025-07-001',
+     v_bld_office, v_flr_o_10f, v_unit_10a,
+     '空调维修', 'urgent',
+     '10A 会议室空调制冷不足，噪音异常，需上门检修',
+     'completed', v_user_front, v_sup_001,
+     '2025-07-10 09:00:00+08', '2025-07-25 16:00:00+08',
+     350.00, 500.00, 'app'),
+    -- WO-002: A302 水管漏水，处理中
+    (v_wo_002, 'WO-2025-07-002',
+     v_bld_apt, v_flr_a_3f, v_unit_a302,
+     '水管漏水', 'critical',
+     'A302 卫生间水管漏水，已影响楼下 A202',
+     'in_progress', v_user_front, v_sup_002,
+     '2025-07-20 14:00:00+08', NULL,
+     NULL, NULL, 'app'),
+    -- WO-003: S101 门锁更换，待派单
+    (v_wo_003, 'WO-2025-07-003',
+     v_bld_retail, v_flr_r_1f, v_unit_s101,
+     '门锁更换', 'normal',
+     'S101 卷帘门电机故障，无法正常开启，需更换配件',
+     'submitted', v_user_front, NULL,
+     '2025-07-28 10:00:00+08', NULL,
+     NULL, NULL, 'mini_program');
 
--- 合同3 的 2026年4月 月账单（已核销）
-INSERT INTO invoices (id, contract_id, invoice_no, billing_period_start, billing_period_end, due_date, total_amount, outstanding_amount, status, paid_at, generated_by)
+-- EXP-003 补充 work_order_id 关联（延迟 FK 已在 DDL 中配置为 DEFERRABLE）
+UPDATE expenses
+SET work_order_id = v_wo_001
+WHERE id = 'fc000000-0000-0000-0000-000000000003';
+
+-- ==========================================================================
+-- §18  水电抄表（meter_readings）— 3 条
+-- ==========================================================================
+INSERT INTO meter_readings (id, unit_id, meter_type, reading_cycle,
+                            current_reading, previous_reading, consumption,
+                            unit_price, cost_amount, reading_date,
+                            recorded_by, invoice_generated)
 VALUES
-    ('11000000-0000-0000-0000-000000000002', v_contract_3, 'INV-2026-04-001',
-     '2026-04-01', '2026-04-30', '2026-04-05',
-     2790.00, 0.00, 'paid', '2026-04-03T10:30:00Z', 'system');
+    ('ca000000-0000-0000-0000-000000000001',
+     v_unit_10a, 'electricity', 'monthly',
+     13280.00, 12450.00, 830.00, 1.2000, 996.00,
+     '2025-07-31', v_user_front, FALSE),
+    ('ca000000-0000-0000-0000-000000000002',
+     v_unit_10a, 'water', 'monthly',
+     878.00, 856.00, 22.00, 5.6000, 123.20,
+     '2025-07-31', v_user_front, FALSE),
+    ('ca000000-0000-0000-0000-000000000003',
+     v_unit_s101, 'electricity', 'monthly',
+     10150.00, 8900.00, 1250.00, 1.2000, 1500.00,
+     '2025-07-31', v_user_front, FALSE);
 
-INSERT INTO invoice_items (invoice_id, item_type, description, amount)
+-- ==========================================================================
+-- §19  预警记录（alerts）— 6 条（含重试样本 ALT-004）
+-- is_read=FALSE 表示系统已发出但用户未阅读
+-- ==========================================================================
+INSERT INTO alerts (id, contract_id, alert_type, triggered_at,
+                    is_read, notified_via)
 VALUES
-    ('11000000-0000-0000-0000-000000000002', 'rent', '4月租金（P101+P102）', 2790.00);
+    -- ALT-001: 公寓合同 90 天到期预警（已发送通知）
+    ('cb000000-0000-0000-0000-000000000001',
+     v_c_apt, 'lease_expiry_90', '2026-04-01 08:00:00+08',
+     FALSE, ARRAY['in_app', 'email']),
+    -- ALT-002: 60 天到期预警（待触发）
+    ('cb000000-0000-0000-0000-000000000002',
+     v_c_apt, 'lease_expiry_60', '2026-05-01 08:00:00+08',
+     FALSE, NULL),
+    -- ALT-003: INV-004 逾期第 1 天
+    ('cb000000-0000-0000-0000-000000000003',
+     v_c_apt, 'payment_overdue_1', '2025-08-01 08:00:00+08',
+     FALSE, ARRAY['in_app']),
+    -- ALT-004: INV-004 逾期第 7 天（retry_count=1 记录于 job_execution_logs，alerts 表不含此字段）
+    ('cb000000-0000-0000-0000-000000000004',
+     v_c_apt, 'payment_overdue_7', '2025-08-07 08:00:00+08',
+     FALSE, ARRAY['in_app']),
+    -- ALT-005: 写字楼合同 90 天到期预警（未来触发）
+    ('cb000000-0000-0000-0000-000000000005',
+     v_c_office, 'lease_expiry_90', '2028-03-02 08:00:00+08',
+     FALSE, NULL),
+    -- ALT-006: C-SUB-MASTER 押金退还提醒（合同终止前 7 天）
+    ('cb000000-0000-0000-0000-000000000006',
+     v_c_sub, 'deposit_refund_reminder', '2029-12-24 08:00:00+08',
+     FALSE, NULL);
 
--- ============================================================
--- 11. 示例工单（work_orders）
--- ============================================================
-INSERT INTO work_orders (id, work_order_no, unit_id, reported_by, category, priority, title, description, status, assigned_to)
+-- ==========================================================================
+-- §20  改造记录（renovation_records）— 3 条
+-- ==========================================================================
+INSERT INTO renovation_records (id, unit_id, renovation_type,
+                                started_at, completed_at,
+                                cost, description, created_by)
 VALUES
-    ('12000000-0000-0000-0000-000000000001', 'WO-2026-001',
-     v_unit_o1, v_user_ops, 'repair', 'normal',
-     '101室门锁故障', '办公室大门电子锁无法识别门禁卡',
-     'submitted', NULL),
-    ('12000000-0000-0000-0000-000000000002', 'WO-2026-002',
-     v_unit_a1, v_user_ops, 'maintenance', 'urgent',
-     'P101热水器漏水', '卫生间热水器底部持续滴水',
-     'in_progress', v_user_ops);
+    ('bc000000-0000-0000-0000-000000000001',
+     v_unit_10a,  '精装修改造',
+     '2024-03-01', '2024-05-15',
+     180000.00, '交付前精装修，含隔断、地毯、灯具', v_user_admin),
+    ('bc000000-0000-0000-0000-000000000002',
+     v_unit_s103, '结构改造',
+     '2023-11-01', '2024-01-31',
+     85000.00, '打通隔墙，扩大临街面，施工期单元空置', v_user_admin),
+    ('bc000000-0000-0000-0000-000000000003',
+     v_unit_a302, '基础翻新',
+     '2025-05-15', '2025-06-30',
+     12000.00, '签约前基础翻新，刷漆+更换洁具', v_user_front);
 
--- ============================================================
--- 12. 示例预警（alerts）
--- ============================================================
-INSERT INTO alerts (id, contract_id, alert_type, title, message, is_read)
+-- ==========================================================================
+-- §21  商铺营业额申报（turnover_reports）— 4 条（对应 C-RETAIL-01 NOI 验算）
+-- calculated_share = MAX(reported_revenue × rate - base_rent, 0)
+-- ==========================================================================
+INSERT INTO turnover_reports (id, contract_id, report_month,
+                               reported_revenue, revenue_share_rate,
+                               base_rent, calculated_share,
+                               approval_status, reviewed_by, reviewed_at,
+                               generated_invoice_id, submitted_by)
 VALUES
-    ('13000000-0000-0000-0000-000000000001', v_contract_1,
-     'lease_expiry_90', '合同即将到期',
-     '合同 C-2025-001（科技创新有限公司）将于 2026-06-30 到期，剩余 83 天',
-     FALSE);
+    -- TR-001: 6月 MAX(20000,24840)→保底，分成额=0
+    ('ec000000-0000-0000-0000-000000000001',
+     v_c_retail, '2025-06-01',
+     250000.00, 0.0800, 24840.00, 0.00,
+     'approved', v_user_fin, '2025-07-05 10:00:00+08',
+     NULL, v_user_sublord),
+    -- TR-002: 7月 MAX(28000,24840)→分成溢价 ¥3,160，对应 INV-003
+    ('ec000000-0000-0000-0000-000000000002',
+     v_c_retail, '2025-07-01',
+     350000.00, 0.0800, 24840.00, 3160.00,
+     'approved', v_user_fin, '2025-08-05 10:00:00+08',
+     v_inv_003, v_user_sublord),
+    -- TR-003: 8月 MAX(24800,24840)→保底（边界 -¥40），分成额=0
+    ('ec000000-0000-0000-0000-000000000003',
+     v_c_retail, '2025-08-01',
+     310000.00, 0.0800, 24840.00, 0.00,
+     'approved', v_user_fin, '2025-09-05 10:00:00+08',
+     NULL, v_user_sublord),
+    -- TR-004: 9月 计算分成额=¥15,160（待审核）
+    ('ec000000-0000-0000-0000-000000000004',
+     v_c_retail, '2025-09-01',
+     500000.00, 0.0800, 24840.00, 15160.00,
+     'pending', NULL, NULL,
+     NULL, v_user_sublord);
 
-RAISE NOTICE 'Seed data inserted successfully.';
-RAISE NOTICE 'Buildings: 3, Floors: 6, Units: 20, Tenants: 4, Contracts: 4, Users: 6';
+-- ==========================================================================
+-- §22  子租赁（subleases）— 3 条（二房东穿透数据，20A 拆分转租）
+-- unit_id 引用虚拟子单元（20A-01/02/03），规避 uq_sublease_active_unit 唯一约束
+-- [安全] sub_tenant_id_number_encrypted/phone_encrypted 使用占位值
+-- ==========================================================================
+INSERT INTO subleases (id, master_contract_id, unit_id,
+                       sub_tenant_name, sub_tenant_type,
+                       monthly_rent, rent_per_sqm,
+                       start_date, end_date,
+                       occupancy_status, review_status,
+                       reviewer_user_id, reviewed_at,
+                       submission_channel, submitted_by_user_id, submitted_at,
+                       version_no)
+VALUES
+    -- SL-001: 旭日软件 100m² @¥120/m²
+    (v_sl_001, v_c_sub, v_unit_20a01,
+     '旭日软件有限公司', 'corporate',
+     12000.00, 120.0000,
+     '2025-01-01', '2025-12-31',
+     'occupied', 'approved',
+     v_user_fin, '2024-12-25 10:00:00+08',
+     'sub_landlord', v_user_sublord, '2024-12-20 10:00:00+08',
+     1),
+    -- SL-002: 星光广告 72m² @¥118/m²
+    (v_sl_002, v_c_sub, v_unit_20a02,
+     '星光广告有限公司', 'corporate',
+     8500.00, 118.0556,
+     '2025-03-01', '2026-02-28',
+     'occupied', 'approved',
+     v_user_fin, '2025-02-25 10:00:00+08',
+     'sub_landlord', v_user_sublord, '2025-02-20 10:00:00+08',
+     1),
+    -- SL-003: 空置 268m²（尚未找到租客）
+    (v_sl_003, v_c_sub, v_unit_20a03,
+     '（空置）', 'corporate',
+     0.00, 0.0000,
+     '2025-01-01', '2025-12-31',
+     'vacant', 'approved',
+     v_user_fin, '2024-12-25 10:00:00+08',
+     'internal', v_user_lease, '2024-12-25 10:00:00+08',
+     1);
+
+-- ==========================================================================
+-- §23  KPI 指标定义（kpi_metric_definitions）— 10 条
+-- 系统预定义，seed 后不可删除，管理员可启用/停用
+-- 阈值依据 data_model.md §6.8 初始化数据表
+-- ==========================================================================
+INSERT INTO kpi_metric_definitions (id, code, name, description,
+                                     default_full_score_threshold,
+                                     default_pass_threshold,
+                                     default_fail_threshold,
+                                     higher_is_better, direction,
+                                     source_module, is_manual_input, is_enabled)
+VALUES
+    (v_km_k01, 'K01', '出租率',
+     '期末可租单元中实际在租比例（面积口径）',
+     0.9500, 0.8000, 0.6000, TRUE,  'positive', 'assets',     FALSE, TRUE),
+    (v_km_k02, 'K02', '收款及时率',
+     '账单到期日前核销金额占应收总额比例',
+     0.9500, 0.8500, 0.7000, TRUE,  'positive', 'finance',    FALSE, TRUE),
+    (v_km_k03, 'K03', '租户集中度',
+     'TOP3 租户租金占 PGI 比例（越低越好）',
+     0.4000, 0.5500, 0.7000, FALSE, 'negative', 'contracts',  FALSE, TRUE),
+    (v_km_k04, 'K04', '续约率',
+     '到期合同中成功续约比例',
+     0.8000, 0.6000, 0.4000, TRUE,  'positive', 'contracts',  FALSE, TRUE),
+    (v_km_k05, 'K05', '工单响应时效',
+     '工单从提交到首次响应平均小时数（越少越好）',
+     24.0000, 48.0000, 72.0000, FALSE, 'negative', 'workorders', FALSE, TRUE),
+    (v_km_k06, 'K06', '空置周转天数',
+     '单元空置到新合同生效平均天数（越少越好）',
+     30.0000, 60.0000, 90.0000, FALSE, 'negative', 'assets',    FALSE, TRUE),
+    (v_km_k07, 'K07', 'NOI 达成率',
+     '实际 NOI ÷ 预算 NOI',
+     1.0000, 0.8500, 0.7000, TRUE,  'positive', 'finance',    FALSE, TRUE),
+    (v_km_k08, 'K08', '逾期率',
+     '逾期账单金额÷应收总额（越低越好）',
+     0.0500, 0.1500, 0.2000, FALSE, 'negative', 'finance',    FALSE, TRUE),
+    (v_km_k09, 'K09', '租金递增执行率',
+     '实际执行递增合同占应递增合同比例',
+     0.9500, 0.8500, 0.7000, TRUE,  'positive', 'contracts',  FALSE, TRUE),
+    (v_km_k10, 'K10', '租户满意度',
+     '满意度问卷平均分（0~100，手动录入）',
+     90.0000, 75.0000, 60.0000, TRUE, 'positive', 'finance',  TRUE,  TRUE);
+
+-- ==========================================================================
+-- §24  KPI 考核方案（kpi_schemes）— 2 条
+-- ==========================================================================
+INSERT INTO kpi_schemes (id, name, period_type,
+                          effective_from, effective_to,
+                          is_active, scoring_mode, created_by)
+VALUES
+    (v_ks_001, '租务部考核方案 2026Q3', 'quarterly',
+     '2025-07-01', '2025-09-30', TRUE, 'official', v_user_admin),
+    (v_ks_002, '全员 KPI 月度试行方案', 'monthly',
+     '2025-07-01', '2025-07-31', FALSE, 'trial',   v_user_admin);
+
+-- ==========================================================================
+-- §25  方案-指标关联（kpi_scheme_metrics）— 6 条（KS-001，权重合计 1.00）
+-- ==========================================================================
+INSERT INTO kpi_scheme_metrics (id, scheme_id, metric_id, weight,
+                                  full_score_threshold, pass_threshold,
+                                  fail_threshold)
+VALUES
+    ('dc000000-0000-0000-0000-000000000001', v_ks_001, v_km_k01, 0.2500, 0.9500, 0.8000, 0.6000),
+    ('dc000000-0000-0000-0000-000000000002', v_ks_001, v_km_k02, 0.2000, 0.9500, 0.8000, 0.7000),
+    ('dc000000-0000-0000-0000-000000000003', v_ks_001, v_km_k04, 0.1500, 0.8000, 0.6000, 0.4000),
+    ('dc000000-0000-0000-0000-000000000004', v_ks_001, v_km_k06, 0.1500, 30.0000, 60.0000, 90.0000),
+    ('dc000000-0000-0000-0000-000000000005', v_ks_001, v_km_k08, 0.1500, 0.0500, 0.1500, 0.2000),
+    ('dc000000-0000-0000-0000-000000000006', v_ks_001, v_km_k09, 0.1000, 0.9500, 0.8000, 0.7000);
+-- 权重验算: 0.25+0.20+0.15+0.15+0.15+0.10 = 1.00 ✓
+
+-- ==========================================================================
+-- §26  方案绑定对象（kpi_scheme_targets）— 2 条
+-- ==========================================================================
+INSERT INTO kpi_scheme_targets (id, scheme_id, user_id, department_id)
+VALUES
+    ('dd000000-0000-0000-0000-000000000001', v_ks_001, v_user_lease, NULL),     -- KST-001 王五个人
+    ('dd000000-0000-0000-0000-000000000002', v_ks_001, NULL,         v_dept_lease); -- KST-002 租务部
+
+-- ==========================================================================
+-- §27  NOI 预算（noi_budgets）— 1 条（K07 验算基准）
+-- K07 = 实际NOI ÷ 预算NOI = 77911.90 ÷ 80000 = 97.39%
+-- ==========================================================================
+INSERT INTO noi_budgets (id, building_id, period_year, period_month,
+                         budget_noi, created_by)
+VALUES
+    (v_noi_bud_001, v_bld_office, 2025, 7, 80000.00, v_user_fin);
+
+-- ==========================================================================
+-- §28  管辖范围（user_managed_scopes）— 11 条
+-- 部门默认(9条) + 员工个人覆盖(2条，U-LEASE 仅管 10F 和 20F)
+-- ==========================================================================
+INSERT INTO user_managed_scopes (id, department_id, user_id,
+                                  building_id, floor_id)
+VALUES
+    -- 租务部：管辖三栋楼整栋
+    ('4d000000-0000-0000-0000-000000000001', v_dept_lease, NULL, v_bld_office, NULL),
+    ('4d000000-0000-0000-0000-000000000002', v_dept_lease, NULL, v_bld_retail, NULL),
+    ('4d000000-0000-0000-0000-000000000003', v_dept_lease, NULL, v_bld_apt,    NULL),
+    -- 财务部：管辖三栋楼整栋
+    ('4d000000-0000-0000-0000-000000000004', v_dept_fin,   NULL, v_bld_office, NULL),
+    ('4d000000-0000-0000-0000-000000000005', v_dept_fin,   NULL, v_bld_retail, NULL),
+    ('4d000000-0000-0000-0000-000000000006', v_dept_fin,   NULL, v_bld_apt,    NULL),
+    -- 物业运营部：管辖三栋楼整栋
+    ('4d000000-0000-0000-0000-000000000007', v_dept_ops,   NULL, v_bld_office, NULL),
+    ('4d000000-0000-0000-0000-000000000008', v_dept_ops,   NULL, v_bld_retail, NULL),
+    ('4d000000-0000-0000-0000-000000000009', v_dept_ops,   NULL, v_bld_apt,    NULL),
+    -- U-LEASE 王五：个人覆盖，仅管 A座 10F 和 20F（KPI 数据归集用）
+    ('5d000000-0000-0000-0000-000000000001', NULL, v_user_lease, v_bld_office, v_flr_o_10f),
+    ('5d000000-0000-0000-0000-000000000002', NULL, v_user_lease, v_bld_office, v_flr_o_20f);
+
+-- ==========================================================================
+-- §29  KPI 打分快照（kpi_score_snapshots + items + appeals）
+-- 验算结果: 94.03 分（详见 SEED_DATA_SPEC §十/§二十四）
+-- ==========================================================================
+INSERT INTO kpi_score_snapshots (id, scheme_id, evaluated_user_id,
+                                  period_start, period_end,
+                                  total_score, snapshot_status, frozen_at,
+                                  calculated_at, created_by)
+VALUES
+    (v_snap_001, v_ks_001, v_user_lease,
+     '2025-07-01', '2025-09-30',
+     94.03, 'frozen', '2025-10-01 08:00:00+08',
+     '2025-10-01 08:00:00+08', v_user_admin);
+
+INSERT INTO kpi_score_snapshot_items (id, snapshot_id, metric_id,
+                                       weight, actual_value, score,
+                                       weighted_score, source_note)
+VALUES
+    -- K01 出租率 91%: score=60+(0.91-0.80)/(0.95-0.80)×40=89.33
+    ('5c000000-0000-0000-0000-000000000001',
+     v_snap_001, v_km_k01, 0.2500, 0.9100, 89.33, 22.33,
+     '60+(91%-80%)/(95%-80%)×40'),
+    -- K02 收款及时率 98%: ≥满分，score=100
+    ('5c000000-0000-0000-0000-000000000002',
+     v_snap_001, v_km_k02, 0.2000, 0.9800, 100.00, 20.00,
+     '≥满分标准95%'),
+    -- K04 续约率 75%: score=60+(0.75-0.60)/(0.80-0.60)×40=90
+    ('5c000000-0000-0000-0000-000000000003',
+     v_snap_001, v_km_k04, 0.1500, 0.7500, 90.00, 13.50,
+     '60+(75%-60%)/(80%-60%)×40'),
+    -- K06 空置周转25天: ≤满分标准30天，score=100
+    ('5c000000-0000-0000-0000-000000000004',
+     v_snap_001, v_km_k06, 0.1500, 25.0000, 100.00, 15.00,
+     '25天≤30天满分标准'),
+    -- K08 逾期率 8%: 反向，score=60+(0.15-0.08)/(0.15-0.05)×40=88
+    ('5c000000-0000-0000-0000-000000000005',
+     v_snap_001, v_km_k08, 0.1500, 0.0800, 88.00, 13.20,
+     '反向指标：60+(15%-8%)/(15%-5%)×40'),
+    -- K09 递增执行率 100%: ≥满分，score=100
+    ('5c000000-0000-0000-0000-000000000006',
+     v_snap_001, v_km_k09, 0.1000, 1.0000, 100.00, 10.00,
+     '≥满分标准95%');
+-- 合计验算: 22.33+20.00+13.50+15.00+13.20+10.00 = 94.03 ✓
+
+-- KPI 申诉（kpi_appeals）
+INSERT INTO kpi_appeals (id, snapshot_id, appellant_id,
+                          reason, status, created_at)
+VALUES
+    ('6c000000-0000-0000-0000-000000000001',
+     v_snap_001, v_user_lease,
+     'K01 出租率 91%，本季度 10C 单元 9 月已完成签约但系统未及时同步合同状态，'
+     '实际出租率应为 93%，申请重算',
+     'pending', '2025-10-05 10:00:00+08');
+
+-- ==========================================================================
+-- §30  二房东绑定合同（延迟 FK 约束在同一事务内满足）
+-- ==========================================================================
+UPDATE users
+SET bound_contract_id = v_c_sub
+WHERE id = v_user_sublord;
+
+-- ==========================================================================
+-- §31  验证汇总
+-- ==========================================================================
+RAISE NOTICE '========================================';
+RAISE NOTICE 'PropOS Seed Data v1.1 载入完成';
+RAISE NOTICE '  departments:              6';
+RAISE NOTICE '  users:                    6';
+RAISE NOTICE '  suppliers:                3';
+RAISE NOTICE '  buildings:                3';
+RAISE NOTICE '  floors:                  11';
+RAISE NOTICE '  units:                   18 (15 spec + 3 sublease virtual)';
+RAISE NOTICE '  tenants:                  5';
+RAISE NOTICE '  contracts:                4';
+RAISE NOTICE '  contract_units:           5';
+RAISE NOTICE '  rent_escalation_phases:   8';
+RAISE NOTICE '  deposits:                 4';
+RAISE NOTICE '  deposit_transactions:     4';
+RAISE NOTICE '  invoices:                 8';
+RAISE NOTICE '  invoice_items:            8';
+RAISE NOTICE '  payments:                 3';
+RAISE NOTICE '  payment_allocations:      3';
+RAISE NOTICE '  expenses:                 6  (OpEx合计 ¥33,700)';
+RAISE NOTICE '  work_orders:              3';
+RAISE NOTICE '  meter_readings:           3';
+RAISE NOTICE '  alerts:                   6';
+RAISE NOTICE '  renovation_records:       3';
+RAISE NOTICE '  turnover_reports:         4';
+RAISE NOTICE '  subleases:                3';
+RAISE NOTICE '  kpi_metric_definitions:  10';
+RAISE NOTICE '  kpi_schemes:              2';
+RAISE NOTICE '  kpi_scheme_metrics:       6';
+RAISE NOTICE '  kpi_scheme_targets:       2';
+RAISE NOTICE '  noi_budgets:              1';
+RAISE NOTICE '  user_managed_scopes:     11';
+RAISE NOTICE '  kpi_score_snapshots:      1';
+RAISE NOTICE '  kpi_score_snapshot_items: 6';
+RAISE NOTICE '  kpi_appeals:              1';
+RAISE NOTICE '----------------------------------------';
+RAISE NOTICE '  WALE(收入口径) ≈ 3.27年  WALE(面积口径) ≈ 3.39年';
+RAISE NOTICE '  NOI(2025-07)   ≈ ¥77,911.90';
+RAISE NOTICE '  KPI(王五 2025Q3) = 94.03分';
+RAISE NOTICE '  K07 NOI达成率  = 97.39%%';
+RAISE NOTICE '========================================';
 
 END;
 $$;

@@ -1,7 +1,7 @@
 # PropOS 种子数据业务样本规格
 
-> **版本**: v1.0  
-> **日期**: 2026-04-08  
+> **版本**: v1.1  
+> **日期**: 2026-04-09  
 > **依据**: PRD v1.7 / data_model v1.3 / API_CONTRACT v1.7  
 > **用途**: 为开发自测、单元测试、集成测试与 WALE/NOI/KPI 验算提供标准化参考数据  
 
@@ -15,15 +15,35 @@
 | B-RETAIL | 商铺区 | retail | 2 | 2707.00 | 2300.00 |
 | B-APT | 公寓楼 | apartment | 8 | 7300.00 | 6200.00 |
 
-### 楼层样本（A座）
+### 楼层样本（含三栋楼 + SVG 路径字段）
 
-| floor_number | floor_name | nla (m²) |
-|-------------|------------|----------|
-| -1 | B1 | 0.00 |
-| 1 | 1F | 1200.00 |
-| 2 | 2F | 1350.00 |
-| 10 | 10F | 1350.00 |
-| 20 | 20F | 1200.00 |
+> `floor_plan_svg_path` 由 CAD 转换工具写入，格式 `floors/{building_uuid}/{floor_uuid}.svg`，下表以符号名代替 UUID，实际 seed.sql 中路径在写入文件后 UPDATE 对应行。
+
+#### A 座楼层
+
+| building | floor_number | floor_name | nla (m²) | floor_plan_svg_path |
+|----------|-------------|------------|----------|---------------------|
+| B-OFFICE | -1 | B1 | 0.00 | null（设备层，无图纸）|
+| B-OFFICE | 1 | 1F | 1200.00 | floors/B-OFFICE/1F.svg |
+| B-OFFICE | 2 | 2F | 1350.00 | floors/B-OFFICE/2F.svg |
+| B-OFFICE | 10 | 10F | 1350.00 | floors/B-OFFICE/10F.svg |
+| B-OFFICE | 20 | 20F | 1200.00 | floors/B-OFFICE/20F.svg |
+
+#### 商铺区楼层
+
+| building | floor_number | floor_name | nla (m²) | floor_plan_svg_path |
+|----------|-------------|------------|----------|---------------------|
+| B-RETAIL | 1 | 1F | 1150.00 | floors/B-RETAIL/1F.svg |
+| B-RETAIL | 2 | 2F | 1150.00 | floors/B-RETAIL/2F.svg |
+
+#### 公寓楼楼层
+
+| building | floor_number | floor_name | nla (m²) | floor_plan_svg_path |
+|----------|-------------|------------|----------|---------------------|
+| B-APT | 1 | 1F | 750.00 | null（机房/管理室，无平面图）|
+| B-APT | 3 | 3F | 780.00 | floors/B-APT/3F.svg |
+| B-APT | 5 | 5F | 780.00 | floors/B-APT/5F.svg |
+| B-APT | 8 | 8F | 750.00 | floors/B-APT/8F.svg |
 
 ---
 
@@ -112,7 +132,7 @@
 
 | 月份 | 10A 月租 | 10B 月租 | 合计 | 备注 |
 |------|---------|---------|------|------|
-| 2025-06（前14天免租） | ¥16,613.33 | ¥7,933.33 | ¥24,546.66 | 按 (30-14)/30 折算 |
+| 2025-06（前14天免租） | ¥16,426.67 | ¥7,840.00 | ¥24,266.67 | 按 16/30 折算（计费16天，30,800×16/30，14,700×16/30）|
 | 2025-07 ~ 2027-05 | ¥30,800 | ¥14,700 | ¥45,500 | 基准 |
 | 2027-06 ~ 2028-05 | ¥32,340 | ¥15,435 | ¥47,775 | +5% |
 
@@ -205,6 +225,37 @@
 
 ---
 
+### 4.5 合同-单元关联（contract_units）
+
+> **重要**: v1.7 合同-单元为 M:N 关系，`contract_units` 是核心中间表。`invoice_service` 自动账单生成、WALE 计算均从此表读取计费面积和单价。
+
+| contract_id | unit_id | billing_area (m²) | unit_price (元/m²/月) | 说明 |
+|-------------|---------|------------------|----------------------|------|
+| C-OFFICE-01 | 10A | 280.00 | 110.00 | 明辉科技 — 套内面积A |
+| C-OFFICE-01 | 10B | 140.00 | 105.00 | 明辉科技 — 套内面积B |
+| C-RETAIL-01 | S101 | 108.00 | 230.00 | 聚鑭餐饮（保底基准单价）|
+| C-APT-01 | A302 | 55.00 | null | 公寓整套月租，unit_price 为 null，计费以合同定额 ¥4,761.90 为准 |
+| C-SUB-MASTER | 20A | 440.00 | 95.00 | 鼎盛物业（2024~2025年基准单价）|
+
+---
+
+### 4.6 租金递增阶段（rent_escalation_phases）
+
+> 每行对应 `rent_escalation_phases` 表中一条记录；`params_json` 由 `rent_escalation_engine` 包解析。C-APT-01 无递增阶段（1 年短租不设递增）。
+
+| phase_id | contract_id | phase_order | start_date | end_date | escalation_type | params_json |
+|---------|-------------|------------|-----------|---------|----------------|-------------|
+| EP-01-1 | C-OFFICE-01 | 1 | 2025-06-01 | 2027-05-31 | `base_after_free_period` | `{}` |
+| EP-01-2 | C-OFFICE-01 | 2 | 2027-06-01 | 2028-05-31 | `fixed_rate` | `{"rate": 0.05}` |
+| EP-02-1 | C-RETAIL-01 | 1 | 2025-03-01 | 2026-02-28 | `step` | `{"base_price": 230.00}` |
+| EP-02-2 | C-RETAIL-01 | 2 | 2026-03-01 | 2027-02-28 | `step` | `{"base_price": 250.00}` |
+| EP-02-3 | C-RETAIL-01 | 3 | 2027-03-01 | 2028-02-28 | `step` | `{"base_price": 270.00}` |
+| EP-SUB-1 | C-SUB-MASTER | 1 | 2024-01-01 | 2025-12-31 | `base_after_free_period` | `{}` |
+| EP-SUB-2 | C-SUB-MASTER | 2 | 2026-01-01 | 2027-12-31 | `periodic` | `{"rate": 0.08, "interval_years": 2}` |
+| EP-SUB-3 | C-SUB-MASTER | 3 | 2028-01-01 | 2029-12-31 | `periodic` | `{"rate": 0.08, "interval_years": 2}` |
+
+---
+
 ## 五、子租赁种子（二房东穿透数据）
 
 主合同: C-SUB-MASTER（鼎盛物业，20A 单元拆分转租）
@@ -236,7 +287,7 @@
 | INV-002 | C-OFFICE-01 | 2025-07 | management_fee | ¥6,300.00 | ¥567.00 | ¥6,867.00 | paid |
 | INV-003 | C-RETAIL-01 | 2025-07 | rent | ¥28,000.00 | ¥1,400.00 | ¥29,400.00 | issued |
 | INV-004 | C-APT-01 | 2025-07 | rent | ¥4,761.90 | ¥238.10 | ¥5,000.00 | overdue |
-| INV-005 | C-OFFICE-01 | 2025-06 | rent | ¥24,546.66 | ¥2,209.20 | ¥26,755.86 | paid |
+| INV-005 | C-OFFICE-01 | 2025-06 | rent | ¥24,266.67 | ¥2,184.00 | ¥26,450.67 | paid |
 
 ### 6.2 免租期账单
 
@@ -245,6 +296,23 @@
 | INV-006 | C-RETAIL-01 | 2025-03 | rent | ¥0.00 | exempt | 免租月 |
 | INV-007 | C-RETAIL-01 | 2025-04 | rent | ¥0.00 | exempt | 免租月 |
 | INV-008 | C-RETAIL-01 | 2025-05 | rent | ¥0.00 | exempt | 免租月 |
+
+### 6.3 账单明细（invoice_items）
+
+> 每张账单可含多条费项明细：INV-001 展示多单元拆分计费，INV-003 展示分成溢价明细，INV-005 展示免租当月折算明细。
+
+| item_id | invoice_id | item_type | description | amount (不含税) | tax | total |
+|---------|-----------|---------|-------------|---------------|-----|-------|
+| II-001-1 | INV-001 | rent | 10A租金（280m²×¥110） | ¥30,800.00 | ¥2,772.00 | ¥33,572.00 |
+| II-001-2 | INV-001 | rent | 10B租金（140m²×¥105） | ¥14,700.00 | ¥1,323.00 | ¥16,023.00 |
+| II-002-1 | INV-002 | management_fee | 物管费（420m²×¥15） | ¥6,300.00 | ¥567.00 | ¥6,867.00 |
+| II-003-1 | INV-003 | rent | S101 保底租金（108m²×¥230） | ¥24,840.00 | ¥1,242.00 | ¥26,082.00 |
+| II-003-2 | INV-003 | revenue_share | 7月营业额分成溢价（350,000×8%−24,840） | ¥3,160.00 | ¥158.00 | ¥3,318.00 |
+| II-004-1 | INV-004 | rent | A302 整套月租（含税折算不含税） | ¥4,761.90 | ¥238.10 | ¥5,000.00 |
+| II-005-1 | INV-005 | rent | 10A 6月免租后折算（280m²×¥110×16/30） | ¥16,426.67 | ¥1,478.40 | ¥17,905.07 |
+| II-005-2 | INV-005 | rent | 10B 6月免租后折算（140m²×¥105×16/30） | ¥7,840.00 | ¥705.60 | ¥8,545.60 |
+
+> **II-005 合计验算**: ¥16,426.67 + ¥7,840.00 = ¥24,266.67（不含税）；含税 ¥24,266.67 × 1.09 = **¥26,450.67**，与 INV-005 主记录一致。
 
 ---
 
@@ -256,6 +324,15 @@
 | DEP-002 | C-RETAIL-01 | ¥149,040 | collected | 6个月押金已收 |
 | DEP-003 | C-APT-01 | ¥10,000 | collected | 2个月押金已收 |
 | DEP-004 | C-SUB-MASTER | ¥250,800 | collected | 6个月押金已收 |
+
+### 7.2 押金流水（deposit_transactions）
+
+| txn_id | deposit_id | txn_type | amount | operator_user_id | performed_at | note |
+|--------|-----------|---------|--------|-----------------|-------------|------|
+| DT-001 | DEP-001 | collected | ¥136,500.00 | U-LEASE | 2025-06-01 | C-OFFICE-01 签约时收取 |
+| DT-002 | DEP-002 | collected | ¥149,040.00 | U-LEASE | 2025-03-01 | C-RETAIL-01 签约时收取 |
+| DT-003 | DEP-003 | collected | ¥10,000.00 | U-LEASE | 2025-07-01 | C-APT-01 签约时收取 |
+| DT-004 | DEP-004 | collected | ¥250,800.00 | U-LEASE | 2024-01-01 | C-SUB-MASTER 签约时收取 |
 
 ---
 
@@ -337,11 +414,11 @@ $$= 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = \textbf{94.03 分}$$
 
 ## 十一、工单种子
 
-| work_order_id | unit | category | priority | status | reporter | assignee | cost |
-|-------------|------|----------|----------|--------|----------|----------|------|
-| WO-001 | 10A | 空调维修 | urgent | completed | 前线员工A | 供应商-空调 | ¥850 |
-| WO-002 | A302 | 水管漏水 | critical | in_progress | 前线员工B | 供应商-水电 | — |
-| WO-003 | S101 | 门锁更换 | normal | submitted | 前线员工A | — | — |
+| work_order_id | unit | category | priority | status | reporter_user_id | supplier_id | actual_cost | note |
+|-------------|------|----------|----------|--------|-----------------|------------|------------|------|
+| WO-001 | 10A | 空调维修 | urgent | completed | U-FRONT | SUP-001 | ¥850.00 | 已完工，费用计入 EXP-003 |
+| WO-002 | A302 | 水管漏水 | critical | in_progress | U-FRONT | SUP-002 | — | 处理中，待验收 |
+| WO-003 | S101 | 门锁更换 | normal | submitted | U-FRONT | — | — | 未派单，待分配供应商 |
 
 ---
 
@@ -360,14 +437,16 @@ $$= 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = \textbf{94.03 分}$$
 
 ### 用户
 
-| user_id | name | email | role | department |
-|---------|------|-------|------|-----------|
-| U-ADMIN | 管理员 | admin@propos.local | super_admin | D-ROOT |
-| U-MGR | 陈经理 | chen.mgr@propos.local | operations_manager | D-OPS |
-| U-LEASE | 王五 | wang.lease@propos.local | leasing_specialist | D-LEASE-OFFICE |
-| U-FIN | 李财务 | li.fin@propos.local | finance_staff | D-FIN |
-| U-FRONT | 赵前线 | zhao.front@propos.local | frontline_staff | D-OPS |
-| U-SUBLORD | 鼎盛物业 | dingsheng@external.com | sub_landlord | null |
+| user_id | name | email | role | department | bound_contract_id |
+|---------|------|-------|------|-----------|------------------|
+| U-ADMIN | 管理员 | admin@propos.local | super_admin | D-ROOT | null |
+| U-MGR | 陈经理 | chen.mgr@propos.local | operations_manager | D-OPS | null |
+| U-LEASE | 王五 | wang.lease@propos.local | leasing_specialist | D-LEASE-OFFICE | null |
+| U-FIN | 李财务 | li.fin@propos.local | finance_staff | D-FIN | null |
+| U-FRONT | 赵前线 | zhao.front@propos.local | frontline_staff | D-OPS | null |
+| U-SUBLORD | 鼎盛物业 | dingsheng@external.com | sub_landlord | null | **C-SUB-MASTER** |
+
+> **U-SUBLORD 关键**: `bound_contract_id = C-SUB-MASTER` 实现二房东 RBAC 行级隔离——这个字段缺失时 `SubleaseRepository` 的 `WHERE master_contract_id = $bound_contract_id` 过滤将失效。
 
 ---
 
@@ -381,8 +460,226 @@ $$= 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = \textbf{94.03 分}$$
 
 ---
 
+---
+
+## 十四、收款与核销种子
+
+### 14.1 收款主记录（payments）
+
+| payment_id | received_by_user_id | received_at | total_amount | payment_method | note |
+|-----------|--------------------|-----------:|-------------|----------------|------|
+| PAY-001 | U-FIN | 2025-07-05 | ¥56,462.00 | bank_transfer | C-OFFICE-01 2025-Q3 租金+物管费合并转账 |
+| PAY-002 | U-FIN | 2025-06-30 | ¥26,450.67 | bank_transfer | C-OFFICE-01 2025-06 免租后折算 |
+| PAY-003 | U-FIN | 2025-01-05 | ¥125,400.00 | bank_transfer | C-SUB-MASTER 2024-Q4 季付（含税 ¥41,800×3×1.09≈¥136,806，此处为Q4不含税简化） |
+
+### 14.2 核销分配（payment_allocations）
+
+| alloc_id | payment_id | invoice_id | allocated_amount | note |
+|---------|-----------|-----------|-----------------|------|
+| PA-001 | PAY-001 | INV-001 | ¥49,595.00 | 7月租金核销 |
+| PA-002 | PAY-001 | INV-002 | ¥6,867.00 | 7月物管费核销 |
+| PA-003 | PAY-002 | INV-005 | ¥26,450.67 | 6月免租折算核销 |
+
+> **验算**: PAY-001 分配合计 ¥49,595 + ¥6,867 = **¥56,462.00**，与 payment.total_amount 一致。
+
+---
+
+## 十五、运营支出种子（expenses）
+
+> 对应第九章 NOI 验算 OpEx 侧数据，2025年7月月度支出。`building_id` 均为 B-OFFICE。
+
+| expense_id | category | amount | period_month | building_id | description |
+|-----------|---------|--------|-------------|-------------|-------------|
+| EXP-001 | utility_common | ¥8,500.00 | 2025-07 | B-OFFICE | 公共区域水电费（走廊/电梯/大堂） |
+| EXP-002 | outsourced_property | ¥15,000.00 | 2025-07 | B-OFFICE | 外包物业公司月度服务费 |
+| EXP-003 | repair | ¥850.00 | 2025-07 | B-OFFICE | WO-001 空调维修结算（对应 SUP-001） |
+| EXP-004 | repair | ¥2,350.00 | 2025-07 | B-OFFICE | 其他小修工单汇总 |
+| EXP-005 | insurance | ¥2,000.00 | 2025-07 | B-OFFICE | 财产险月度摊销 |
+| EXP-006 | tax | ¥5,000.00 | 2025-07 | B-OFFICE | 房产税月度摊销 |
+
+> **OpEx 合计**: ¥8,500 + ¥15,000 + ¥850 + ¥2,350 + ¥2,000 + ¥5,000 = **¥33,700**，与第九章 NOI 验算一致。
+
+---
+
+## 十六、供应商种子（suppliers）
+
+| supplier_id | name | contact_person | contact_phone | service_category | is_active |
+|------------|------|---------------|--------------|-----------------|----------|
+| SUP-001 | 顺达空调服务公司 | 张技工 | 13800110001 | 空调维修 | true |
+| SUP-002 | 鼎盛水电工程公司 | 李师傅 | 13700220002 | 水电维修 | true |
+| SUP-003 | 安居锁业有限公司 | 王师傅 | 13600330003 | 门锁安防 | true |
+
+> 工单对应关系：WO-001 → SUP-001；WO-002 → SUP-002；WO-003 待派单 → 预计 SUP-003。
+
+---
+
+## 十七、商铺营业额申报（turnover_reports）
+
+| report_id | contract_id | period_month | turnover_amount | approval_status | reviewed_by | base_rent | revenue_share_rate | revenue_share_amount | final_invoice_amount | note |
+|----------|-------------|-------------|----------------|----------------|-------------|----------|-------------------|---------------------|---------------------|------|
+| TR-001 | C-RETAIL-01 | 2025-06 | ¥250,000 | approved | U-FIN | ¥24,840 | 8% | ¥20,000 | **¥24,840** | MAX→保底 |
+| TR-002 | C-RETAIL-01 | 2025-07 | ¥350,000 | approved | U-FIN | ¥24,840 | 8% | ¥28,000 | **¥28,000** | MAX→分成；对应 INV-003 |
+| TR-003 | C-RETAIL-01 | 2025-08 | ¥310,000 | approved | U-FIN | ¥24,840 | 8% | ¥24,800 | **¥24,840** | MAX→保底（边界±¥40） |
+| TR-004 | C-RETAIL-01 | 2025-09 | ¥500,000 | pending | null | ¥24,840 | 8% | ¥40,000 | 待定 | 待审核，账单未生成 |
+
+---
+
+## 十八、改造记录种子（renovation_records）
+
+| record_id | unit_id | renovation_type | start_date | end_date | cost | description | has_photo |
+|----------|---------|----------------|-----------|---------|------|-------------|----------|
+| REN-001 | 10A | 精装修改造 | 2024-03-01 | 2024-05-15 | ¥180,000 | 交付前精装修，含隔断、地毯、灯具 | true |
+| REN-002 | S103 | 结构改造 | 2023-11-01 | 2024-01-31 | ¥85,000 | 打通隔墙，扩大临街面，施工期单元空置 | true |
+| REN-003 | A302 | 基础翻新 | 2025-05-15 | 2025-06-30 | ¥12,000 | 签约前基础翻新，刷漆+更换洁具 | false |
+
+> 照片存储路径格式：`renovations/{record_uuid}/{index}.jpg`。
+
+---
+
+## 十九、预警记录种子（alerts）
+
+| alert_id | contract_id | alert_type | triggered_at | is_sent | sent_at | retry_count | note |
+|---------|------------|----------|-------------|--------|--------|------------|------|
+| ALT-001 | C-APT-01 | lease_expiry_90 | 2026-04-01 | true | 2026-04-01 | 0 | 公寓合同 90 天到期预警（已发送） |
+| ALT-002 | C-APT-01 | lease_expiry_60 | 2026-05-01 | false | null | 0 | 待触发（定时任务 2026-05-01 执行） |
+| ALT-003 | C-APT-01 | payment_overdue_1 | 2025-08-01 | true | 2025-08-01 | 0 | INV-004 逾期第 1 天（7月账单未收款） |
+| ALT-004 | C-APT-01 | payment_overdue_7 | 2025-08-07 | true | 2025-08-07 | 1 | INV-004 逾期第 7 天（首次失败，已重试 1 次） |
+| ALT-005 | C-OFFICE-01 | lease_expiry_90 | 2028-03-02 | false | null | 0 | 写字楼合同 2028-05-31 到期，未来触发 |
+| ALT-006 | C-SUB-MASTER | deposit_refund_reminder | 2029-12-24 | false | null | 0 | 押金退还提醒（合同终止前 7 天） |
+
+---
+
+## 二十、管辖范围种子（user_managed_scopes）
+
+> 个人范围覆盖部门默认（个人 > 部门），KPI 数据归集以最终有效范围为准。
+
+### 20.1 部门默认管辖范围
+
+| scope_id | department_id | building_id | floor_id | note |
+|---------|--------------|------------|---------|------|
+| MS-D-001 | D-LEASE | B-OFFICE | null | 租务部默认管辖 A 座整栋 |
+| MS-D-002 | D-LEASE | B-RETAIL | null | 租务部默认管辖商铺区 |
+| MS-D-003 | D-LEASE | B-APT | null | 租务部默认管辖公寓楼 |
+| MS-D-004 | D-FIN | B-OFFICE | null | 财务部管辖 A 座 |
+| MS-D-005 | D-FIN | B-RETAIL | null | 财务部管辖商铺区 |
+| MS-D-006 | D-FIN | B-APT | null | 财务部管辖公寓楼 |
+| MS-D-007 | D-OPS | B-OFFICE | null | 运营部管辖 A 座 |
+| MS-D-008 | D-OPS | B-RETAIL | null | 运营部管辖商铺区 |
+| MS-D-009 | D-OPS | B-APT | null | 运营部管辖公寓楼 |
+
+### 20.2 员工个人覆盖范围（U-LEASE 王五 — 仅管辖 A 座 10F 和 20F）
+
+| scope_id | user_id | building_id | floor_id | note |
+|---------|--------|------------|---------|------|
+| MS-U-001 | U-LEASE | B-OFFICE | F-10F（A座10F） | KPI 验算范围：含 10A、10B、10C |
+| MS-U-002 | U-LEASE | B-OFFICE | F-20F（A座20F） | KPI 验算范围：含 20A（含二房东主合同） |
+
+> **KPI 数据归集**: U-LEASE 的个人配置覆盖部门默认范围，指标仅汇总 10F 和 20F 的数据。
+
+---
+
+## 二十一、NOI 预算种子（noi_budgets）
+
+> K07 NOI 达成率 = 实际 NOI ÷ 预算 NOI，需提前录入各楼栋月度预算。
+
+| budget_id | building_id | period_month | budget_pgi | budget_vacancy_loss | budget_other_income | budget_opex | budget_noi |
+|----------|------------|-------------|-----------|-------------------|-------------------|------------|-----------|
+| BUD-001 | B-OFFICE | 2025-07 | ¥130,000.00 | ¥15,000.00 | ¥0.00 | ¥35,000.00 | **¥80,000.00** |
+
+**K07 达成率验算**：
+
+| 指标 | 计算 | 结果 |
+|------|------|------|
+| 预算 NOI | ¥130,000 − ¥15,000 + ¥0 − ¥35,000 | ¥80,000.00 |
+| 实际 NOI | 见第九章 | ¥77,911.90 |
+| NOI 达成率 | ¥77,911.90 / ¥80,000 | **97.39%** |
+| K07 得分（满分 ≥100%，及格 ≥90%） | 60 + (97.39−90)/(100−90) × 40 | **89.56 分** |
+
+---
+
+## 二十二、KPI 指标库（kpi_metric_definitions）
+
+> 10 条系统预定义指标由 seed 写入，管理员可启用/停用，不可自行删除。`direction` 字段决定线性插值逻辑方向。
+
+| metric_id | code | name | direction | default_full_score_threshold | default_pass_threshold | unit | data_source_key |
+|---------|------|------|---------|--------------------------|---------------------|------|----------------|
+| KM-K01 | K01 | 出租率 | positive | 0.95 | 0.80 | 比例 | assets.leasable_ratio |
+| KM-K02 | K02 | 收款及时率 | positive | 0.95 | 0.80 | 比例 | finance.payment_on_time_rate |
+| KM-K03 | K03 | 租户集中度 | negative | 0.40 | 0.60 | 比例（越低越好）| contracts.top3_rent_concentration |
+| KM-K04 | K04 | 续约率 | positive | 0.80 | 0.60 | 比例 | contracts.renewal_rate |
+| KM-K05 | K05 | 工单响应时效 | negative | 24 | 72 | 小时（越少越好）| workorders.avg_response_hours |
+| KM-K06 | K06 | 空置周转天数 | negative | 30 | 60 | 天（越少越好）| assets.avg_vacancy_days |
+| KM-K07 | K07 | NOI 达成率 | positive | 1.00 | 0.90 | 比例 | finance.noi_achievement_rate |
+| KM-K08 | K08 | 逾期率 | negative | 0.05 | 0.15 | 比例（越低越好）| finance.overdue_rate |
+| KM-K09 | K09 | 租金递增执行率 | positive | 0.95 | 0.80 | 比例 | contracts.escalation_execution_rate |
+| KM-K10 | K10 | 租户满意度 | positive | 90 | 70 | 分（0~100）| manual.satisfaction_score |
+
+---
+
+## 二十三、KPI 考核方案种子
+
+### 23.1 考核方案（kpi_schemes）
+
+| scheme_id | name | period_type | effective_from | effective_to | is_active |
+|----------|------|------------|---------------|------------|---------|
+| KS-001 | 租务部考核方案 2026Q3 | quarterly | 2025-07-01 | 2025-09-30 | true |
+| KS-002 | 全员 KPI 月度试行方案 | monthly | 2025-07-01 | 2025-07-31 | false |
+
+### 23.2 方案-指标关联（kpi_scheme_metrics）
+
+> KS-001 启用 6 项指标（K01/K02/K04/K06/K08/K09），权重合计 **100%**。
+
+| id | scheme_id | metric_id | weight | full_score_threshold | pass_threshold | is_enabled |
+|----|----------|---------|------|---------------------|--------------|----------|
+| KSM-001 | KS-001 | KM-K01 | 0.25 | 0.95 | 0.80 | true |
+| KSM-002 | KS-001 | KM-K02 | 0.20 | 0.95 | 0.80 | true |
+| KSM-003 | KS-001 | KM-K04 | 0.15 | 0.80 | 0.60 | true |
+| KSM-004 | KS-001 | KM-K06 | 0.15 | 30 | 60 | true |
+| KSM-005 | KS-001 | KM-K08 | 0.15 | 0.05 | 0.15 | true |
+| KSM-006 | KS-001 | KM-K09 | 0.10 | 0.95 | 0.80 | true |
+
+### 23.3 方案绑定对象（kpi_scheme_targets）
+
+| id | scheme_id | user_id | department_id | note |
+|----|---------|--------|--------------|------|
+| KST-001 | KS-001 | U-LEASE | null | 王五个人考核 |
+| KST-002 | KS-001 | null | D-LEASE | 租务部整体考核（汇总部门数据） |
+
+---
+
+## 二十四、KPI 评分快照种子
+
+### 24.1 快照主记录（kpi_score_snapshots）
+
+| snapshot_id | scheme_id | evaluated_user_id | period_start | period_end | status | total_score | created_at |
+|------------|----------|-----------------|-------------|----------|--------|------------|-----------|
+| SNAP-001 | KS-001 | U-LEASE | 2025-07-01 | 2025-09-30 | frozen | 94.03 | 2025-10-01 |
+
+### 24.2 快照明细（kpi_score_snapshot_items）
+
+| item_id | snapshot_id | metric_id | actual_value | score | weighted_score | note |
+|--------|-----------|---------|------------|------|--------------|------|
+| SNAPI-001 | SNAP-001 | KM-K01 | 0.91 | 89.33 | 22.33 | 60+(91%-80%)/(95%-80%)×40 |
+| SNAPI-002 | SNAP-001 | KM-K02 | 0.98 | 100.00 | 20.00 | ≥满分标准 |
+| SNAPI-003 | SNAP-001 | KM-K04 | 0.75 | 90.00 | 13.50 | 60+(75%-60%)/(80%-60%)×40 |
+| SNAPI-004 | SNAP-001 | KM-K06 | 25 | 100.00 | 15.00 | ≤满分标准（25天≤30天）|
+| SNAPI-005 | SNAP-001 | KM-K08 | 0.08 | 88.00 | 13.20 | 反向：60+(15%-8%)/(15%-5%)×40 |
+| SNAPI-006 | SNAP-001 | KM-K09 | 1.00 | 100.00 | 10.00 | ≥满分标准 |
+
+> **合计验算**: 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = **94.03 分**，与第十章一致。
+
+### 24.3 KPI 申诉（kpi_appeals）
+
+| appeal_id | snapshot_id | appellant_id | reason | status | reviewer_id | submitted_at |
+|----------|-----------|------------|-------|--------|------------|-------------|
+| APP-001 | SNAP-001 | U-LEASE | K01 出租率 91%，本季度 10C 单元 9 月完成签约但系统未及时更新，实际出租率应为 93%，申请重算 | pending | null | 2025-10-05 |
+
+---
+
 > **使用说明**:  
 > 1. 开发时可直接基于本文档编写 `scripts/seed.sql` 或测试 fixture  
 > 2. 所有金额均为示意，实际部署前需替换为真实数据  
-> 3. UUID 简称（如 C-OFFICE-01）在 SQL 中替换为 `gen_random_uuid()` 生成的真实 UUID  
-> 4. 验算结果（WALE、NOI、KPI）可作为单元测试的 expected 值
+> 3. UUID 简称（如 C-OFFICE-01、KM-K01）在 SQL 中替换为 `gen_random_uuid()` 生成的真实 UUID  
+> 4. 验算结果（WALE、NOI、KPI）可作为单元测试的 expected 值  
+> 5. P0 强依赖（必须先于业务代码写入）：`kpi_metric_definitions`（10条）、`departments`（6条）、`users`（6条）、`buildings`（3条）  
+> 6. 种子执行顺序参考：departments → buildings → floors → users → suppliers → units → tenants → contracts → contract_units → rent_escalation_phases → deposits → deposit_transactions → invoices → invoice_items → payments → payment_allocations → expenses → meter_readings → alerts → renovation_records → turnover_reports → subleases → kpi_metric_definitions → kpi_schemes → kpi_scheme_metrics → kpi_scheme_targets → noi_budgets → user_managed_scopes → kpi_score_snapshots → kpi_score_snapshot_items → kpi_appeals → work_orders
