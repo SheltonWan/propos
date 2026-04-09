@@ -11,7 +11,7 @@
 楼层 SVG 文件由 CAD（DWG → DXF → SVG）自动转换后，需要人工标注"热区"以实现：
 1. 点击单元色块查看详情 / 弹出快捷操作
 2. 状态色块着色（已租 / 空置 / 非可租等）
-3. Flutter Web/App 端交互渲染
+3. uni-app 移动端 / Admin PC 端交互渲染
 
 本文档定义 SVG 文件内单元热区的标记规范和配套 JSON 映射文件格式。
 
@@ -37,7 +37,7 @@ SVG 文件头部必须包含以下样式块，颜色值对应 Material 3 Theme T
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}">
   <defs>
     <style>
-      /* 状态色块 — 运行时由 Flutter 根据 unit.current_status 动态切换 class */
+      /* 状态色块 — 运行时由前端根据 unit.current_status 动态切换 class */
       .unit-leased       { fill: #4CAF50; fill-opacity: 0.35; stroke: #388E3C; stroke-width: 1; }
       .unit-vacant        { fill: #F44336; fill-opacity: 0.35; stroke: #D32F2F; stroke-width: 1; }
       .unit-expiring-soon { fill: #FF9800; fill-opacity: 0.35; stroke: #F57C00; stroke-width: 1; }
@@ -142,28 +142,40 @@ floors/{building_id}/{floor_id}.json     ← 映射文件
 
 ---
 
-## 四、Flutter 端渲染流程
+## 四、前端渲染流程
+
+### 4.1 uni-app 移动端（iOS / Android / HarmonyOS Next）
 
 ```
-1. 加载 SVG 文件（flutter_svg 或 WebView）
+1. 通过 WebView 或 canvas 加载 SVG 文件
+   - 微信小程序端因原生不支持 SVG，需使用 canvas 降级渲染
 2. GET /api/floors/:id/units → 获取该楼层所有单元的 current_status
 3. 遍历 SVG DOM 中 [data-unit-id] 元素：
    a. 根据 unit_id 匹配状态
    b. 替换 class → unit-{status}（如 unit-leased / unit-vacant）
 4. 绑定点击事件：
    a. 读取 data-unit-id
-   b. 弹出单元详情 BottomSheet / Dialog
+   b. 弹出单元详情 popup / dialog
+```
+
+### 4.2 Admin PC 端（Vue3 + Element Plus）
+
+```
+1. 直接内嵌 SVG 到 DOM（v-html 或 <object>）
+2. GET /api/floors/:id/units → 获取该楼层所有单元的 current_status
+3. 通过 JS 操作 SVG DOM [data-unit-id] 元素，动态切换 class
+4. 绑定 @click 事件 → 弹出 ElDialog 单元详情
 ```
 
 ### 状态到 class 映射
 
-| `units.current_status` | SVG class | 对应 Theme Token |
-|------------------------|-----------|------------------|
-| `leased` | `unit-leased` | `colorScheme.secondary`（绿色系） |
-| `vacant` | `unit-vacant` | `colorScheme.error`（红色系） |
-| `expiring_soon` | `unit-expiring-soon` | `colorScheme.tertiary`（黄/橙色系） |
-| `renovating` | `unit-renovating` | `colorScheme.primary`（蓝色系） |
-| `non_leasable` | `unit-non-leasable` | `colorScheme.outlineVariant`（中性灰） |
+| `units.current_status` | SVG class | 对应色彩语义 |
+|------------------------|-----------|-------------|
+| `leased` | `unit-leased` | success（绿色系）|
+| `vacant` | `unit-vacant` | danger（红色系）|
+| `expiring_soon` | `unit-expiring-soon` | warning（黄/橙色系）|
+| `renovating` | `unit-renovating` | primary（蓝色系）|
+| `non_leasable` | `unit-non-leasable` | info（中性灰）|
 
 ---
 

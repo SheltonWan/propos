@@ -2,17 +2,18 @@
 
 > **文档版本**: v1.0
 > **更新日期**: 2026-04-08
-> **用途**: Flutter 端统一错误处理 + 后端 AppException 错误码常量定义
+> **用途**: 前端统一错误处理 + 后端 AppException 错误码常量定义
 
 ---
 
 ## 一、使用说明
 
 - 所有错误码使用 `SCREAMING_SNAKE_CASE` 格式
-- Flutter 端按 `code` 字段做业务判断，**不解析 `message`**
+- 前端按 `code` 字段做业务判断，**不解析 `message`**
 - 后端新增错误码时**必须**同步更新本表
 - 后端常量定义：`backend/lib/shared/constants/error_codes.dart`
-- Flutter 常量定义：`frontend/lib/shared/constants/error_codes.dart`
+- uni-app 常量定义：`app/src/constants/error_codes.ts`
+- Admin 常量定义：`admin/src/constants/error_codes.ts`
 
 ---
 
@@ -20,7 +21,7 @@
 
 适用于所有端点，由全局 `error_handler.dart` 中间件统一处理。
 
-| 错误码 | HTTP Status | 说明 | Flutter 端处理 |
+| 错误码 | HTTP Status | 说明 | 前端处理 |
 |--------|------------|------|---------------|
 | `UNAUTHORIZED` | 401 | 未登录或 Token 无效 | 跳转登录页 |
 | `FORBIDDEN` | 403 | 无操作权限 | Toast "无权限" |

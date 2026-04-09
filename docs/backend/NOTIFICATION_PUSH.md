@@ -12,7 +12,7 @@
 |------|------|---------|--------|------|
 | **系统内消息中心** | 全平台 | ✅ | 准实时（轮询） | 写入 `alerts` 表，前端定期拉取 |
 | **邮件** | 全平台 | ✅ | 延迟（分钟级） | SMTP 发送，失败自动重试 |
-| **FCM 推送** | iOS / Android | ✅ | 实时 | Firebase Cloud Messaging |
+| **FCM / uni-push 推送** | iOS / Android / HarmonyOS | ✅ | 实时 | uni-push 统一通道（集成 APNs/FCM/华为推送） |
 | **应用内 Badge** | macOS / Windows / Web | ✅ | 准实时 | 未读数轮询，角标显示 |
 | **企业微信 Webhook** | — | ❌ Phase 2 | 实时 | 预留接口 |
 | **飞书 Webhook** | — | ❌ Phase 2 | 实时 | 预留接口 |
@@ -43,53 +43,62 @@
 | 参数 | 值 | 说明 |
 |------|---|------|
 | 轮询端点 | `GET /api/alerts/unread` | 返回 `{ data: { count: N } }` |
-| 轮询间隔 | 30 秒 | 在 `ui_constants.dart` 定义 `kAlertPollInterval` |
+| 轮询间隔 | 30 秒 | 在 `ui_constants.ts` 定义 `ALERT_POLL_INTERVAL` |
 | 应用前台 | 正常轮询 | 30 秒一次 |
-| 应用后台 | 暂停轮询 | 通过 `WidgetsBindingObserver.didChangeAppLifecycleState` 检测 |
+| 应用后台 | 暂停轮询 | uni-app 通过 `onHide`/`onShow` 生命周期检测；Admin 通过 `visibilitychange` 事件检测 |
 | 未读 > 0 | Badge 显示 | 导航栏铃铛图标 + 数字角标 |
 
-### 2.3 FCM 推送（移动端）
+### 2.3 uni-push 推送（移动端）
 
 #### 后端集成
 
 ```dart
-/// backend/lib/services/fcm_service.dart
-class FcmService {
-  final String _serverKey; // 从环境变量 FCM_SERVER_KEY 读取
+/// backend/lib/services/push_service.dart
+class PushService {
+  final String _pushAppId;     // 从环境变量 UNI_PUSH_APP_ID 读取
+  final String _pushAppSecret; // 从环境变量 UNI_PUSH_APP_SECRET 读取
 
-  /// 发送推送通知
+  /// 发送推送通知（通过 uni-push 服务端 API）
   Future<void> sendPush({
-    required String deviceToken,
+    required String clientId,
     required String title,
     required String body,
     Map<String, String>? data,
   }) async {
-    // 调用 FCM HTTP v1 API
-    // POST https://fcm.googleapis.com/v1/projects/{project}/messages:send
+    // 调用 uni-push 服务端 REST API 发送推送
+    // 支持 APNs(iOS) / 个推(Android) / 华为推送(HarmonyOS) 统一通道
   }
 }
 ```
 
-#### Flutter 端集成
+#### uni-app 端集成
 
-```dart
-/// 在 main.dart 初始化
-final messaging = FirebaseMessaging.instance;
+```typescript
+// app/src/utils/push.ts
+import { onPushMessage } from '@dcloudio/uni-push'
 
-// 获取 device token，上报给后端
-final token = await messaging.getToken();
-await apiClient.post('/api/users/me/device-token', body: {'token': token});
+// 获取 client id，上报给后端
+uni.getPushClientId({
+  success: async (res) => {
+    await apiPost('/api/users/me/device-token', { token: res.cid })
+  }
+})
 
 // 前台消息处理
-FirebaseMessaging.onMessage.listen((message) {
-  // 更新本地未读数 + 显示 SnackBar
-});
+onPushMessage((message) => {
+  // 更新本地未读数 + 显示 Toast
+})
 
-// 后台/终止态点击通知
-FirebaseMessaging.onMessageOpenedApp.listen((message) {
-  // 根据 data.alert_id 导航到对应页面
-});
+// 点击通知消息导航
+uni.onPushMessage((res) => {
+  if (res.type === 'click') {
+    // 根据 res.data.alert_id 导航到对应页面
+    uni.navigateTo({ url: `/pages/alerts/detail?id=${res.data.alert_id}` })
+  }
+})
 ```
+
+> **微信小程序**：不支持 uni-push，使用微信模板消息（订阅消息）替代，需单独申请模板。
 
 #### 设备令牌管理
 
@@ -99,7 +108,7 @@ CREATE TABLE user_device_tokens (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id      UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     device_token TEXT         NOT NULL,
-    platform     VARCHAR(20)  NOT NULL, -- 'ios', 'android'
+    platform     VARCHAR(20)  NOT NULL, -- 'ios', 'android', 'harmony', 'wechat_mp'
     is_active    BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -117,6 +126,7 @@ class NotifyService {
   final AlertRepository _alertRepo;
   final EmailService _emailService;
   final FcmService? _fcmService; // 可选，未配置 FCM_SERVER_KEY 时为 null
+  final PushService? _pushService; // 可选，未配置 UNI_PUSH_APP_ID 时为 null
 
   /// 发送通知（多渠道分发）
   Future<void> notify({
@@ -150,20 +160,20 @@ class NotifyService {
       }
     }
 
-    // 3. FCM 推送（仅移动端用户）
-    if (_fcmService != null) {
+    // 3. uni-push 推送（仅移动端用户）
+    if (_pushService != null) {
       final tokens = await _deviceTokenRepo.findActiveByUsers(recipients);
       for (final t in tokens) {
         try {
-          await _fcmService!.sendPush(
-            deviceToken: t.deviceToken,
+          await _pushService!.sendPush(
+            clientId: t.deviceToken,
             title: title,
             body: message,
             data: {'alert_id': alertId},
           );
-          if (!notifiedVia.contains('fcm')) notifiedVia.add('fcm');
+          if (!notifiedVia.contains('push')) notifiedVia.add('push');
         } catch (e) {
-          await _logFcmFailure(alertId, t.userId, e);
+          await _logPushFailure(alertId, t.userId, e);
         }
       }
     }
@@ -206,6 +216,8 @@ class NotifyService {
 | `SMTP_USER` | Phase 1 可选 | SMTP 用户名 |
 | `SMTP_PASSWORD` | Phase 1 可选 | SMTP 密码 |
 | `SMTP_FROM` | Phase 1 可选 | 发件人地址 |
-| `FCM_SERVER_KEY` | Phase 1 可选 | Firebase 服务端密钥（未配置则跳过推送） |
+| `FCM_SERVER_KEY` | Phase 1 可选 | Firebase 服务端密钥（未配置则跳过 FCM 推送） |
+| `UNI_PUSH_APP_ID` | Phase 1 可选 | uni-push 应用 ID（未配置则跳过 uni-push） |
+| `UNI_PUSH_APP_SECRET` | Phase 1 可选 | uni-push 应用密钥 |
 
 > **Phase 1 最小启动**：即使不配 SMTP/FCM，系统内消息中心 + 轮询轮询仍可正常工作，仅降级为"仅系统内通知"。

@@ -1,8 +1,8 @@
 # PropOS Phase 1 专项测试计划
 
-> **版本**: v1.0
-> **日期**: 2026-04-08
-> **对应文档**: PRD v1.7 / ARCH v1.2 / data_model v1.3 / API_CONTRACT v1.7 / IMPLEMENTATION_CHECKLIST v1.7
+> **版本**: v1.1
+> **日期**: 2026-04-09
+> **对应文档**: PRD v1.8 / ARCH v1.4 / data_model v1.3 / API_CONTRACT v1.7 / IMPLEMENTATION_CHECKLIST v1.7
 > **范围**: Phase 1 全模块（M1~M5 + KPI + 基础底座）
 
 ---
@@ -19,7 +19,7 @@
 8. [业务计算精度测试](#八业务计算精度测试)
 9. [安全测试计划](#九安全测试计划)
 10. [性能测试计划](#十性能测试计划)
-11. [Flutter 端测试计划](#十一flutter-端测试计划)
+11. [前端测试计划（uni-app + Admin）](#十一前端测试计划uni-app--admin)
 12. [测试数据策略](#十二测试数据策略)
 13. [UAT 验收标准](#十三uat-验收标准)
 14. [定时任务测试](#十四定时任务测试)
@@ -61,14 +61,14 @@
 ├──────────────────────────────────────────────────────┤
 │  Layer 2: 集成测试（Service + Repository + DB）        │  ← 状态机、事务原子性
 ├──────────────────────────────────────────────────────┤
-│  Layer 1: 单元测试（纯函数 / Mock 依赖）               │  ← 计算引擎、BLoC
+│  Layer 1: 单元测试（纯函数 / Mock 依赖）               │  ← 计算引擎、Store
 └──────────────────────────────────────────────────────┘
 ```
 
-| 层级 | 后端技术栈 | Flutter 技术栈 |
-|------|----------|---------------|
-| Layer 1 单元 | `package:test` + `mocktail` | `package:test` + `bloc_test` + `mocktail` |
-| Layer 2 集成 | `package:test` + 真实 PostgreSQL（Docker） | `package:integration_test` |
+| 层级 | 后端技术栈 | 前端技术栈（uni-app + Admin） |
+|------|----------|---------------------------|
+| Layer 1 单元 | `package:test` + `mocktail` | `vitest` + `@vue/test-utils` + `pinia` testing |
+| Layer 2 集成 | `package:test` + 真实 PostgreSQL（Docker） | `vitest` + MSW (Mock Service Worker) |
 | Layer 3 E2E | `package:test` + `package:http` → 启动 Shelf Server | — |
 | Layer 4 UAT | 人工操作 + 验收脚本（seed 数据 + curl 断言） | 人工操作 |
 
@@ -83,10 +83,10 @@
 | `backend/lib/modules/*/services/` | **≥ 85%** | 业务逻辑核心层 |
 | `backend/lib/modules/*/repositories/` | **≥ 80%** | SQL 正确性（需真实 DB） |
 | `backend/lib/core/` | **≥ 90%** | 中间件、错误处理、分页、加密 |
-| `frontend/lib/features/*/presentation/bloc/` | **≥ 80%** | BLoC 状态转换 |
-| `frontend/lib/features/*/data/` | **≥ 75%** | Repository 实现（Mock HTTP） |
+| `app/src/stores/` + `admin/src/stores/` | **≥ 80%** | Pinia Store 状态与 action |
+| `app/src/api/` + `admin/src/api/` | **≥ 75%** | API client 模块（Mock HTTP） |
 
-> **度量工具**: 后端使用 `dart test --coverage` + `coverage` 包生成 lcov；Flutter 使用 `flutter test --coverage`。CI 流水线中设置覆盖率卡点，低于目标则阻断合并。
+> **度量工具**: 后端使用 `dart test --coverage` + `coverage` 包生成 lcov；前端使用 `vitest --coverage`。CI 流水线中设置覆盖率卡点，低于目标则阻断合并。
 
 ---
 
@@ -494,47 +494,47 @@
 
 ---
 
-## 十一、Flutter 端测试计划
+## 十一、前端测试计划（uni-app + Admin）
 
-### 11.1 BLoC 单元测试
+### 11.1 Pinia Store 单元测试
 
-使用 `bloc_test` 库，验证 Event → State 转换。Mock Repository 接口（不依赖 HTTP）。
+使用 `vitest` + `pinia` testing helpers，验证 Store action 执行后 state 变化。Mock API client（不依赖 HTTP）。
 
-| BLoC | 关键测试场景 |
-|------|------------|
-| `AuthBloc` | 登录成功(initial→authenticated)、登录失败(→error)、token 刷新、登出 |
-| `ContractListBloc` | 加载(loading→loaded)、筛选、分页、搜索 |
-| `ContractFormCubit` | 表单验证、提交成功、提交失败、多单元添加/移除 |
-| `InvoiceListBloc` | 加载、状态筛选、核销后刷新 |
-| `WorkOrderBloc` | 创建、状态流转、照片上传 |
-| `SubleaseBloc` | 填报、提交审核、审核通过/退回 |
-| `KpiDashboardBloc` | 方案加载、排名展示、快照切换、趋势数据 |
-| `DepositBloc` | 押金列表、冻结/扣除/退还操作 |
-| `FloorMapBloc` | SVG 加载、热区状态色块映射、单元点击 |
+| Store | 关键测试场景 |
+|-------|------------|
+| `useAuthStore` | 登录成功(→token 写入)、登录失败(→error)、token 刷新、登出 |
+| `useContractListStore` | 加载(loading→数据填充)、筛选、分页、搜索 |
+| `useContractFormStore` | 表单验证、提交成功、提交失败、多单元添加/移除 |
+| `useInvoiceStore` | 加载、状态筛选、核销后刷新 |
+| `useWorkOrderStore` | 创建、状态流转、照片上传 |
+| `useSubleaseStore` | 填报、提交审核、审核通过/退回 |
+| `useKpiStore` | 方案加载、排名展示、快照切换、趋势数据 |
+| `useDepositStore` | 押金列表、冻结/扣除/退还操作 |
+| `useFloorMapStore` | SVG 加载、热区状态色块映射、单元点击 |
 
-### 11.2 Widget 测试
+### 11.2 组件测试
 
-使用 `BlocProvider` 注入 Fake BLoC，验证 UI 渲染。
+使用 `@vue/test-utils` + `vitest`，通过 `createTestingPinia` 注入初始 state，验证 UI 渲染。
 
-| Widget | 测试重点 |
-|--------|---------|
+| 组件 / 页面 | 测试重点 |
+|------------|---------|
 | `LoginPage` | 输入校验、密码可见性切换、错误提示 |
-| `ContractDetailPage` | 各状态操作按钮可见性（active 显示终止按钮、terminated 无操作按钮） |
-| `FloorMapPage` | SVG 渲染 + 状态色块颜色映射（leased→绿、vacant→红、expiring→黄） |
-| `InvoiceDetailPage` | 金额格式、含税/不含税双金额展示 |
-| `KpiDashboardPage` | state.when() 四分支（initial/loading/loaded/error）渲染正确 |
-| `PaymentFormPage` | 多账单核销分配表单、金额校验 |
+| `ContractDetail` | 各状态操作按钮可见性（active 显示终止按钮、terminated 无操作按钮） |
+| `FloorMap` | SVG 渲染 + 状态色块颜色映射（leased→绿、vacant→红、expiring→黄） |
+| `InvoiceDetail` | 金额格式、含税/不含税双金额展示 |
+| `KpiDashboard` | loading / loaded / error 三态渲染正确 |
+| `PaymentForm` | 多账单核销分配表单、金额校验 |
 
 ### 11.3 状态色块映射验证
 
-验证 `colorScheme` Token 与业务状态正确映射（遵循 copilot-instructions 主题规范）：
+验证色彩语义与业务状态正确映射（遵循 copilot-instructions 色彩规范）：
 
-| 状态 | Token | 测试验证 |
-|------|-------|---------|
-| `leased` / `paid` | `colorScheme.secondary`（绿色系） | 已租单元/已核销账单为绿 |
-| `expiring_soon` / `warning` | `colorScheme.tertiary`（黄/橙色系） | 即将到期为黄 |
-| `vacant` / `overdue` / `error` | `colorScheme.error`（红色系） | 空置/逾期为红 |
-| `non_leasable` | `colorScheme.outlineVariant`（灰色） | 非可租为灰 |
+| 状态 | uni-app CSS 变量 | Admin Element Plus | 测试验证 |
+|------|-----------------|-------------------|---------|
+| `leased` / `paid` | `--color-success`（绿色系） | `type="success"` | 已租单元/已核销账单为绿 |
+| `expiring_soon` / `warning` | `--color-warning`（黄/橙色系） | `type="warning"` | 即将到期为黄 |
+| `vacant` / `overdue` / `error` | `--color-danger`（红色系） | `type="danger"` | 空置/逾期为红 |
+| `non_leasable` | `--color-neutral`（灰色） | `type="info"` | 非可租为灰 |
 
 ---
 
@@ -743,7 +743,7 @@
 | R27 | 响应信封格式一致性 | Core | P2 |
 | R28 | 审计日志覆盖完整性 | Core | P2 |
 | R29 | 事务原子性（合同签约/终止） | DB | P2 |
-| R30 | Flutter BLoC 核心状态转换 | Frontend | P2 |
+| R30 | 前端 Store 核心状态转换 | Frontend | P2 |
 
 ---
 
@@ -771,17 +771,20 @@ cd backend/packages/kpi_scorer && dart test
 cd backend && dart test test/e2e/
 ```
 
-### 16.2 Flutter 端测试
+### 16.2 前端测试（uni-app + Admin）
 
 ```bash
-# BLoC + Widget 单元测试
-cd frontend && flutter test
+# uni-app Store + 组件单元测试
+cd app && pnpm test
 
 # 含覆盖率
-cd frontend && flutter test --coverage
+cd app && pnpm test -- --coverage
 
-# 集成测试（需真机/模拟器）
-cd frontend && flutter test integration_test/
+# Admin Store + 组件单元测试
+cd admin && pnpm test
+
+# 含覆盖率
+cd admin && pnpm test -- --coverage
 ```
 
 ### 16.3 性能测试
@@ -834,11 +837,10 @@ test/unit/<module>/<service>_test.dart
 test/integration/<module>/<repository>_test.dart
 test/e2e/<module>/<feature>_e2e_test.dart
 
-// Flutter 测试文件命名
-test/<feature>/bloc/<bloc>_test.dart
-test/<feature>/data/<repository>_test.dart
-test/<feature>/presentation/pages/<page>_test.dart
-test/<feature>/presentation/widgets/<widget>_test.dart
+// 前端测试文件命名（uni-app 与 Admin 同规范）
+src/stores/__tests__/<store>.test.ts
+src/components/__tests__/<component>.test.ts
+src/pages/__tests__/<page>.test.ts       // Admin 为 src/views/__tests__/<view>.test.ts
 
 // 测试方法命名：should_<预期行为>_when_<前置条件>
 test('should return 403 when frontline accesses finance write', () { ... });

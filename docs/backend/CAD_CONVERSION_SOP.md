@@ -25,7 +25,7 @@
 .json 映射文件
     │
     ▼  [Step 5] 校验 & 上传
-后端存储 → Flutter 渲染
+后端存储 → 前端渲染
 ```
 
 ---
@@ -253,7 +253,7 @@ SVG_NS = "http://www.w3.org/2000/svg"
 NSMAP = {None: SVG_NS}
 
 STANDARD_STYLES = """
-      /* 状态色块 — 运行时由 Flutter 根据 unit.current_status 动态切换 class */
+      /* 状态色块 — 运行时由前端根据 unit.current_status 动态切换 class */
       .unit-leased       { fill: #4CAF50; fill-opacity: 0.35; stroke: #388E3C; stroke-width: 1; }
       .unit-vacant        { fill: #F44336; fill-opacity: 0.35; stroke: #D32F2F; stroke-width: 1; }
       .unit-expiring-soon { fill: #FF9800; fill-opacity: 0.35; stroke: #F57C00; stroke-width: 1; }
@@ -744,6 +744,6 @@ bash scripts/validate_floor_svg.sh \
 2. **更新 SVG**: 修改对应楼层 SVG 中的热区形状和 `data-unit-id`
 3. **重新提取 JSON**: 重新运行 `extract_floor_map.py`
 4. **校验**: 执行 `validate_floor_svg.sh`
-5. **上传覆盖**: 替换原文件，Flutter 端下次加载自动生效
+5. **上传覆盖**: 替换原文件，前端下次加载自动生效
 
 > 变更记录应在 `renovation_records` 表中留痕，对应 SVG 版本号更新 `floor_map.json` 中的 `svg_version` 字段。
