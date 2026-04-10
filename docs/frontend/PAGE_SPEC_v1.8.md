@@ -616,6 +616,16 @@ ElDialog(title="修改密码" width="400px")
 
 ## 四、概览 Dashboard 模块
 
+> **NOI 三级展示架构说明**（对应 PRD M3.2）
+>
+> | 层级 | 页面 | 章节 | 内容定位 |
+> |------|------|------|---------|
+> | **L1 概览** | Dashboard 总览（4.1） | 首页 NOI 卡片 | 当月 NOI + 环比 + NOI Margin + 出租率 + 收款率，点击跳转 L2 |
+> | **L2 看板** | NOI 明细页（4.2）| 独立页面 | M3.2 全部看板组件：业态分拆、支出类目、趋势图、楼栋下钻、预算对比 |
+> | **L3 明细** | NOI 明细页内下钻 | 4.2 Collapse / Dialog | 逐笔支出清单、未缴款租户列表、空置单元详情 |
+>
+> uni-app 移动端仅承载 L1（Dashboard 卡片），L2/L3 通过 Admin PC 端承载。
+
 ### 4.1 总览页
 
 **Admin**: `DashboardView.vue`  
@@ -629,12 +639,12 @@ ElDialog(title="修改密码" width="400px")
 ```
 DashboardView
 └── div.dashboard-container
-    ├── ── 第一行：核心指标卡片 ──
+    ├── ── 第一行：核心指标卡片（L1 NOI 概览层）──
     │   ElRow(:gutter="24")
     │   ├── ElCol(:span="6") → MetricCard(label: "总出租率", value: "87.5%")
-    │   ├── ElCol(:span="6") → MetricCard(label: "当月 NOI", value: "¥1,234,567")
+    │   ├── ElCol(:span="6") → MetricCard(label: "当月 NOI", value: "¥1,234,567", subtitle: "Margin 67.2%", trend: "+2.1%", @click → /dashboard/noi-detail)
     │   ├── ElCol(:span="6") → MetricCard(label: "WALE(收入)", value: "2.35 年")
-    │   └── ElCol(:span="6") → MetricCard(label: "WALE(面积)", value: "2.18 年")
+    │   └── ElCol(:span="6") → MetricCard(label: "收款率", value: "94.8%")
     │
     ├── ── 第二行：业态出租率分拆 ──
     │   ElRow(:gutter="24")
@@ -668,12 +678,12 @@ DashboardView
 ```
 dashboard/index.vue
 └── scroll-view(scroll-y)
-    ├── ── 核心指标（2×2 网格）──
+    ├── ── 核心指标（2×2 网格，L1 NOI 概览层）──
     │   view.metric-grid
     │   ├── MetricCard("总出租率", "87.5%")
-    │   ├── MetricCard("当月 NOI", "¥1,234,567")
+    │   ├── MetricCard("当月 NOI", "¥1,234,567", subtitle: "Margin 67.2% ↑2.1%")
     │   ├── MetricCard("WALE(收入)", "2.35 年")
-    │   └── MetricCard("WALE(面积)", "2.18 年")
+    │   └── MetricCard("收款率", "94.8%")
     │
     ├── ── 三业态分拆（横向滚动卡片）──
     │   scroll-view(scroll-x)
@@ -693,12 +703,12 @@ dashboard/index.vue
         └── ActionCard("录入收款" → /pages/finance/invoices)
 ```
 
-### 4.2 NOI 明细页 `NoiDetailView`
+### 4.2 NOI 明细页 `NoiDetailView`（L2 看板层 + L3 明细下钻）
 
 **Admin**: `admin/src/views/dashboard/NoiDetailView.vue`  
 **路由**: `/dashboard/noi-detail`  
 **Store**: `useNoiDetailStore`  
-**API**: `GET /api/noi/summary` + `GET /api/noi/trend` + `GET /api/noi/breakdown` + `GET /api/noi/vacancy-loss`
+**API**: `GET /api/noi/summary` + `GET /api/noi/trend` + `GET /api/noi/breakdown` + `GET /api/noi/vacancy-loss` + `GET /api/noi/budget`
 
 > uni-app 端不设 NOI 明细独立页面，通过 Dashboard 卡片下钻到 Admin 端查看。
 
@@ -707,35 +717,62 @@ dashboard/index.vue
 ```
 NoiDetailView
 └── div
-    ├── ── 视角切换 ──
-    │   ElRadioGroup(v-model="perspective")
-    │   ├── ElRadioButton("应收视角")
-    │   └── ElRadioButton("实收视角")
+    ├── ── 视角切换 + 楼栋筛选 ──
+    │   ElRow(:gutter="16" justify="space-between")
+    │   ├── ElRadioGroup(v-model="perspective")
+    │   │   ├── ElRadioButton("应收视角")
+    │   │   └── ElRadioButton("实收视角")
+    │   └── ElSelect(v-model="buildingId" placeholder="全部楼栋")
+    │       ├── ElOption("全部")
+    │       ├── ElOption("A座")
+    │       ├── ElOption("商铺区")
+    │       └── ElOption("公寓楼")
     │
-    ├── ── 汇总卡片行 ──
+    ├── ── L2 汇总卡片行（瀑布结构：PGI → EGI → NOI）──
     │   ElRow(:gutter="24")
     │   ├── MetricCard("PGI 潜在总收入", "¥xxx")
     │   ├── MetricCard("空置损失", "-¥xxx", type="danger")
+    │   ├── MetricCard("EGI 有效总收入", "¥xxx")
+    │   ├── MetricCard("OpEx 运营支出", "-¥xxx", type="warning")
     │   └── MetricCard("NOI 净营运收入", "¥xxx", type="primary")
     │
-    ├── ── 业态 NOI 分拆表格 ──
+    ├── ── L2 效率指标 + 预算对比 ──
+    │   ElRow(:gutter="24")
+    │   ├── MetricCard("NOI Margin", "67.2%", trend: "+2.1%")
+    │   ├── MetricCard("OpEx Ratio", "32.8%", trend: "-1.5%")
+    │   └── MetricCard("NOI 达成率", "103.2%", subtitle: "预算 ¥xxx", type="success")
+    │
+    ├── ── L2 业态 NOI 分拆表格 ──
     │   ElTable(:data="breakdown")
     │   ├── ElTableColumn(label="业态")
     │   ├── ElTableColumn(label="收入")
     │   ├── ElTableColumn(label="支出")
     │   ├── ElTableColumn(label="NOI")
+    │   ├── ElTableColumn(label="NOI Margin")
     │   └── ElTableColumn(label="出租率")
     │
-    ├── ── 近12月 NOI 趋势折线图 ──
-    │   ECharts(type: line, data: monthlyNoi)
+    ├── ── L2 近12月 NOI 趋势折线图 ──
+    │   ECharts(type: line, series: [实际NOI, 预算NOI], data: monthlyNoi)
     │
-    ├── ── 运营支出构成饼图 ──
+    ├── ── L2 运营支出构成饼图 ──
     │   ECharts(type: pie, data: expenseCategories)
+    │   // 类目：物管费/水电公摊/维修费(OpEx)/保险/税金/专业服务费
     │
-    └── ── 空置损失测算列表 ── (Should)
+    ├── ── L3 运营支出逐笔明细 ── (Should)
+    │   ElCollapse
+    │   └── ElCollapseItem(title="支出明细清单")
+    │       └── ElTable: 日期 | 类目 | 摘要 | 金额 | 费用性质(OpEx/CapEx) | 来源(工单/手录)
+    │
+    ├── ── L3 空置损失测算列表 ── (Should)
+    │   ElCollapse
+    │   └── ElCollapseItem(title="空置损失明细")
+    │       └── ElTable: 单元编号 | 楼栋 | 业态 | 面积 | 参考市场租金 | 月损失额 | 空置天数
+    │
+    └── ── L3 未缴款租户列表 ── (Should)
         ElCollapse
-        └── ElCollapseItem(title="空置损失明细")
-            └── ElTable: 单元编号 | 面积 | 参考市场租金 | 月损失额
+        └── ElCollapseItem(title="未缴款租户明细")
+            └── ElTable: 租户 | 单元 | 费项 | 应收金额 | 逾期天数
+                └── @row-click → /finance/invoices/:invoiceId
 ```
 
 ### 4.3 WALE 明细页 `WaleDetailView`
@@ -1654,12 +1691,12 @@ TenantFormView
 ```
 FinanceView
 └── div
-    ├── ── NOI 汇总卡片 ──
+    ├── ── NOI 汇总卡片（L1 概览级，点击跳转 L2）──
     │   ElRow(:gutter="24")
     │   ├── MetricCard("本月应收", "¥2,345,678")
     │   ├── MetricCard("本月实收", "¥2,100,000")
     │   ├── MetricCard("收款率", "89.5%")
-    │   └── MetricCard("NOI", "¥1,234,567")
+    │   ├── MetricCard("NOI", "¥1,234,567", subtitle: "Margin 67.2%", @click → /dashboard/noi-detail)
     │
     ├── ── 快捷入口 ──
     │   ElRow(:gutter="24")
@@ -1687,12 +1724,12 @@ FinanceView
 ```
 finance/index.vue
 └── scroll-view(scroll-y)
-    ├── ── 汇总卡片 ──
+    ├── ── 汇总卡片（L1 概览级）──
     │   view.metric-grid
     │   ├── MetricCard("本月应收", "¥2,345,678")
     │   ├── MetricCard("本月实收", "¥2,100,000")
     │   ├── MetricCard("收款率", "89.5%")
-    │   └── MetricCard("NOI", "¥1,234,567")
+    │   └── MetricCard("NOI", "¥1,234,567", subtitle: "Margin 67.2%")
     │
     ├── ── 快捷入口 ──
     │   view.action-grid
