@@ -172,6 +172,9 @@
 |--------|------|---------|------|
 | `WORKORDER_NOT_FOUND` | 404 | 工单相关 | 工单不存在 |
 | `INVALID_STATUS_TRANSITION` | 400 | 工单状态变更 | 非法状态转换（参见状态机矩阵） |
+| `INVALID_WORK_ORDER_TYPE` | 400 | `POST /api/workorders` | 无效的工单类型（必须为 `repair` / `complaint` / `inspection`） |
+| `INVALID_ISSUE_TYPE_FOR_WORK_ORDER_TYPE` | 400 | `POST /api/workorders` | `issue_type` 与 `work_order_type` 不匹配 |
+| `CONTRACT_REQUIRED_FOR_INSPECTION` | 400 | `POST /api/workorders` | 退租验房类型必须关联合同 |
 | `ASSIGNEE_NOT_FOUND` | 404 | `POST /api/workorders/:id/assign` | 指派人不存在 |
 
 ---

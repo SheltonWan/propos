@@ -179,6 +179,14 @@ CREATE TYPE expense_category AS ENUM (
     'other'                -- 其他
 );
 
+-- 工单类型
+CREATE TYPE work_order_type AS ENUM (
+    'repair',             -- 报修
+    'complaint',          -- 投诉
+    'inspection'          -- 退租验房
+    -- Phase 2 预留: 'patrol', 'cleaning', 'maintenance', 'security', 'renovation_request'
+);
+
 -- 工单状态
 CREATE TYPE work_order_status AS ENUM (
     'submitted',          -- 已提交
@@ -1069,7 +1077,7 @@ CREATE TABLE kpi_metric_definitions (
 | K02 | 收款及时率 | 0.95 | 0.85 | 0.70 | TRUE | positive |
 | K03 | 租户集中度 | 0.40 | 0.55 | 0.70 | FALSE | negative |
 | K04 | 续约率 | 0.80 | 0.60 | 0.40 | TRUE | positive |
-| K05 | 工单响应时效（小时） | 24 | 48 | 72 | FALSE | negative |
+| K05 | 工单响应时效（小时，仅 repair） | 24 | 48 | 72 | FALSE | negative |
 | K06 | 空置周转天数 | 30 | 60 | 90 | FALSE | negative |
 | K07 | NOI 达成率 | 1.00 | 0.85 | 0.70 | TRUE | positive |
 | K08 | 逾期率 | 0.05 | 0.15 | 0.20 | FALSE | negative |
@@ -1270,12 +1278,16 @@ CREATE TABLE work_orders (
     id                UUID              PRIMARY KEY DEFAULT gen_random_uuid(),
     -- 工单编号（如 'WO-2026-04-001'）
     order_no          VARCHAR(50)       UNIQUE NOT NULL,
+    -- 工单类型：repair=报修, complaint=投诉, inspection=退租验房
+    work_order_type   work_order_type   NOT NULL DEFAULT 'repair',
     -- 位置信息
     building_id       UUID              NOT NULL REFERENCES buildings(id),
     floor_id          UUID              REFERENCES floors(id),
     unit_id           UUID              REFERENCES units(id),
+    -- 关联合同（退租验房必填，其他类型可选）
+    contract_id       UUID              REFERENCES contracts(id),
     -- 问题描述
-    issue_type        VARCHAR(100)      NOT NULL, -- '水电', '空调', '门窗', '消防', '其他'
+    issue_type        VARCHAR(100)      NOT NULL, -- repair: '水电','空调','门窗','消防','网络','电梯','其他'; complaint: '服务态度','环境噪音','公区卫生','安全隐患','其他'; inspection: '合同到期验房','提前退租验房'
     priority          work_order_priority NOT NULL DEFAULT 'normal',
     description       TEXT              NOT NULL,
     status            work_order_status  NOT NULL DEFAULT 'submitted',
@@ -1291,13 +1303,16 @@ CREATE TABLE work_orders (
     expected_complete_at TIMESTAMPTZ,
     on_hold_reason    TEXT,
     reopened_from_work_order_id UUID REFERENCES work_orders(id),
-    -- 成本（完工后录入）
+    -- 成本（完工后录入，仅 repair 类型适用）
     material_cost     NUMERIC(10,2),    -- 材料费（元）
     labor_cost        NUMERIC(10,2),    -- 人工费（元）
     -- 成本关联通过 expenses.work_order_id 反向引用，无需在此冗余 expense_id
-    -- 验收
-    inspection_note   TEXT,
+    -- 验收 / 处理结论
+    inspection_note   TEXT,             -- repair: 验收备注; complaint: 处理结论; inspection: 查验结论
     rejected_reason   TEXT,
+    -- 退租验房专用字段
+    deposit_deduction_suggestion NUMERIC(10,2), -- 建议押金扣减金额（inspection 类型）
+    follow_up_work_order_id UUID,       -- 查验后生成的维修跟进工单（inspection → repair）
     -- 来源（报修渠道）
     source            VARCHAR(20) NOT NULL DEFAULT 'app', -- 'app', 'mini_program', 'manual'
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -1307,8 +1322,10 @@ CREATE TABLE work_orders (
 CREATE INDEX idx_workorders_building  ON work_orders(building_id);
 CREATE INDEX idx_workorders_unit      ON work_orders(unit_id) WHERE unit_id IS NOT NULL;
 CREATE INDEX idx_workorders_status    ON work_orders(status);
+CREATE INDEX idx_workorders_type      ON work_orders(work_order_type);
 CREATE INDEX idx_workorders_reporter  ON work_orders(reporter_user_id);
 CREATE INDEX idx_workorders_submitted ON work_orders(submitted_at DESC);
+CREATE INDEX idx_workorders_contract  ON work_orders(contract_id) WHERE contract_id IS NOT NULL;
 ```
 
 ### 7.3 work_order_photos（工单照片）

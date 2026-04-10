@@ -3188,6 +3188,7 @@ Content-Disposition: attachment; filename="kpi_report_{scheme_name}_{period}.xls
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `building_id` | string(uuid) | 否 | 按楼栋 |
+| `work_order_type` | string(enum) | 否 | 工单类型：`repair` / `complaint` / `inspection` |
 | `status` | string(enum) | 否 | 工单状态 |
 | `priority` | string(enum) | 否 | 紧急程度 |
 | `assignee_user_id` | string(uuid) | 否 | 按处理人 |
@@ -3201,6 +3202,7 @@ Content-Disposition: attachment; filename="kpi_report_{scheme_name}_{period}.xls
 |------|------|------|
 | `id` | string(uuid) | 工单 ID |
 | `order_no` | string | 工单编号 |
+| `work_order_type` | string(enum) | 工单类型：`repair` / `complaint` / `inspection` |
 | `building_name` | string | 楼栋名称 |
 | `floor_name` | string? | 楼层名称 |
 | `unit_number` | string? | 单元编号 |
@@ -3222,9 +3224,11 @@ Content-Disposition: attachment; filename="kpi_report_{scheme_name}_{period}.xls
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
+| `work_order_type` | string(enum) | 否 | 工单类型（默认 `repair`）：`repair` / `complaint` / `inspection` |
 | `building_id` | string(uuid) | 是 | 楼栋 ID |
 | `floor_id` | string(uuid) | 否 | 楼层 ID |
 | `unit_id` | string(uuid) | 否 | 单元 ID |
+| `contract_id` | string(uuid) | 条件必填 | 关联合同 ID（`inspection` 类型必填） |
 | `issue_type` | string | 是 | 问题类型（如"水电""空调""门窗""消防""其他"） |
 | `priority` | string(enum) | 否 | 紧急程度（默认 `normal`） |
 | `description` | string | 是 | 问题描述 |
@@ -3244,12 +3248,14 @@ Content-Disposition: attachment; filename="kpi_report_{scheme_name}_{period}.xls
 |------|------|------|
 | `id` | string(uuid) | 工单 ID |
 | `order_no` | string | 工单编号 |
+| `work_order_type` | string(enum) | 工单类型：`repair` / `complaint` / `inspection` |
 | `building_id` | string(uuid) | 楼栋 ID |
 | `building_name` | string | 楼栋名称 |
 | `floor_id` | string(uuid)? | 楼层 ID |
 | `floor_name` | string? | 楼层名称 |
 | `unit_id` | string(uuid)? | 单元 ID |
 | `unit_number` | string? | 单元编号 |
+| `contract_id` | string(uuid)? | 关联合同 ID（`inspection` 类型必有） |
 | `issue_type` | string | 问题类型 |
 | `priority` | string(enum) | 紧急程度 |
 | `description` | string | 问题描述 |
@@ -3268,9 +3274,11 @@ Content-Disposition: attachment; filename="kpi_report_{scheme_name}_{period}.xls
 | `on_hold_reason` | string? | 挂起原因 |
 | `rejected_reason` | string? | 拒绝原因 |
 | `reopened_from_work_order_id` | string(uuid)? | 重开来源工单 |
-| `material_cost` | number? | 材料费 |
-| `labor_cost` | number? | 人工费 |
-| `inspection_note` | string? | 验收备注 |
+| `material_cost` | number? | 材料费（仅 `repair` 类型） |
+| `labor_cost` | number? | 人工费（仅 `repair` 类型） |
+| `inspection_note` | string? | 验收备注 / 处理结论 / 查验结论 |
+| `deposit_deduction_suggestion` | number? | 建议押金扣减金额（仅 `inspection` 类型） |
+| `follow_up_work_order_id` | string(uuid)? | 跟进维修工单 ID（仅 `inspection` 类型） |
 | `source` | string | 来源渠道 |
 | `photos` | `WorkOrderPhotoDto[]` | 照片列表 |
 | `created_at` | string(datetime) | 创建时间 |

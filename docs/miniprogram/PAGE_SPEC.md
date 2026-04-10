@@ -4,6 +4,7 @@
 > **日期**: 2026-04-08  
 > **依据**: PRD v1.7（4.1 移动端报修）/ ARCH v1.2  
 > **定位**: Phase 1 精简版 — 仅**扫码报修 + 状态查看**，不承担推送通知  
+> **工单类型范围**: 小程序仅支持 `repair`（报修）类型工单的提报与查看；`complaint`（投诉）和 `inspection`（退租验房）类型需通过 uni-app 移动端或 Admin PC 端操作。
 
 ---
 
@@ -121,6 +122,7 @@
 **提交请求体**:
 ```json
 {
+  "work_order_type": "repair",
   "unit_id": "uuid",
   "building_id": "uuid",
   "floor_id": "uuid",

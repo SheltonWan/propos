@@ -414,11 +414,14 @@ $$= 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = \textbf{94.03 分}$$
 
 ## 十一、工单种子
 
-| work_order_id | unit | category | priority | status | reporter_user_id | supplier_id | actual_cost | note |
-|-------------|------|----------|----------|--------|-----------------|------------|------------|------|
-| WO-001 | 10A | 空调维修 | urgent | completed | U-FRONT | SUP-001 | ¥850.00 | 已完工，费用计入 EXP-003 |
-| WO-002 | A302 | 水管漏水 | critical | in_progress | U-FRONT | SUP-002 | — | 处理中，待验收 |
-| WO-003 | S101 | 门锁更换 | normal | submitted | U-FRONT | — | — | 未派单，待分配供应商 |
+| work_order_id | work_order_type | unit | category | priority | status | reporter_user_id | supplier_id | actual_cost | note |
+|-------------|-----------------|------|----------|----------|--------|-----------------|------------|------------|------|
+| WO-001 | repair | 10A | 空调维修 | urgent | completed | U-FRONT | SUP-001 | ¥850.00 | 已完工，费用计入 EXP-003 |
+| WO-002 | repair | A302 | 水管漏水 | critical | in_progress | U-FRONT | SUP-002 | — | 处理中，待验收 |
+| WO-003 | repair | S101 | 门锁更换 | normal | submitted | U-FRONT | — | — | 未派单，待分配供应商 |
+| WO-004 | complaint | 10A | 环境噪音 | normal | completed | U-FRONT | — | — | 投诉类工单，已服务处理完毕 |
+| WO-005 | complaint | A302 | 公区卫生 | urgent | in_progress | U-FRONT | — | — | 投诉类工单，处理中 |
+| WO-006 | inspection | 10A | 合同到期验房 | normal | pending_inspection | U-FRONT | — | — | 退租验房，关联合同 C-001，待验收确认 |
 
 ---
 

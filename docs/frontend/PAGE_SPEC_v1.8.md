@@ -1980,6 +1980,8 @@ MeterReadingListView
 
 ## 八、工单模块页面
 
+> Phase 1 支持三种工单类型：`repair`（报修）、`complaint`（投诉）、`inspection`（退租验房），共享列表/详情页面，通过 Tab/筛选器区分。
+
 ### 8.1 工单列表页
 
 **Admin**: `WorkordersView.vue`  
@@ -1994,6 +1996,11 @@ MeterReadingListView
 WorkordersView
 └── div
     ├── ElForm(inline)
+    │   ├── ElRadioGroup(v-model="filters.work_order_type" size="small")
+    │   │   ├── ElRadioButton "全部"
+    │   │   ├── ElRadioButton "报修" (value="repair")
+    │   │   ├── ElRadioButton "投诉" (value="complaint")
+    │   │   └── ElRadioButton "退租验房" (value="inspection")
     │   ├── ElRadioGroup(v-model="filters.status" size="small")
     │   │   ├── ElRadioButton "全部"
     │   │   ├── ElRadioButton "已提交"
@@ -2006,6 +2013,7 @@ WorkordersView
     │
     └── ProposTable
         ├── ElTableColumn(label="工单编号")
+        ├── ElTableColumn(label="工单类型") → ElTag(:type="typeTagType")
         ├── ElTableColumn(label="问题描述")
         ├── ElTableColumn(label="位置") "{{ building }} {{ floor }} {{ unit }}"
         ├── ElTableColumn(label="类型")
@@ -2021,6 +2029,14 @@ WorkordersView
 ```
 workorders/index.vue
 └── view
+    ├── ── 工单类型切换 ──
+    │   view.type-tabs
+    │   └── wd-tabs(v-model="activeType")
+    │       ├── wd-tab(title="全部" name="")
+    │       ├── wd-tab(title="报修" name="repair")
+    │       ├── wd-tab(title="投诉" name="complaint")
+    │       └── wd-tab(title="验房" name="inspection")
+    │
     ├── ── 状态筛选标签栏 ──
     │   scroll-view(scroll-x)
     │   └── wd-tag(v-for="status in statusOptions" :type="selected === status ? 'primary' : 'default'"
@@ -2048,14 +2064,23 @@ workorders/index.vue
 ```typescript
 async function onNewOrder() {
   // #ifdef APP-PLUS
-  // 弹出选择：[扫码报修] / [手动填报]
+  // 弹出选择工单类型：[扫码报修] / [手动报修] / [提交投诉] / [退租验房]
   uni.showActionSheet({
-    itemList: ['扫码报修', '手动填报'],
+    itemList: ['扫码报修', '手动报修', '提交投诉', '退租验房'],
     success(res) {
-      if (res.tapIndex === 0) {
-        uni.scanCode({ success(res) { /* 解析 unit_id → 带参数跳转 */ } })
-      } else {
-        uni.navigateTo({ url: '/pages/workorders/new' })
+      switch (res.tapIndex) {
+        case 0:
+          uni.scanCode({ success(res) { /* 解析 unit_id → 带参数跳转 */ } })
+          break
+        case 1:
+          uni.navigateTo({ url: '/pages/workorders/new?type=repair' })
+          break
+        case 2:
+          uni.navigateTo({ url: '/pages/workorders/new?type=complaint' })
+          break
+        case 3:
+          uni.navigateTo({ url: '/pages/workorders/new?type=inspection' })
+          break
       }
     },
   })
@@ -2079,13 +2104,23 @@ async function onNewOrder() {
 ```
 WorkorderFormView
 └── ElForm(:model="form" :rules="rules" label-width="120px")
+    ├── ── 工单类型 ──
+    │   ElFormItem(label="工单类型") → ElRadioGroup(v-model="form.work_order_type")
+    │     ├── ElRadioButton(label="repair") "报修"
+    │     ├── ElRadioButton(label="complaint") "投诉"
+    │     └── ElRadioButton(label="inspection") "退租验房"
+    │
     ├── ── 位置选择（级联）──
     │   ElFormItem(label="楼栋") → ElSelect(v-model="form.building_id")
     │   ElFormItem(label="楼层") → ElSelect(v-model="form.floor_id" :disabled="!form.building_id")
     │   ElFormItem(label="单元") → ElSelect(v-model="form.unit_id" :disabled="!form.floor_id")
     │
+    ├── ── 关联合同（仅 inspection 类型显示）──
+    │   ElFormItem(v-if="form.work_order_type === 'inspection'" label="关联合同")
+    │   → ElSelect(v-model="form.contract_id" filterable)
+    │
     ├── ElFormItem(label="问题描述") → ElInput(type="textarea" :rows="5")
-    ├── ElFormItem(label="问题类型") → ElSelect(水电/空调/门窗/网络/保洁/其他)
+    ├── ElFormItem(label="问题类型") → ElSelect(:options="issueTypeOptions") // 选项根据 work_order_type 动态切换
     ├── ElFormItem(label="紧急程度") → ElRadioGroup(一般/紧急/非常紧急)
     │
     ├── ElFormItem(label="现场照片")
@@ -2100,14 +2135,21 @@ WorkorderFormView
 workorders/new.vue
 └── scroll-view(scroll-y)
     └── wd-form(ref="formRef" :model="form")
+        ├── ── 工单类型（从路由参数读取或手动选择）──
+        │   wd-radio-group(label="工单类型" v-model="form.work_order_type" :disabled="typeFromRoute")
+        │     // repair=报修, complaint=投诉, inspection=退租验房
+        │
         ├── ── 位置选择 ──
         │   wd-picker(label="楼栋" :columns="buildings" v-model="form.building_id")
         │   wd-picker(label="楼层" :columns="floors" v-model="form.floor_id")
         │   wd-picker(label="单元" :columns="units" v-model="form.unit_id")
         │   // 扫码场景: 以上三项已预填，只读显示
         │
+        ├── ── 关联合同（仅 inspection 类型显示）──
+        │   wd-picker(v-if="form.work_order_type === 'inspection'" label="关联合同" :columns="contracts" v-model="form.contract_id")
+        │
         ├── wd-textarea(label="问题描述" v-model="form.description" :maxlength="500")
-        ├── wd-picker(label="问题类型" :columns="categories" v-model="form.category")
+        ├── wd-picker(label="问题类型" :columns="issueTypeOptions" v-model="form.category") // 选项根据 work_order_type 动态切换
         ├── wd-radio-group(label="紧急程度" v-model="form.priority")
         │
         ├── ── 照片上传 ──

@@ -21,7 +21,7 @@
 
 | 顺序 | 文件名建议 | 主要内容 |
 |------|-----------|---------|
-| 001 | 001_create_enums.sql | property_type、contract_status（默认值 `quoting`）、invoice_status、work_order_status、**sublease_review_status**（含 `draft`）、**deposit_status**、**termination_type**、**meter_type**、**reading_cycle**、**turnover_approval_status**、**import_data_type**、**import_rollback_status**、**credit_rating** 等 ENUM |
+| 001 | 001_create_enums.sql | property_type、contract_status（默认值 `quoting`）、invoice_status、work_order_status、**work_order_type**（`repair`/`complaint`/`inspection`）、**sublease_review_status**（含 `draft`）、**deposit_status**、**termination_type**、**meter_type**、**reading_cycle**、**turnover_approval_status**、**import_data_type**、**import_rollback_status**、**credit_rating** 等 ENUM |
 | 002 | 002_create_users_and_audit.sql | users、audit_logs、job_execution_logs、**refresh_tokens** |
 | 003 | 003_create_assets.sql | buildings、floors、**floor_plans**（多版本图纸）、units（含 `market_rent_reference`、`predecessor_unit_ids`、`archived_at`）、renovation_records |
 | 004 | 004_create_contracts.sql | tenants（含信用评级字段、`data_retention_until`）、contracts（含 `tax_inclusive`、`applicable_tax_rate`、终止字段）、**contract_units**（M:N 中间表）、contract_attachments、rent_escalation_phases、**escalation_templates**（递增规则模板）、alerts（含 `target_user_id`） |
@@ -51,6 +51,7 @@ v1.7 新增：
 
 | ENUM | 值 |
 |------|----|
+| `work_order_type` | `repair`, `complaint`, `inspection` |
 | `deposit_status` | `collected`, `frozen`, `partially_credited`, `refunded` |
 | `termination_type` | `normal_expiry`, `tenant_early_exit`, `mutual_agreement`, `owner_termination` |
 | `meter_type` | `water`, `electricity`, `gas` |
@@ -193,6 +194,8 @@ CHECK: `current_reading > previous_reading`
 
 > `work_orders.expense_id` 列已移除：成本关联通过 `expenses.work_order_id` 反向查询即可，无需在工单表保留冗余外键。
 
+> `work_orders` 表新增 `work_order_type`（ENUM `work_order_type`）列、`contract_id`（FK → contracts）列、`deposit_deduction_suggestion`（NUMERIC）列、`follow_up_work_order_id`（UUID）列。新增索引 `idx_workorders_type` 和 `idx_workorders_contract`。
+
 ### 10. 二房东穿透
 
 `subleases` 迁移必须支持以下字段：
@@ -266,7 +269,7 @@ CHECK: `direction IN ('positive', 'negative')`
 
 | 检查项 | 验证方式 |
 |--------|---------|
-| ENUM 完整（含 v1.7 新增 8 个） | `\dT+` 或 schema diff |
+| ENUM 完整（含 v1.7 新增 9 个） | `\dT+` 或 schema diff |
 | contract_units M:N 关联正确 | 插入 contract + 2 个 contract_units 验证 JOIN |
 | 押金状态流转正确 | 插入 deposit + transactions 验证状态流 |
 | 水电抄表 CHECK 约束 | 尝试插入 current_reading < previous_reading，期望 CHECK violation |
@@ -298,7 +301,7 @@ CHECK: `direction IN ('positive', 'negative')`
 
 | 变更项 | 影响迁移文件 |
 |--------|------------|
-| 新增 8 个 ENUM 类型 | 001 |
+| 新增 9 个 ENUM 类型（含 `work_order_type`） | 001 |
 | units 新增 3 列（market_rent_reference, predecessor_unit_ids, archived_at）| 003 |
 | tenants 新增信用评级 4 列 | 004 |
 | contracts 新增含税/终止字段 6 列 | 004 |

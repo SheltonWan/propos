@@ -280,8 +280,8 @@
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
-| GET | /api/workorders | 工单分页列表 | workorders.read |
-| POST | /api/workorders | 创建工单 | workorders.write |
+| GET | /api/workorders | 工单分页列表（支持 `work_order_type` 筛选：`repair` / `complaint` / `inspection`） | workorders.read |
+| POST | /api/workorders | 创建工单（需指定 `work_order_type`，默认 `repair`） | workorders.write |
 | GET | /api/workorders/:id | 工单详情 | workorders.read |
 | PATCH | /api/workorders/:id/approve | 审核/派单 | workorders.write |
 | PATCH | /api/workorders/:id/reject | 拒绝工单（需填写原因，仅限 `submitted` 或 `pending_inspection` 状态） | workorders.write |
