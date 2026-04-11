@@ -667,10 +667,12 @@ DashboardView
         │   │   └── ElTimelineItem(v-for="alert in alerts")
         │   └── ElLink("查看全部预警" → /settings/alerts)
         └── ElCol(:span="12") → ElCard(header="快捷操作")
-            ├── ElButton("新建合同" → /contracts/new)
-            ├── ElButton("提交报修" → /workorders/new)
-            ├── ElButton("录入收款" → /finance/invoices)
-            └── ElButton("抄表录入" → /finance/meter-readings/new)
+            ├── ElButton("新建合同" → /contracts/new)           [contracts.write]
+            ├── ElButton("提交报修" → /workorders/new)          [workorders.write]
+            ├── ElButton("录入收款" → /finance/invoices)        [finance.write]
+            ├── ElButton("查看账单" → /finance/invoices)        [finance.read]
+            ├── ElButton("资产查询" → /assets)                  [assets.read]
+            └── ElButton("KPI 考核" → /finance/kpi)            [kpi.view]
 ```
 
 #### uni-app 组件树：
@@ -678,29 +680,46 @@ DashboardView
 ```
 dashboard/index.vue
 └── scroll-view(scroll-y)
-    ├── ── 核心指标（2×2 网格，L1 NOI 概览层）──
+    ├── ── Header（问候语 + 日期 + 铃铛 + 头像）──
+    │   view.header
+    │   ├── text "你好，{user.name}"
+    │   ├── text "{M月D日 ddd}"
+    │   ├── wd-icon(name="notification") + badge(红点)
+    │   └── avatar(@click → /profile)
+    │
+    ├── ── 核心指标（2×2 网格，L1 概览层，RBAC 自适应）──
     │   view.metric-grid
-    │   ├── MetricCard("总出租率", "87.5%")
-    │   ├── MetricCard("当月 NOI", "¥1,234,567", subtitle: "Margin 67.2% ↑2.1%")
-    │   ├── MetricCard("WALE(收入)", "2.35 年")
-    │   └── MetricCard("收款率", "94.8%")
+    │   ├── MetricCard("综合出租率", "89.2%", trend: "↑2.1%")           ← 全角色可见
+    │   ├── MetricCard("当月 NOI / 收款率 / 在租合同")                   ← SA/OM=NOI, LS/FS=收款率, FL=在租合同
+    │   ├── MetricCard("WALE(收入)", "3.2 年")                          ← 全角色可见
+    │   └── MetricCard("收款率 / WALE(面积) / 空置房源")                 ← SA/OM=收款率, LS/FS=WALE(面积), FL=空置数
+    │   注: 每角色始终显示 4 个卡片，通过 RBAC 规则自适应填充
     │
     ├── ── 三业态分拆（横向滚动卡片）──
-    │   scroll-view(scroll-x)
-    │   ├── PropertyTypeCard("写字楼")
-    │   ├── PropertyTypeCard("商铺")
-    │   └── PropertyTypeCard("公寓")
+    │   scroll-view(scroll-x, snap-x)
+    │   ├── PropertyTypeCard("写字楼", 441套, 已租400, 空置41, 90.7%)
+    │   ├── PropertyTypeCard("商铺", 25套, 已租23, 空置2, 92.0%)
+    │   └── PropertyTypeCard("公寓", 173套, 已租147, 空置26, 85.0%)
     │
-    ├── ── 预警列表（最多 5 条）──
-    │   wd-card(title="最近预警")
-    │   ├── wd-cell(v-for="alert in alerts")
-    │   └── wd-button(type="text" @click="toAlerts") "查看全部"
+    ├── ── 运营预警（3 条，移除空置项）── [alerts.read]
+    │   wd-card(title="运营预警")
+    │   ├── wd-cell("合同即将到期", 5份, severity=danger)
+    │   ├── wd-cell("逾期账单", 3笔 ¥66,500, severity=danger)
+    │   └── wd-cell("工单超时未处理", 2单, severity=warning)
     │
-    └── ── 快捷操作 ──
-        view.action-grid
-        ├── ActionCard("新建合同" → /pages/contracts/detail?mode=new)
-        ├── ActionCard("提交报修" → /pages/workorders/new)
-        └── ActionCard("录入收款" → /pages/finance/invoices)
+    ├── ── 快捷操作（6 项，3列网格，按权限过滤）──
+    │   view.action-grid(cols=3)
+    │   ├── ActionCard("新建合同" → /pages/contracts/detail?mode=new)  [contracts.write]
+    │   ├── ActionCard("提交报修" → /pages/workorders/new)             [workorders.write]
+    │   ├── ActionCard("录入收款" → /pages/finance/invoices)           [finance.write]
+    │   ├── ActionCard("查看账单" → /pages/finance/invoices)           [finance.read]
+    │   ├── ActionCard("资产查询" → /pages/assets/index)               [assets.read]
+    │   └── ActionCard("KPI 考核" → /pages/finance/kpi)               [kpi.view]
+    │
+    └── ── 待办任务（5 条，按权限过滤）──
+        wd-card(title="待办任务")
+        ├── TaskItem(v-for="task in tasks")
+        └── wd-button(type="text") "查看全部"
 ```
 
 ### 4.2 NOI 明细页 `NoiDetailView`（L2 看板层 + L3 明细下钻）
