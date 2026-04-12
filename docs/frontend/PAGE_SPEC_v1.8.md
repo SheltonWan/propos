@@ -93,9 +93,11 @@ AppLayout
 │       ├── ElSubMenu(index: /finance) → "财务管理"
 │       │   ├── ElMenuItem(index: /finance) → "财务总览"
 │       │   ├── ElMenuItem(index: /finance/invoices) → "账单管理"
+│       │   ├── ElMenuItem(index: /finance/deposits) → "押金管理"
 │       │   ├── ElMenuItem(index: /finance/expenses) → "费用支出"
 │       │   ├── ElMenuItem(index: /finance/meter-readings) → "水电抄表"
-│       │   └── ElMenuItem(index: /finance/turnover-reports) → "营业额申报"
+│       │   ├── ElMenuItem(index: /finance/turnover-reports) → "营业额申报"
+│       │   └── ElMenuItem(index: /finance/noi-budget) → "NOI 预算"
 │       ├── ElMenuItem(index: /workorders) → "工单管理" 🔧
 │       ├── ElMenuItem(index: /subleases) → "二房东管理" 🏘️
 │       └── ElSubMenu(index: /settings) → "系统设置"
@@ -155,8 +157,10 @@ routes: [
       { path: 'finance/expenses/new', name: 'expense-new', component: ExpenseFormView },
       { path: 'finance/meter-readings', name: 'meter-readings', component: MeterReadingListView },
       { path: 'finance/meter-readings/new', name: 'meter-reading-new', component: MeterReadingFormView },
+      { path: 'finance/deposits', name: 'deposits', component: DepositListView },
       { path: 'finance/turnover-reports', name: 'turnover-reports', component: TurnoverReportListView },
       { path: 'finance/turnover-reports/:id', name: 'turnover-detail', component: TurnoverReportDetailView },
+      { path: 'finance/noi-budget', name: 'noi-budget', component: NoiBudgetView },
       { path: 'finance/kpi', name: 'kpi', component: KpiView },
       { path: 'finance/kpi/scheme/:schemeId', name: 'kpi-scheme-detail', component: KpiSchemeDetailView },
       { path: 'workorders', name: 'workorders', component: WorkordersView },
@@ -1753,12 +1757,14 @@ finance/index.vue
     ├── ── 快捷入口 ──
     │   view.action-grid
     │   ├── ActionCard("账单" → /pages/finance/invoices)
+    │   ├── ActionCard("账单" → /pages/finance/invoices)
     │   ├── ActionCard("KPI" → /pages/finance/kpi)
-    │   └── ActionCard("抄表" → 抄表功能)
+    │   ├── ActionCard("抄表" → /pages/finance/meter-readings)
+    │   └── ActionCard("营业额申报" → /pages/finance/turnover-reports)
     │
     └── ── 逾期提醒 ──
         wd-card(title="逾期账单")
-        └── wd-cell(v-for="invoice in overdueList" is-link)
+        └── wd-cell(v-for="invoice in overdueList" is-link @click="toInvoice(invoice.id)")
 ```
 
 ### 7.2 账单列表页
@@ -1799,6 +1805,28 @@ InvoicesView
             └── ElButton(link type="danger") "作废"
 ```
 
+#### uni-app 组件树：
+
+```
+finance/invoices.vue
+└── view
+    ├── ── 筛选栏 ──
+    │   scroll-view(scroll-x)
+    │   └── wd-tag(v-for="status in statusOptions"
+    │           :type="activeStatus === status.value ? 'primary' : 'default'"
+    │           @click="filterByStatus(status.value)")
+    │       // 全部 / 已出账 / 逾期 / 已核销
+    │
+    └── ── 账单列表 ──
+        wd-list(loading-text="加载中" finished-text="没有更多了")
+        └── wd-cell(v-for="invoice in list" is-link
+                @click="toDetail(invoice.id)")
+            ├── title: invoice.invoice_number
+            ├── label: "{{ invoice.tenant_name }} · {{ invoice.billing_period }}"
+            ├── icon-slot: StatusTag(:status="invoice.status")
+            └── value: "¥{{ invoice.total_amount }}"
+```
+
 ### 7.3 账单详情页
 
 **Admin**: `InvoiceDetailView.vue`  
@@ -1827,6 +1855,16 @@ InvoiceDetailView
     ├── ── 核销记录 ──
     │   ElCard(header="收款核销记录")
     │   └── ElTable: 收款日期 | 收款方式 | 核销金额 | 操作人
+    │
+    ├── ── 催收记录 ──
+    │   ElCard(header="催收记录")
+    │   └── ElTable(:data="dunningLogs")
+    │       ├── ElTableColumn(label="催收时间") → dayjs 格式化
+    │       ├── ElTableColumn(label="催收节点") "第 1/7/15 天"
+    │       ├── ElTableColumn(label="渠道") "短信/邮件"
+    │       ├── ElTableColumn(label="接收方") invoice.tenant_name
+    │       └── ElTableColumn(label="送达状态") → ElTag(delivered/failed)
+    │           // 数据来源: GET /api/invoices/:id/dunning-logs
     │
     └── ── 操作按钮 ──
         ElSpace
@@ -1874,24 +1912,51 @@ PaymentFormView
 **Store**: `useMeterReadingFormStore`  
 **API**: `POST /api/meter-readings`
 
+> 支持两种录入模式：**租户独立分表**（一个单元一条记录）和**公区总表分摊**（公共区域总用量按面积比例摊至各租户，系统自动生成多条分摊记录）。
+
 #### Admin 组件树：
 
 ```
 MeterReadingFormView
 └── ElForm(:model="form" :rules="rules" label-width="120px")
-    ├── ElFormItem(label="单元") → ElSelect(filterable remote :remote-method="searchUnits")
-    ├── ElFormItem(label="表计类型") → ElSelect(水表/电表/燃气表)
-    ├── ElFormItem(label="抄表周期") → ElDatePicker(type="month")
-    ├── ElRow(:gutter="24")
-    │   ├── ElCol(:span="12") → ElFormItem("上期读数") → ElInput(disabled, 自动填充)
-    │   └── ElCol(:span="12") → ElFormItem("本期读数") → ElInputNumber
+    ├── ── 录入模式切换 ──
+    │   ElRadioGroup(v-model="form.mode")
+    │   ├── ElRadioButton(label="unit") "租户独立表"
+    │   └── ElRadioButton(label="common") "公区总表分摊"
     │
-    ├── ── 费用预览 ──
-    │   ElCard(header="费用预览")
-    │   ├── ElText "用量: {{ current - previous }} 度"
-    │   ├── ElText "单价: ¥{{ tier1Price }}/度"
-    │   ├── ElText "阶梯部分: {{ excess }} 度 × ¥{{ tier2Price }}"
-    │   └── ElStatistic(title="合计费用" :value="total" prefix="¥")
+    ├── ── 模式A：租户独立表 (v-if="form.mode === 'unit'") ──
+    │   ├── ElFormItem(label="单元") → ElSelect(filterable remote :remote-method="searchUnits")
+    │   ├── ElFormItem(label="表计类型") → ElSelect(水表/电表/燃气表)
+    │   ├── ElFormItem(label="抄表周期") → ElDatePicker(type="month")
+    │   ├── ElRow(:gutter="24")
+    │   │   ├── ElCol(:span="12") → ElFormItem("上期读数") → ElInput(disabled, 自动填充)
+    │   │   └── ElCol(:span="12") → ElFormItem("本期读数") → ElInputNumber
+    │   │
+    │   └── ── 费用预览 ──
+    │       ElCard(header="费用预览")
+    │       ├── ElText "用量: {{ current - previous }} 度"
+    │       ├── ElText "单价: ¥{{ tier1Price }}/度"
+    │       ├── ElText "阶梯部分: {{ excess }} 度 × ¥{{ tier2Price }}"
+    │       └── ElStatistic(title="合计费用" :value="total" prefix="¥")
+    │
+    ├── ── 模式B：公区总表分摊 (v-if="form.mode === 'common'") ──
+    │   ├── ElFormItem(label="公区名称") → ElInput "如：A座公区/B座走廊"
+    │   ├── ElFormItem(label="表计类型") → ElSelect(水表/电表)
+    │   ├── ElFormItem(label="抄表周期") → ElDatePicker(type="month")
+    │   ├── ElRow(:gutter="24")
+    │   │   ├── ElCol(:span="12") → ElFormItem("上期读数") → ElInput(disabled)
+    │   │   └── ElCol(:span="12") → ElFormItem("本期读数") → ElInputNumber
+    │   │
+    │   └── ── 分摊预览 ──
+    │       ElCard(header="分摊预览（按计费面积比例）")
+    │       ├── ElText "公区总用量: {{ total }} 度  单价: ¥{{ price }}/度"
+    │       └── ElTable(:data="allocationPreview")
+    │           ├── ElTableColumn(label="单元")
+    │           ├── ElTableColumn(label="计费面积 m²")
+    │           ├── ElTableColumn(label="分摊比例")
+    │           └── ElTableColumn(label="应分摊金额")
+    │           // API: GET /api/meter-readings/common-allocation-preview
+    │           // 自动生成各租户分摊账单
     │
     └── ElButton(type="primary" :loading="submitting") "确认提交"
 ```
@@ -2030,6 +2095,79 @@ MeterReadingListView
         ├── ElTableColumn(label="费用")
         ├── ElTableColumn(label="账单状态") → StatusTag
         └── ElTableColumn(label="操作") [详情] [编辑](仅未生成账单时)
+```
+
+### 7.10 押金台账页
+
+**Admin**: `DepositListView.vue`  
+**路由**: `/finance/deposits`  
+**Store**: `useDepositListStore`  
+**API**: `GET /api/deposits`
+
+#### Admin 组件树：
+
+```
+DepositListView
+└── div
+    ├── ── 汇总卡片 ──
+    │   ElRow(:gutter="24")
+    │   ├── MetricCard("押金总额", "¥xxx", subtitle: "所有在租合同")
+    │   ├── MetricCard("冻结中", "¥xxx", type="warning")
+    │   └── MetricCard("本月应退", "¥xxx", subtitle: "合同终止前7天", type="danger")
+    │
+    ├── ── 筛选栏 ──
+    │   ElForm(inline)
+    │   ├── ElSelect "状态: 全部/已收取/冻结中/部分冲抵/已退还"
+    │   ├── ElInput "租户/合同搜索"
+    │   └── ElDatePicker(type="daterange") "收取日期范围"
+    │
+    └── ProposTable
+        ├── ElTableColumn(label="合同编号")
+        ├── ElTableColumn(label="租户")
+        ├── ElTableColumn(label="押金金额")
+        ├── ElTableColumn(label="当前余额")
+        ├── ElTableColumn(label="状态") → StatusTag
+        ├── ElTableColumn(label="收取日期")
+        └── ElTableColumn(label="操作")
+            └── ElButton(link) "查看流水" → ElDrawer 侧滑展示流水
+                // 流水表格: 时间 | 类型(收取/冻结/冲抵/退还) | 金额 | 余额 | 操作人 | 原因
+```
+
+### 7.11 NOI 预算管理页
+
+**Admin**: `NoiBudgetView.vue`  
+**路由**: `/finance/noi-budget`  
+**Store**: `useNoiBudgetStore`  
+**API**: `GET /api/noi/budget` + `POST /api/noi/budget` + `POST /api/noi/budget/import`
+
+> 录入年度 NOI 预算值，作为 KPI 指标 K07（NOI 达成率）和 NOI 明细页预算对比线的数据基准。
+
+#### Admin 组件树：
+
+```
+NoiBudgetView
+└── div
+    ├── ── 年份选择 + 操作 ──
+    │   ElRow(justify="space-between")
+    │   ├── ElDatePicker(v-model="year" type="year" format="YYYY年")
+    │   └── ElSpace
+    │       ├── ElButton(icon="Upload") "Excel 导入"
+    │           → ElUpload(accept=".xlsx,.xls" action="/api/noi/budget/import")
+    │       └── ElButton(type="primary" icon="Check") "保存"
+    │
+    ├── ── 预算录入表格（按楼栋×业态）──
+    │   ElText(type="info") "单位：元 / 月；系统自动汇总全年"
+    │   ElTable(:data="budgetRows" border)
+    │   ├── ElTableColumn(label="楼栋/业态" fixed)
+    │   ├── ElTableColumn(label="1月") → ElInputNumber(v-model inline-edit)
+    │   ├── ElTableColumn(label="2月") → ElInputNumber inline
+    │   ├── ... (3月~12月)
+    │   └── ElTableColumn(label="全年合计", :formatter 自动求和 disabled)
+    │   // 行：A座-写字楼 / 商铺区-商铺 / 公寓楼-公寓 / 合计
+    │
+    └── ── 历年预算对比 ── (只读)
+        ElCard(header="历年预算 vs 实际 NOI")
+        └── ECharts(type: bar, xAxis: 年份, series: [预算NOI, 实际NOI])
 ```
 
 ---
