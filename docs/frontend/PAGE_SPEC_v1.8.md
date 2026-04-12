@@ -699,11 +699,12 @@ dashboard/index.vue
     │   └── MetricCard("收款率 / WALE(面积) / 空置房源")                 ← SA/OM=收款率, LS/FS=WALE(面积), FL=空置数
     │   注: 每角色始终显示 4 个卡片，通过 RBAC 规则自适应填充
     │
-    ├── ── 三业态分拆（横向滚动卡片）──
-    │   scroll-view(scroll-x, snap-x)
-    │   ├── PropertyTypeCard("写字楼", 441套, 已租400, 空置41, 90.7%)
-    │   ├── PropertyTypeCard("商铺", 25套, 已租23, 空置2, 92.0%)
-    │   └── PropertyTypeCard("公寓", 173套, 已租147, 空置26, 85.0%)
+    ├── ── 三业态概览（垂直紧凑面板行，同屏全显）──
+    │   div.rounded-2xl.border(divide-y)
+    │   ├── PropertyTypePanelRow("写字楼", 441套, 已租400, 空置41, 90.7%, barColor=#3B82F6)
+    │   ├── PropertyTypePanelRow("商铺", 25套, 已租23, 空置2, 92.0%, barColor=#F59E0B)
+    │   └── PropertyTypePanelRow("公寓", 173套, 已租147, 空置26, 85.0%, barColor=#8B5CF6)
+    │   注: 不横向滚动，3行同屏，便于管理层并列对比
     │
     ├── ── 运营预警（3 条，移除空置项）── [alerts.read]
     │   wd-card(title="运营预警")
