@@ -1742,30 +1742,64 @@ FinanceView
         └── ElProgress(:percentage="89.5" :stroke-width="20")
 ```
 
-#### uni-app 组件树：
+#### uni-app 组件树（角色差异化四视图）：
+
+> 财务页根据登录用户角色渲染完全独立的视图，各视图共用 `Header` 结构但 Header 背景色、内容卡片、功能入口均不同。**参照原型实现：`frontend/src/app/pages/Finance.tsx`，详见 `FINANCE_ROLE_ADAPTIVE_DESIGN.md`**。
 
 ```
 finance/index.vue
 └── scroll-view(scroll-y)
-    ├── ── 汇总卡片（L1 概览级）──
-    │   view.metric-grid
-    │   ├── MetricCard("本月应收", "¥2,345,678")
-    │   ├── MetricCard("本月实收", "¥2,100,000")
-    │   ├── MetricCard("收款率", "89.5%")
-    │   └── MetricCard("NOI", "¥1,234,567", subtitle: "Margin 67.2%")
+    └── [v-if 角色分支]
+
+    ── 管理层视图（super_admin / operations_manager）──
+    │   ├── Header（深蓝渐变 #0f2645→#1a3a5c，标题"财务概览·经营看板"）
+    │   ├── NOISummaryCard（→ /finance/noi-detail）
+    │   ├── WALESummaryCard（→ /finance/wale-detail）
+    │   ├── RevenueSnapshotCard
+    │   ├── SectionLabel "核心待办"
+    │   ├── wd-grid(col-num="2")
+    │   │   ├── FeaturedCard（KPI 申诉 🔴 角标）
+    │   │   └── FeaturedCard（逾期账单 🔴 角标）
+    │   ├── SecondaryIconRow（费用/水电/押金/营业额 4 入口）
+    │   └── OverdueSection（逾期账单 Top 5）
     │
-    ├── ── 快捷入口 ──
-    │   view.action-grid
-    │   ├── ActionCard("账单" → /pages/finance/invoices)
-    │   ├── ActionCard("账单" → /pages/finance/invoices)
-    │   ├── ActionCard("KPI" → /pages/finance/kpi)
-    │   ├── ActionCard("抄表" → /pages/finance/meter-readings)
-    │   └── ActionCard("营业额申报" → /pages/finance/turnover-reports)
+    ── 财务专员视图（finance_staff）──
+    │   ├── Header（深绿渐变 #064e3b→#065f46，标题"今日待处理"，右上角 🔴 圆钮）
+    │   ├── SectionLabel "今日任务"
+    │   ├── wd-grid(col-num="2")
+    │   │   ├── FeaturedCard（账单核销 🔴×5 → /finance/invoices）
+    │   │   └── FeaturedCard（水电审核 🟡×2 → /finance/meter-readings）
+    │   ├── SecondaryIconRow（费用/押金/营业额/NOI预算 4 入口）
+    │   └── OverdueSection（逾期账单 Top 5）
     │
-    └── ── 逾期提醒 ──
-        wd-card(title="逾期账单")
-        └── wd-cell(v-for="invoice in overdueList" is-link @click="toInvoice(invoice.id)")
+    ── 租务专员视图（leasing_specialist）──
+    │   ├── Header（蓝色渐变 #1a3a5c→#2a5298，标题"租务财务"）
+    │   ├── SectionLabel "我的事项"
+    │   ├── wd-grid(col-num="2")
+    │   │   ├── FeaturedCard（押金管理 → /finance/deposits）
+    │   │   └── FeaturedCard（营业额申报 → /finance/turnover-reports）
+    │   ├── SecondaryIconRow（水电/账单/KPI 3 入口）
+    │   └── CompactCollectionWidget（收款进度条 + 已收/应收统计）
+    │
+    ── 前线员工视图（frontline_staff，默认分支）──
+        ├── Header（深琥珀渐变 #78350f→#92400e，标题"水电录入"，右上角 🟡 圆钮）
+        ├── SectionLabel "待录入"
+        ├── FeaturedCard — 全宽（水电录入 🟡×2 → /finance/meter-readings/new）
+        └── SecondaryIconRow（账单查看/KPI 2 入口）
 ```
+
+**共用子组件清单**：
+
+| 组件 | 说明 |
+|------|------|
+| `SectionLabel` | 彩色竖条 + 区块标题 |
+| `FeaturedCard` | 图标 + 角标 + 2 行摘要 + CTA 链接 |
+| `SecondaryIconRow` | 小图标横排，含可选 🔴/🟡 角标 |
+| `CompactCollectionWidget` | 进度条 + 已收/应收（仅租务专员视图）|
+| `NOISummaryCard` | 深色 NOI 摘要卡（仅管理层视图）|
+| `WALESummaryCard` | 深色 WALE 摘要卡（仅管理层视图）|
+| `RevenueSnapshotCard` | 收入快报卡（仅管理层视图）|
+| `OverdueSection` | 逾期账单 Top 5 列表（管理层 / 财务专员视图）|
 
 ### 7.2 账单列表页
 

@@ -47,7 +47,7 @@
 | 资产 M1 | 房源详情 | `UnitDetail.tsx` | 覆盖 |
 | 合同 M2 | 合同列表 | `Contracts.tsx` | 12 个模板 + 多房间录入 + 递增规则配置 — **超出规格** |
 | 合同 M2 | 合同详情 | `ContractDetail.tsx` | 覆盖 |
-| 财务 M3 | 财务总览 | `Finance.tsx` | NOI 摘要卡 + 趋势图 + 功能入口 — **完整** |
+| 财务 M3 | 财务总览 | `Finance.tsx` | **角色差异化四视图**：管理层（深蓝）/ 财务专员（深绿）/ 租务专员（蓝）/ 前线员工（琥珀），各视图独立 Header、数据卡与操作入口 — **完整** |
 | 财务 M3 | 账单管理 | `Invoices.tsx` | 覆盖 |
 | 财务 M3 | KPI 考核 | `KPIDashboard.tsx` | 指标明细 + 排名 + 申诉期 — **完整** |
 | 财务 M3 | NOI 看板 | `NOIDashboard.tsx` | 业态分拆 + 楼栋分析 + OpEx 明细 — **高质量** |
@@ -68,9 +68,9 @@
 | 修改密码弹窗 | Admin | PAGE_WIREFRAMES §2.3 | 🟡 |
 | 二房东详情 | 移动端 | PAGE_SPEC §九 | 🟡 |
 | 外部填报 Web 门户（3 页） | 独立 Web | PAGE_SPEC §九 | 🟡 M5 二房东自报未演示 |
-| 费用支出 | 移动端 | Finance.tsx `path: null` | 🟡 已有入口但点击无反应 |
-| 水电抄表 | 移动端 | Finance.tsx `path: null` | 🟡 已有入口但点击无反应 |
-| 营业额申报 | 移动端 | Finance.tsx `path: null` | 🟡 已有入口但点击无反应 |
+| 费用支出 | 移动端 | Finance.tsx（租务专员 / 管理层视图） | ✅ 已通过角色差异化重构解决，各角色视图按需展示对应功能入口 |
+| 水电抄表 | 移动端 | Finance.tsx（前线员工 / 财务专员视图） | ✅ 已通过角色差异化重构解决，前线员工视图以大卡片前置水电录入 |
+| 营业额申报 | 移动端 | Finance.tsx（租务专员视图） | ✅ 已通过角色差异化重构解决，租务专员视图二级入口直达 |
 | 资产批量导入 | Admin | PAGE_SPEC §五 | 🟡 |
 | 系统设置各子模块 | Admin | PAGE_SPEC §十 | 🟡 |
 | 合同终止 / 续约表单 | Admin | PAGE_SPEC §六 | 🟡 |
@@ -91,19 +91,15 @@
 
 ---
 
-### R4 — Finance 功能入口空路径静默失效【已修复】
+### R4 — Finance 功能入口空路径静默失效【已修复 — 方案升级】
 
-**位置**: `frontend/src/app/pages/Finance.tsx` — `FunctionGrid` 组件
+**位置**: `frontend/src/app/pages/Finance.tsx`
 
-**描述**: 「财务概览」页「功能入口」Tab 中，「费用支出」「水电抄表」「营业额申报」三个入口的 `path` 字段为 `null`。当前处理方式：
-```ts
-onClick={() => entry.path && navigate(entry.path)}
-```
-点击后无任何用户反馈，仅以 `opacity-60` 视觉灰化提示。在演示或真实使用中，用户无法得知该功能是否存在或状态。
+**原描述**: 「功能入口」`FunctionGrid` 组件中「费用支出」「水电抄表」「营业额申报」三个入口的 `path` 字段为 `null`，点击无响应。
 
-**修复方案**: 引入 `sonner` toast（已在 `package.json` 中声明），点击空路径时弹出提示「该功能正在建设中，敬请期待」，并在 `App.tsx` 添加 `<Toaster>` 挂载点。
+**实际修复方案（已升级）**: 彻底删除 `FunctionGrid` 和 `FUNCTION_ENTRIES` 静态配置，重构为**角色差异化四视图独立渲染**。每个角色视图按职责精准展示功能入口且全部接通真实路由，不再存在空路径入口问题，同时消除了单一布局下的信息噪音。
 
-**优先级**: 🟡 用户体验
+**优先级**: ✅ 已完全解决（方案优于原 Toast 提示修复）
 
 ---
 
@@ -111,15 +107,11 @@ onClick={() => entry.path && navigate(entry.path)}
 
 **位置**: `frontend/src/app/pages/Finance.tsx`
 
-**描述**: `NOIDashboard`（`/noi`）和 `WALEDashboard`（`/wale`）在 `Layout.tsx` 的 `HIDE_TAB_PATTERNS` 中被列为隐藏 TabBar 的二级页，两者均不在 TabBar 中直接可达。现状：
-- NOI 看板：Finance 页有 `NOISummaryCard` 卡片，点击可跳转 ✅
-- **WALE 看板：Finance 页无任何入口**，用户无法自主发现 ❌
+**描述**: `WALEDashboard`（`/wale`）之前在 Finance 页无任何入口，用户无法自主发现。
 
-`WALEDashboard` 是核心财务指标展示页，PAGE_SPEC 将其定义为财务模块核心功能。
+**实际修复方案**: 管理层视图（`super_admin` / `operations_manager`）中，Finance 页顶部依次展示 `NOISummaryCard`（→ `/dashboard/noi-detail`）、`WALESummaryCard`（→ `/wale`）、`RevenueSnapshotCard`，三张深色卡片连续排布，WALE 看板可达性问题完全解决。其他角色视图因职责不包含 WALE 指标，不展示此卡片。
 
-**修复方案**: 在 Finance 页 `NOISummaryCard` 之后插入 `WALESummaryCard`，与 NOI 卡片采用一致的深色卡片样式，点击导航至 `/wale`。
-
-**优先级**: 🟡 功能可达性
+**优先级**: ✅ 已完全解决
 
 ---
 
@@ -141,8 +133,8 @@ onClick={() => entry.path && navigate(entry.path)}
 | 序号 | 问题 | 文件 | 优先级 | 状态 |
 |------|------|------|--------|------|
 | 1 | R3：PDF 删除确认 | `Contracts.tsx` | P1 | ✅ 已修复 |
-| 2 | R4：空路径 Toast 反馈 | `Finance.tsx` + `App.tsx` | P1 | ✅ 已修复 |
-| 3 | R5：WALE 看板导航入口 | `Finance.tsx` | P1 | ✅ 已修复 |
+| 2 | R4：空路径入口问题 | `Finance.tsx`（角色差异化四视图重构） | P1 | ✅ 已修复（方案升级为四视图，彻底消除空路径） |
+| 3 | R5：WALE 看板导航入口 | `Finance.tsx`（管理层视图 `WALESummaryCard`） | P1 | ✅ 已修复 |
 | 4 | A1-A6：架构层问题 | app/ + admin/ | P2 | ⏳ 待 app/admin 建设阶段处理 |
 
 ---

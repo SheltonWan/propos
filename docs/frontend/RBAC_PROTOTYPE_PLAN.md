@@ -177,11 +177,20 @@
 - 新建工单: SA/OM/FL（`workorders.write`）
 - 派单/验收: SA/OM（`workorders.write` + 管理权限）
 
-#### Step 11: Finance.tsx 角色化
-- 整页: SA/OM/FS（FL 无权限，页面不可达）
-- LS: 可见但隐藏 NOI 卡片、仅展示关联账单入口
-- NOI 入口: 仅 SA/OM
-- 账单操作按钮: SA/FS（`finance.write`）
+#### Step 11: Finance.tsx 角色化【已完成 — 升级为四视图独立渲染】
+
+> **实际实现**：Finance.tsx 未采用单布局局部条件渲染，而是按角色分支渲染完全独立的视图，实现零信息噪音体验。
+
+| 角色 | 视图 | Header 色 | 核心内容 |
+|------|------|----------|--------|
+| `super_admin` / `operations_manager` | 管理层视图 | 深蓝 `#0f2645` | NOI + WALE + 收入快报 + KPI/账单大卡 + 逾期列表 |
+| `finance_staff` | 财务专员视图 | 深绿 `#064e3b` | 今日待处理 7（账单×5 + 水电×2）+ 逾期列表 |
+| `leasing_specialist` | 租务专员视图 | 蓝色 `#1a3a5c` | 押金 + 营业额 + 收款进度组件 |
+| `frontline_staff` | 前线员工视图 | 深琥珀 `#78350f` | 极简水电录入单卡 + 账单查看/KPI 二级入口 |
+
+- **FL（frontline_staff）**：页面可达，展示极简前线视图（非不可达）
+- **LS**：完整视图，包含押金 / 营业额申报 / 收款进度，无 NOI 卡片
+- **NOI / WALE 入口**：仅管理层视图展示，技术实现为 `role === 'super_admin' \|\| role === 'operations_manager'` 分支
 
 #### Step 12: Profile.tsx 角色切换
 - 顶部显示当前 Mock 用户信息（名称、角色、工号）

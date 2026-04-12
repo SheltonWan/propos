@@ -83,27 +83,29 @@
 **Layout.tsx** 改动：
 - `HIDE_TAB_PATTERNS` 增加：`/finance/.*`、`/profile`、`/contracts/.*`、`/work-orders/.*`、`/tenants/.*`、`/subleases`
 
-#### Step 2: 新增财务一级页面 Finance.tsx
+#### Step 2: 新增财务一级页面 Finance.tsx【已完成 — 角色差异化四视图】
 
-页面结构（4 个区域）：
+> **实际实现升级**：Finance.tsx 已基于角色差异化需求，从原计划的单一布局升级为**四视图独立渲染**架构，详见 `FINANCE_ROLE_ADAPTIVE_DESIGN.md`。
 
-1. **指标卡区**（2×2 Grid）
-   - 本月应收 ¥2,345,678
-   - 本月实收 ¥2,100,000
-   - 收款率 89.5%
-   - NOI ¥1,234,567（Margin 67.2%）
+**四视图结构**：
 
-2. **功能入口格**（Grid）
-   - 📋 账单管理 → `/finance/invoices`
-   - 💰 费用支出
-   - ⚡ 水电抄表
-   - 📊 KPI 考核 → `/finance/kpi`
-   - 🏪 营业额申报
+1. **管理层视图**（`super_admin` / `operations_manager`，深蓝 Header）
+   - `NOISummaryCard` → `/dashboard/noi-detail`
+   - `WALESummaryCard` → `/wale`
+   - `RevenueSnapshotCard`
+   - 2 大功能卡（KPI 🔴申诉提醒 / 账单 🔴逾期提醒）+ 4 二级图标入口
+   - `OverdueSection` 逾期账单 Top 5
 
-3. **逾期账单 Top 列表**
-   - 租户 / 单元 / 费项 / 金额 / 逾期天数
+2. **财务专员视图**（`finance_staff`，深绿 Header，今日待处理 🔴7）
+   - 2 任务卡（账单核销 🔴5 / 水电审核 🟡2）+ 4 二级图标入口
+   - `OverdueSection` 逾期账单 Top 5
 
-4. **收款进度条** 89.5%
+3. **租务专员视图**（`leasing_specialist`，蓝色 Header）
+   - 2 功能卡（押金管理 / 营业额申报）+ 3 二级图标入口
+   - `CompactCollectionWidget`（收款进度）
+
+4. **前线员工视图**（`frontline_staff`，深琥珀 Header，水电待录入 🟡2）
+   - 1 全宽水电录入大卡 + 2 二级图标入口（账单查看 / KPI）
 
 #### Step 3: Profile 降级为 L2
 
