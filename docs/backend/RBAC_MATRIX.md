@@ -337,3 +337,35 @@
 4. **数据范围过滤**: 非 `super_admin` / `report_viewer` 角色按 `user_managed_scopes` 配置过滤数据，优先级：个人范围 > 部门默认范围；`report_viewer` 全局只读无需范围限制
 5. **审计日志**: 所有写操作（POST/PATCH/PUT/DELETE）触发 `audit_logs` 记录
 6. **二房东端点隔离**: `/api/portal/*` 端点独立路由组，仅 `sub_landlord` 可访问，其他角色 403
+
+---
+
+## 七、前端页面映射（v2.1 新增）
+
+> 详细的页面-角色可见性矩阵请参见 `docs/frontend/PAGE_ROLE_VISIBILITY_MATRIX.md`。
+
+### 7.1 API 权限 → 前端页面路由对照
+
+| API 权限 | 前端路由（不可达时重定向 `/`） |
+|---------|----------------------------|
+| `assets.read` | `/assets`, `/assets/:id`, `/assets/:id/:floor`, `/assets/:id/:floor/:unitId` |
+| `contracts.read` | `/contracts`, `/contracts/:id`, `/tenants/:id` |
+| `contracts.write` | `/contracts/escalation-templates` |
+| `finance.read` | `/finance`, `/finance/invoices`, `/finance/payments`, `/finance/revenue-detail`, `/finance/turnover-reports`, `/finance/deposits` |
+| `finance.write` | `/finance/noi-budget`, `/finance/expenses/new`, `/finance/invoices/:id/pay` |
+| `workorders.read` | `/work-orders`, `/work-orders/:id`, `/work-orders/cost-report`（需 `finance.read`） |
+| `sublease.read` | `/subleases`, `/subleases/analytics` |
+| `kpi.view` | `/finance/kpi` |
+| `kpi.manage` | `/finance/kpi/schemes`, `/finance/kpi/schemes/*` |
+| `meterReading.write` | `/finance/meter-readings`, `/finance/meter-readings/new` |
+
+### 7.2 前端数据分级与整区域隐藏
+
+前端采用**整区域隐藏**策略（不使用 `***` 脱敏），分 4 个数据级别：
+
+| 级别 | 内容 | 不可见角色 | 前端 helper |
+|------|------|-----------|------------|
+| L1 公开 | 楼栋名/单元号/状态 | — | 无需门控 |
+| L2 业务 | 出租率%/合同数量/KPI 得分 | MS (仅工单域) | `hasPermission(role, 'assets.read')` |
+| L3 财务 | ¥ 金额/NOI/收款率 | PI, MS | `canViewFinancialData(role)` |
+| L4 敏感 | 证件号/手机号 | PI, RV, MS | `canViewPII(role)` |

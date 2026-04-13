@@ -1,16 +1,20 @@
 # React 原型角色权限分视图实施方案
 
-> **版本**: v2.0
+> **版本**: v3.0
 > **日期**: 2026-04-13
-> **依据**: PRD v1.7（二、用户角色与权限矩阵）/ RBAC_MATRIX v2.0 / ROLE_EXPANSION_PLAN v1.0
+> **依据**: PRD v1.7 / RBAC_MATRIX v2.0 / PAGE_ROLE_VISIBILITY_MATRIX v1.0
 > **范围**: React 原型（`frontend/`），mock 角色切换，不含真实后端鉴权
-> **变更**: v2.0 — 角色从 5 个内部角色扩展至 7 个内部角色（新增 `maintenance_staff`、`property_inspector`、`report_viewer`）
+> **变更**:
+> - v3.0 — 采用**整区域隐藏**策略替代字段级 `***` 脱敏；补全 30+ 页面的角色适配；新增 `canViewFinancialData` / `canViewPII` helper；ROUTE_RULES 从 13 条扩展至 28 条
+> - v2.0 — 角色从 5 个扩展至 7 个内部角色（新增 `maintenance_staff`、`property_inspector`、`report_viewer`）
 
 ---
 
 ## 一、目标
 
-在 React 原型中实现**页面级 / 功能级 / 字段级**三层权限控制，覆盖 7 个内部角色，通过 Profile 页角色切换器演示不同角色体验。排除二房东（`sub_landlord`）。
+在 React 原型中实现**页面级 / 功能级**两层权限控制（整区域隐藏），覆盖 7 个内部角色、30+ 页面，通过 Profile 页角色切换器演示不同角色体验。排除二房东（`sub_landlord`）。
+
+> **v3.0 策略变更**: 放弃 `<MaskedField>` 字段级脱敏（`***`），改为**整区域隐藏**——无权限时隐藏整个卡片/区域/列，不渲染 DOM 节点。唯一例外：TenantDetail 证件号/手机号保留后端脱敏展示（`****1234`）。
 
 ---
 
@@ -68,16 +72,43 @@
 
 ---
 
-## 四、三层权限控制架构
+## 四、两层权限控制架构（v3.0 整区域隐藏）
 
 ```
-┌──────────────────────────────────────┐
-│  Layer 1: 路由守卫 (Page-level)      │ ← 无权限 → 重定向首页
-├──────────────────────────────────────┤
-│  Layer 2: <Can> 门控 (Feature-level) │ ← 无权限 → 不渲染该区块
-├──────────────────────────────────────┤
-│  Layer 3: <MaskedField> (Field-level)│ ← 无权限 → 显示 ***
-└──────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  Layer 1: 路由守卫 (Page-level)                       │ ← 无权限 → 重定向首页
+│  ROUTE_RULES[] + isRouteAllowed() + Layout.tsx guard  │
+├──────────────────────────────────────────────────────┤
+│  Layer 2: 整区域隐藏 (Section-level)                  │ ← 无权限 → 不渲染 DOM
+│  <Can> 门控 + helper 函数条件渲染                      │
+└──────────────────────────────────────────────────────┘
+```
+
+> **v3.0 变更**: 移除 Layer 3 `<MaskedField>`（字段级 `***` 脱敏）。无权限时整块隐藏，不显示占位符。
+> 唯一例外：TenantDetail 证件号/手机号保留后端已脱敏的 `****1234` 格式。
+
+### 新增 Helper 函数
+
+| Helper | 判断逻辑 | 隐藏对象 |
+|--------|---------|---------|
+| `canViewFinancialData(role)` | `role !== 'property_inspector' && role !== 'maintenance_staff'` | 所有 ¥ 金额区域 |
+| `canViewPII(role)` | `['super_admin','operations_manager','finance_staff','leasing_specialist'].includes(role)` | 证件号/手机号/联系方式 |
+| `canAccessGlobalNOI(role)` | SA/OM/RV 返回 true | 已有，不变 |
+| `canViewContractAmounts(role)` | `role !== 'property_inspector'` | 已有，不变 |
+
+### 隐藏实现模式
+
+```tsx
+// 1. 整区域隐藏（条件渲染）
+{canViewFinancialData(role) && <FinancialInfoCard />}
+
+// 2. 操作按钮门控
+<Can permission="contracts.write"><Button>新建合同</Button></Can>
+
+// 3. 列表列隐藏
+const columns = baseColumns.filter(col => 
+  col.key !== 'amount' || canViewFinancialData(role)
+);
 ```
 
 ---
@@ -177,7 +208,8 @@
 #### Step 9: Contracts.tsx 角色化
 - 列表查看: 有 `contracts.read` 的角色（SA/OM/LS/FS/PI/RV），MS 无权限
 - 新建合同按钮: SA/OM/LS（`contracts.write`）
-- 金额字段: PI 显示 `***`（`<MaskedField>`）； RV 可见金额但 PII 脱敏
+- 金额列: PI 时整列隐藏（`canViewContractAmounts`），不显示 `***`
+- PII 列: RV 时隐藏联系方式列（`canViewPII`）
 
 #### Step 10: WorkOrders.tsx 角色化
 - 列表: SA/OM/LS/MS/PI（FS 和 RV 无权限，页面不可达）
@@ -251,3 +283,52 @@
 | `WorkOrders.tsx` | 新建/派单按钮权限 |
 | `Finance.tsx` | LS 限制 + NOI 门控 |
 | `Profile.tsx` | 角色切换器 + 信息展示 |
+
+---
+
+## 八、页面级可见性规则（v3.0 新增）
+
+> 详细的页面-角色矩阵请参见 **[PAGE_ROLE_VISIBILITY_MATRIX.md](PAGE_ROLE_VISIBILITY_MATRIX.md)**。
+
+本节为摘要索引：
+
+### 8.1 数据分级
+
+- **L1 公开**: 楼栋名/单元号/状态 → 所有角色可见
+- **L2 业务**: 出租率%/合同数/KPI 得分 → MS 仅工单域
+- **L3 财务**: ¥ 金额/NOI/收款率 → PI/MS 不可见
+- **L4 敏感**: 证件号/手机号 → 仅 SA/OM/FS/LS
+
+### 8.2 页面覆盖总计
+
+| 模块 | 页面数 | 需加固页面 |
+|------|--------|-----------|
+| Dashboard | 2 | Home |
+| Assets | 4 | Assets, BuildingFloors, FloorPlan, UnitDetail |
+| Contracts | 4 | Contracts, ContractDetail, EscalationTemplates, TenantDetail |
+| Finance | 14 | Invoices, InvoiceDetail, PaymentList/Form, MeterReading×2, Expense×2, Turnover, Deposit, NoiBudget, CostReport, RevenueDetail |
+| Analytics | 5 | NOIDashboard, WALEDashboard, KPIDashboard, KPISchemes, KPISchemeForm |
+| WorkOrders | 3 | WorkOrders, WorkOrderDetail, Suppliers |
+| Subleases | 2 | Subleases, SubleasePenetration |
+| **合计** | **34** | **30+** |
+
+### 8.3 ROUTE_RULES 补全
+
+当前 13 条 → 补全至 28 条，新增 15 条规则（完整清单见 MATRIX §5）。
+
+---
+
+## 九、验收基线
+
+逐一切换 7 个 Mock 角色，验证：
+
+1. **路由守卫**: MS 不可达 `/assets`、`/contracts`；PI 不可达 `/finance`；RV 不可达 `/work-orders`
+2. **Tab 可见性**: MS 仅见 总览+工单；PI 不见 财务
+3. **整区域隐藏关键场景**:
+   - ContractDetail 月租金 → PI 时整个财务卡片消失
+   - UnitDetail 月租金 → PI/MS 时租金信息卡片消失
+   - FloorPlan NOI 图层 → PI/MS 时图层选项灰色不可点
+   - KPIDashboard 全员排名 → 非 SA/OM 时排名区域消失
+   - WorkOrderDetail 费用分解 → PI/MS 时费用卡片消失
+4. **零 console error**: 切换角色后无报错
+5. **零闪烁**: 无先渲染后隐藏的视觉跳动
