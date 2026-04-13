@@ -1,15 +1,16 @@
 # React 原型角色权限分视图实施方案
 
-> **版本**: v1.0
-> **日期**: 2026-04-11
-> **依据**: PRD v1.7（二、用户角色与权限矩阵）/ RBAC_MATRIX v1.0
+> **版本**: v2.0
+> **日期**: 2026-04-13
+> **依据**: PRD v1.7（二、用户角色与权限矩阵）/ RBAC_MATRIX v2.0 / ROLE_EXPANSION_PLAN v1.0
 > **范围**: React 原型（`frontend/`），mock 角色切换，不含真实后端鉴权
+> **变更**: v2.0 — 角色从 5 个内部角色扩展至 7 个内部角色（新增 `maintenance_staff`、`property_inspector`、`report_viewer`）
 
 ---
 
 ## 一、目标
 
-在 React 原型中实现**页面级 / 功能级 / 字段级**三层权限控制，覆盖 5 个内部角色，通过 Profile 页角色切换器演示不同角色体验。排除二房东（`sub_landlord`）。
+在 React 原型中实现**页面级 / 功能级 / 字段级**三层权限控制，覆盖 7 个内部角色，通过 Profile 页角色切换器演示不同角色体验。排除二房东（`sub_landlord`）。
 
 ---
 
@@ -21,7 +22,9 @@
 | `operations_manager` | 运营管理层 | 业务决策 + 审批 | 李经理（工号 10086） |
 | `leasing_specialist` | 租务专员 | 合同 + 租客日常操作 | 王专员（工号 20031） |
 | `finance_staff` | 财务人员 | 财务收支 + 核销 | 赵会计（工号 30012） |
-| `frontline_staff` | 前线员工 | 工单提报 + 只读查询 | 陈师傅（工号 40005） |
+| `maintenance_staff` | 维修技工 | 工单接派 + 水电抄表 | 陈师傅（工号 40005） |
+| `property_inspector` | 楼管巡检员 | 资产查看 + 巡检登记 | 周楼管（工号 40010） |
+| `report_viewer` | 只读观察者 | 报表查看（投资人/审计） | 钱投资（工号 50001） |
 
 默认角色：`operations_manager`（李经理）
 
@@ -31,34 +34,37 @@
 
 完整权限字符串 21 个，按模块分组：
 
-| 权限字符串 | 含义 | SA | OM | LS | FS | FL |
-|-----------|------|:--:|:--:|:--:|:--:|:--:|
-| `assets.read` | 查看资产 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `assets.write` | 编辑资产 | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `contracts.read` | 查看合同 | ✅ | ✅ | ✅ | ✅ | ✅¹ |
-| `contracts.write` | 编辑合同 | ✅ | ✅ | ✅ | ❌ | ❌ |
-| `deposit.read` | 查看押金 | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `deposit.write` | 编辑押金 | ✅ | ✅ | ❌ | ✅ | ❌ |
-| `finance.read` | 查看财务 | ✅ | ✅ | ✅² | ✅ | ❌ |
-| `finance.write` | 编辑财务 | ✅ | ❌ | ❌ | ✅ | ❌ |
-| `kpi.view` | 查看 KPI | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `kpi.manage` | 管理 KPI | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `workorders.read` | 查看工单 | ✅ | ✅ | ✅ | ❌ | ✅ |
-| `workorders.write` | 编辑工单 | ✅ | ✅ | ❌ | ❌ | ✅ |
-| `sublease.read` | 查看子租赁 | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `sublease.write` | 编辑子租赁 | ✅ | ✅ | ✅ | ❌ | ❌ |
-| `alerts.read` | 查看预警 | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `alerts.write` | 处理预警 | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `ops.read` | 查看运维 | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `ops.write` | 编辑运维 | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `org.read` | 查看组织 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `org.manage` | 管理组织 | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `import.execute` | 执行导入 | ✅ | ✅ | ✅³ | ✅³ | ❌ |
+| 权限字符串 | 含义 | SA | OM | LS | FS | MS | PI | RV |
+|-----------|------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| `assets.read` | 查看资产 | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| `assets.write` | 编辑资产 | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `contracts.read` | 查看合同 | ✅ | ✅ | ✅ | ✅ | ❌ | ✅¹ | ✅² |
+| `contracts.write` | 编辑合同 | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `deposit.read` | 查看押金 | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `deposit.write` | 编辑押金 | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `finance.read` | 查看财务 | ✅ | ✅ | ✅³ | ✅ | ❌ | ❌ | ✅ |
+| `finance.write` | 编辑财务 | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `kpi.view` | 查看 KPI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `kpi.manage` | 管理 KPI | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `kpi.appeal` | 提交申诉 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `meterReading.write` | 水电抄表 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `workorders.read` | 查看工单 | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| `workorders.write` | 编辑工单 | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `sublease.read` | 查看子租赁 | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `sublease.write` | 编辑子租赁 | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `alerts.read` | 查看预警 | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `alerts.write` | 处理预警 | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ops.read` | 查看运维 | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ops.write` | 编辑运维 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `org.read` | 查看组织 | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| `org.manage` | 管理组织 | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `import.execute` | 执行导入 | ✅ | ✅ | ✅⁴ | ✅⁴ | ❌ | ❌ | ❌ |
 
 **注释**:
-1. FL 的 `contracts.read` 限制为只读租客基本信息 + 合同摘要，**不可查看财务金额字段**
-2. LS 的 `finance.read` 限制为仅查看关联账单，**不可查看全局 NOI 报表**
-3. LS 仅可执行租务导入，FS 仅可执行财务导入
+1. PI 的 `contracts.read` 限制为仅查看租客基本信息（姓名、房号），**不可查看财务金额字段**
+2. RV 的 `contracts.read` 限制为不可查看租客敏感信息（证件号、手机号等 PII）
+3. LS 的 `finance.read` 限制为仅查看关联账单，**不可查看全局 NOI 报表**
+4. LS 仅可执行租务导入，FS 仅可执行财务导入
 
 ---
 
@@ -89,7 +95,7 @@
 - **文件**: `frontend/src/app/auth/permissions.ts`
 - **内容**:
   - `ROLE_PERMISSIONS`: `Record<Role, Permission[]>` 严格按 RBAC 矩阵
-  - `MOCK_USERS`: 5 个预定义用户
+  - `MOCK_USERS`: 7 个预定义用户（排除 sub_landlord）
   - `hasPermission(role, permission)` 判定函数
   - `TAB_PERMISSIONS`: Tab 可见性映射
   - `ROUTE_PERMISSIONS`: 路由权限映射
@@ -118,13 +124,13 @@
 - **文件**: `frontend/src/app/components/BottomTabBar.tsx`
 - **修改**: 根据 `TAB_PERMISSIONS` 过滤不可见 Tab
 
-| Tab | 所需权限 | SA | OM | LS | FS | FL |
-|-----|---------|:--:|:--:|:--:|:--:|:--:|
-| 总览 | — (所有人可见) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 资产 | `assets.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 合同 | `contracts.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 工单 | `workorders.read` | ✅ | ✅ | ✅ | ❌ | ✅ |
-| 财务 | `finance.read` | ✅ | ✅ | ✅² | ✅ | ❌ |
+| Tab | 所需权限 | SA | OM | LS | FS | MS | PI | RV |
+|-----|---------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| 总览 | — (所有人可见) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 资产 | `assets.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| 合同 | `contracts.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| 工单 | `workorders.read` | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| 财务 | `finance.read` | ✅ | ✅ | ✅³ | ✅ | ❌ | ❌ | ✅ |
 
 #### Step 6: 路由守卫
 - **文件**: `frontend/src/app/Layout.tsx`
@@ -132,50 +138,52 @@
 
 | 路由模式 | 所需权限 | 被阻断角色 |
 |---------|---------|-----------|
-| `/noi` | `finance.read`（限 SA/OM） | LS, FS, FL |
-| `/wale` | `contracts.read` | — |
-| `/finance/**` | `finance.read` | FL |
+| `/noi` | `finance.read`（限 SA/OM/RV） | LS, FS, MS, PI |
+| `/wale` | `contracts.read` | MS |
+| `/finance/**` | `finance.read` | MS, PI |
 | `/finance/kpi` | `kpi.view` | — |
-| `/work-orders/**` | `workorders.read` | FS |
-| `/subleases` | `sublease.read` | FL |
-| `/contracts/**` | `contracts.read` | — |
-| `/assets/**` | `assets.read` | — |
+| `/work-orders/**` | `workorders.read` | FS, RV |
+| `/subleases` | `sublease.read` | MS, PI, RV |
+| `/contracts/**` | `contracts.read` | MS |
+| `/assets/**` | `assets.read` | MS |
 
-> 注: `/noi` 路由虽然 LS 有 `finance.read`，但其权限限制为"仅关联账单"，NOI 全局报表不可见，因此特殊阻断。
+> 注: `/noi` 路由虽然 LS 有 `finance.read`，但其权限限制为“仅关联账单”，NOI 全局报表不可见，因此特殊阻断。`report_viewer` 可访问 NOI （只读）。
 
 ### Phase C: 页面适配（修改 6 个页面）
 
 #### Step 7: Home.tsx 角色化
 
-| 区块 | 所需权限 | SA | OM | LS | FS | FL |
-|------|---------|:--:|:--:|:--:|:--:|:--:|
-| Header（标题 + 搜索） | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 核心概览卡（出租率 hero） | `assets.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 核心概览卡（财务条） | `finance.read` | ✅ | ✅ | ✅² | ✅ | ❌ |
-| 运营预警 AlertRadar | `alerts.read` | ✅ | ✅ | ✅ | ✅ | ❌ |
-| 常用应用 — 资产登记 | `assets.write` | ✅ | ✅ | ❌ | ❌ | ❌ |
-| 常用应用 — 合同录入 | `contracts.write` | ✅ | ✅ | ✅ | ❌ | ❌ |
-| 常用应用 — 查看账单 | `finance.read` | ✅ | ✅ | ✅² | ✅ | ❌ |
-| 常用应用 — 报修派单 | `workorders.write` | ✅ | ✅ | ❌ | ❌ | ✅ |
-| 常用应用 — 财务总览 | `finance.read` | ✅ | ✅ | ❌ | ✅ | ❌ |
-| 常用应用 — 续租管理 | `contracts.write` | ✅ | ✅ | ✅ | ❌ | ❌ |
-| 常用应用 — 异常预警 | `alerts.read` | ✅ | ✅ | ✅ | ✅ | ❌ |
-| WALE 摘要 | `contracts.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 待办任务 | — (按类型过滤) | 全部 | 全部 | 合同+子租赁 | 财务 | 工单 |
+| 区块 | 所需权限 | SA | OM | LS | FS | MS | PI | RV |
+|------|---------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| Header（标题 + 搜索） | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 核心概览卡（出租率 hero） | `assets.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| 核心概览卡（财务条） | `finance.read` | ✅ | ✅ | ✅³ | ✅ | ❌ | ❌ | ✅ |
+| 运营预警 AlertRadar | `alerts.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| 常用应用 — 资产登记 | `assets.write` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 常用应用 — 合同录入 | `contracts.write` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| 常用应用 — 查看账单 | `finance.read` | ✅ | ✅ | ✅³ | ✅ | ❌ | ❌ | ✅ |
+| 常用应用 — 报修派单 | `workorders.write` | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| 常用应用 — 财务总览 | `finance.read` | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ |
+| 常用应用 — 续租管理 | `contracts.write` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| 常用应用 — 异常预警 | `alerts.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| WALE 摘要 | `contracts.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| 待办任务 | — (按类型过滤) | 全部 | 全部 | 合同+子租赁 | 财务 | 工单 | 巡检+工单 | 无 |
 
 #### Step 8: Assets.tsx 角色化
-- 所有角色可查看（`assets.read` 全角色拥有）
+- 有 `assets.read` 的角色可查看（SA/OM/LS/FS/PI/RV），MS 无权限，页面不可达
 - 编辑/导入按钮仅 SA/OM 可见（`assets.write`）
+- RV 可查看但无任何操作按钮
 
 #### Step 9: Contracts.tsx 角色化
-- 列表查看: 所有角色（FL 脱敏金额字段）
+- 列表查看: 有 `contracts.read` 的角色（SA/OM/LS/FS/PI/RV），MS 无权限
 - 新建合同按钮: SA/OM/LS（`contracts.write`）
-- 金额字段: FL 显示 `***`（`<MaskedField>`）
+- 金额字段: PI 显示 `***`（`<MaskedField>`）； RV 可见金额但 PII 脱敏
 
 #### Step 10: WorkOrders.tsx 角色化
-- 列表: SA/OM/LS/FL（FS 无权限，页面不可达）
-- 新建工单: SA/OM/FL（`workorders.write`）
+- 列表: SA/OM/LS/MS/PI（FS 和 RV 无权限，页面不可达）
+- 新建工单: SA/OM/MS（`workorders.write`）
 - 派单/验收: SA/OM（`workorders.write` + 管理权限）
+- PI 只读查看工单列表，无操作按钮
 
 #### Step 11: Finance.tsx 角色化【已完成 — 升级为四视图独立渲染】
 
@@ -186,16 +194,21 @@
 | `super_admin` / `operations_manager` | 管理层视图 | 深蓝 `#0f2645` | NOI + WALE + 收入快报 + KPI/账单大卡 + 逾期列表 |
 | `finance_staff` | 财务专员视图 | 深绿 `#064e3b` | 今日待处理 7（账单×5 + 水电×2）+ 逾期列表 |
 | `leasing_specialist` | 租务专员视图 | 蓝色 `#1a3a5c` | 押金 + 营业额 + 收款进度组件 |
-| `frontline_staff` | 前线员工视图 | 深琥珀 `#78350f` | 极简水电录入单卡 + 账单查看/KPI 二级入口 |
+| `maintenance_staff` | 维修技工视图 | 深琥珀 `#78350f` | 极简水电录入单卡 + 账单查看/KPI 二级入口 |
+| `property_inspector` | 楼管巡检视图 | 深青 `#134e4a` | 资产概览卡 + 水电抄表 + 工单只读列表 + 租客基本信息 |
+| `report_viewer` | 只读观察视图 | 深紫 `#3b0764` | NOI + WALE + 出租率 + KPI 概览（全只读，零操作按钮） |
 
-- **FL（frontline_staff）**：页面可达，展示极简前线视图（非不可达）
+- **MS（maintenance_staff）**：仅可达工单和总览，财务页不可达，展示极简水电录入 + 工单视图
+- **PI（property_inspector）**：可达资产/合同（只读）/工单（只读），展示巡检视图 + 水电抄表 + 租客基本信息
+- **RV（report_viewer）**：可达资产/合同/财务（全只读），展示 NOI + WALE + KPI 概览，零操作按钮
 - **LS**：完整视图，包含押金 / 营业额申报 / 收款进度，无 NOI 卡片
-- **NOI / WALE 入口**：仅管理层视图展示，技术实现为 `role === 'super_admin' \|\| role === 'operations_manager'` 分支
+- **NOI / WALE 入口**：管理层视图 + RV 只读视图展示，技术实现为 `['super_admin', 'operations_manager', 'report_viewer'].includes(role)` 分支
 
 #### Step 12: Profile.tsx 角色切换
 - 顶部显示当前 Mock 用户信息（名称、角色、工号）
 - 新增「演示角色切换」区块:
-  - 5 个角色按钮，当前角色高亮
+  - 7 个角色按钮，当前角色高亮
+  - 按辑排列：SA → OM → LS → FS → MS → PI → RV
   - 标注「演示功能」提示
   - 切换后自动刷新页面权限
 - 菜单项按权限过滤:

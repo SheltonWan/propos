@@ -103,12 +103,14 @@ CREATE TYPE unit_decoration AS ENUM ('blank', 'simple', 'refined', 'raw');
 
 -- 用户角色
 CREATE TYPE user_role AS ENUM (
-    'super_admin',        -- 超级管理员
-    'operations_manager', -- 运营管理层
-    'leasing_specialist', -- 租务专员
-    'finance_staff',      -- 财务人员
-    'frontline_staff',    -- 前线员工
-    'sub_landlord'        -- 二房东
+    'super_admin',         -- 超级管理员
+    'operations_manager',  -- 运营管理层
+    'leasing_specialist',  -- 租务专员
+    'finance_staff',       -- 财务人员
+    'maintenance_staff',   -- 维修技工（原 frontline_staff 拆分）
+    'property_inspector',  -- 楼管巡检员（v2.0 新增）
+    'report_viewer',       -- 只读观察者（投资人/审计，v2.0 新增）
+    'sub_landlord'         -- 二房东
 );
 
 -- 租客类型

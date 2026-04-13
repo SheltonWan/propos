@@ -526,10 +526,12 @@ router.beforeEach((to) => {
 
 | 角色 | uni-app 可访问 Tab | Admin 可访问路由 |
 |------|------------------|----------------|
-| `super_admin` / `ops_manager` | 全部 5 Tab | 全部路由 |
-| `leasing_agent` | 资产 / 合同 / 工单 | assets / contracts / workorders |
+| `super_admin` / `operations_manager` | 全部 5 Tab | 全部路由 |
+| `leasing_specialist` | 资产 / 合同 / 工单 | assets / contracts / workorders |
 | `finance_staff` | 财务 / 合同（只读） | finance / contracts（只读） |
-| `frontline` | 工单 / 资产（只读） | workorders |
+| `maintenance_staff` | 工单 | workorders |
+| `property_inspector` | 资产（只读）/ 工单（只读） | assets（只读）/ workorders（只读） |
+| `report_viewer` | 资产 / 财务 / 合同（全只读） | assets / finance / contracts（只读） |
 | `sub_landlord` | 二房东门户（`subleases/`） | 不开放 Admin |
 
 > 角色在登录后从 JWT Claims 解析写入 Pinia `useAuthStore`；uni-app 守卫读取 store 中的 `role` 字段；Admin `router.beforeEach` 读取 `localStorage.access_token`，完整角色鉴权委托给后端 RBAC 中间件。
@@ -667,13 +669,30 @@ const Map<UserRole, Set<Permission>> rolePermissions = {
     Permission.orgRead,
   },
 
-  UserRole.frontline: {
-    Permission.assetsRead,
-    Permission.tenantsRead,     // 只读，不含证件号
+  UserRole.maintenanceStaff: {
     Permission.workOrderCreate,
     Permission.workOrderRead,
     Permission.workOrderComplete,
+    Permission.meterReadingWrite,
     Permission.kpiAppealSubmit,
+  },
+
+  UserRole.propertyInspector: {
+    Permission.assetsRead,
+    Permission.tenantsRead,     // 只读，不含证件号
+    Permission.workOrderRead,
+    Permission.meterReadingWrite,
+    Permission.kpiAppealSubmit,
+    Permission.orgRead,
+  },
+
+  UserRole.reportViewer: {
+    Permission.assetsRead,
+    Permission.contractsRead,
+    Permission.financeRead,
+    Permission.kpiSchemeView,
+    Permission.subleaseRead,
+    Permission.alertsRead,
     Permission.orgRead,
   },
 

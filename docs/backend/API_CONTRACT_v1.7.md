@@ -75,7 +75,7 @@
 | `id` | string(uuid) | 用户 ID |
 | `name` | string | 姓名 |
 | `email` | string | 邮箱 |
-| `role` | string(enum) | 角色：`super_admin` / `operations_manager` / `leasing_specialist` / `finance_staff` / `frontline_staff` / `sub_landlord` |
+| `role` | string(enum) | 角色：`super_admin` / `operations_manager` / `leasing_specialist` / `finance_staff` / `maintenance_staff` / `property_inspector` / `report_viewer` / `sub_landlord` |
 | `department_id` | string(uuid)? | 所属部门 ID |
 | `must_change_password` | boolean | 是否需要强制改密（二房东首次登录） |
 
@@ -4145,7 +4145,7 @@ Content-Disposition: attachment; filename="import_errors_{batch_id}.xlsx"
 | `property_type` | `office` / `retail` / `apartment` |
 | `unit_status` | `leased` / `vacant` / `expiring_soon` / `non_leasable` |
 | `unit_decoration` | `blank` / `simple` / `refined` / `raw` |
-| `user_role` | `super_admin` / `operations_manager` / `leasing_specialist` / `finance_staff` / `frontline_staff` / `sub_landlord` |
+| `user_role` | `super_admin` / `operations_manager` / `leasing_specialist` / `finance_staff` / `maintenance_staff` / `property_inspector` / `report_viewer` / `sub_landlord` |
 | `tenant_type` | `corporate` / `individual` |
 | `contract_status` | `quoting` / `pending_sign` / `active` / `expiring_soon` / `expired` / `renewed` / `terminated` |
 | `escalation_type` | `fixed_rate` / `fixed_amount` / `step` / `cpi` / `periodic` / `base_after_free_period` |

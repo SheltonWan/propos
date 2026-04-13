@@ -1,9 +1,10 @@
 # PropOS RBAC 权限矩阵（角色 × 端点级映射）
 
-> **版本**: v1.0  
-> **日期**: 2026-04-08  
-> **依据**: PRD v1.7（二、用户角色与权限矩阵）/ API_INVENTORY v1.7 / ARCH v1.2  
+> **版本**: v2.0  
+> **日期**: 2026-04-13  
+> **依据**: PRD v1.7（二、用户角色与权限矩阵）/ API_INVENTORY v1.7 / ARCH v1.2 / ROLE_EXPANSION_PLAN v1.0  
 > **用途**: 后端 RBAC 中间件实现参考；权限审计基线  
+> **变更**: v2.0 — 角色体系从 6 个扩展至 8 个（新增 `property_inspector`、`report_viewer`；`frontline_staff` 更名为 `maintenance_staff`）
 
 ---
 
@@ -15,10 +16,17 @@
 | `operations_manager` | 运营管理层 | 业务决策 + 审批 | 管辖范围内数据 |
 | `leasing_specialist` | 租务专员 | 合同 + 租客日常操作 | 管辖范围内数据 |
 | `finance_staff` | 财务人员 | 财务收支 + 核销 | 全部财务数据 |
-| `frontline_staff` | 前线员工 | 工单提报 + 只读查询 | 管辖范围内数据 |
+| `maintenance_staff` | 维修技工 | 工单接派 + 水电抄表 | 管辖范围内工单 |
+| `property_inspector` | 楼管巡检员 | 巡检登记 + 资产查看 | 管辖楼栋/楼层 |
+| `report_viewer` | 只读观察者 | 报表查看（投资人/审计） | 全部只读数据 |
 | `sub_landlord` | 二房东 | 自身子租赁填报 | 仅自身 `bound_contract_id` 范围 |
 
-> **数据范围说明**: `管辖范围内数据` 指通过 `user_managed_scopes` 配置的楼栋/楼层范围；`sub_landlord` 的数据隔离在 Repository 层实现行级过滤。
+> **数据范围说明**: `管辖范围内数据` 指通过 `user_managed_scopes` 配置的楼栋/楼层范围；`sub_landlord` 的数据隔离在 Repository 层实现行级过滤；`report_viewer` 可查看全局只读数据但不可访问 PII（证件号/手机号）。
+>
+> **v1.0 → v2.0 变更说明**:
+> - `frontline_staff` **已更名**为 `maintenance_staff`，仅保留工单操作 + 抄表权限
+> - **新增** `property_inspector`（楼管巡检员）：资产查看 + 抄表 + 工单只读 + 租客基本信息
+> - **新增** `report_viewer`（只读观察者）：全局 NOI/WALE/出租率报表 + 资产/合同摘要，零 write 权限
 
 ---
 
@@ -60,38 +68,39 @@
 
 ✅ = 拥有　❌ = 无权限
 
-| 权限字符串 | super_admin | operations_manager | leasing_specialist | finance_staff | frontline_staff | sub_landlord |
-|-----------|:-----------:|:-----------------:|:-----------------:|:------------:|:--------------:|:------------:|
-| `org.read` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `org.manage` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `assets.read` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `assets.write` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `contracts.read` | ✅ | ✅ | ✅ | ✅ | ✅¹ | ❌ |
-| `contracts.write` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `deposit.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| `deposit.write` | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| `finance.read` | ✅ | ✅ | ✅² | ✅ | ❌ | ❌ |
-| `finance.write` | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `kpi.view` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `kpi.manage` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `kpi.appeal` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `meterReading.write` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `turnoverReview.approve` | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| `workorders.read` | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
-| `workorders.write` | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
-| `sublease.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| `sublease.write` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `sublease.portal` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| `alerts.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| `alerts.write` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `ops.read` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `ops.write` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `import.execute` | ✅ | ✅ | ✅³ | ✅³ | ❌ | ❌ |
+| 权限字符串 | super_admin | operations_manager | leasing_specialist | finance_staff | maintenance_staff | property_inspector | report_viewer | sub_landlord |
+|-----------|:-----------:|:-----------------:|:-----------------:|:------------:|:----------------:|:-----------------:|:------------:|:------------:|
+| `org.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| `org.manage` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `assets.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| `assets.write` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `contracts.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅¹ | ✅² | ❌ |
+| `contracts.write` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `deposit.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| `deposit.write` | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `finance.read` | ✅ | ✅ | ✅³ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| `finance.write` | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `kpi.view` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `kpi.manage` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `kpi.appeal` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `meterReading.write` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `turnoverReview.approve` | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `workorders.read` | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| `workorders.write` | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `sublease.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| `sublease.write` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `sublease.portal` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `alerts.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| `alerts.write` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ops.read` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `ops.write` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `import.execute` | ✅ | ✅ | ✅⁴ | ✅⁴ | ❌ | ❌ | ❌ | ❌ |
 
 **注释**:
-1. `frontline_staff` 的 `contracts.read` 限制为只读查看租客基本信息 + 关联合同摘要，不可查看财务金额字段
-2. `leasing_specialist` 的 `finance.read` 限制为仅查看与自身管辖合同关联的账单，不可查看全局 NOI 报表
-3. `leasing_specialist` 和 `finance_staff` 仅可执行各自领域的导入（租务导入合同/单元，财务导入账单）
+1. `property_inspector` 的 `contracts.read` 限制为仅查看租客基本信息（姓名、房号），不可查看财务金额字段
+2. `report_viewer` 的 `contracts.read` 限制为不可查看租客敏感信息（证件号、手机号等 PII）
+3. `leasing_specialist` 的 `finance.read` 限制为仅查看与自身管辖合同关联的账单，不可查看全局 NOI 报表
+4. `leasing_specialist` 和 `finance_staff` 仅可执行各自领域的导入（租务导入合同/单元，财务导入账单）
 
 ---
 
@@ -123,52 +132,52 @@
 
 | 端点 | 权限 | 可执行角色 |
 |------|------|-----------|
-| `GET /api/departments` | org.read | SA, OM, LS, FS, FL |
+| `GET /api/departments` | org.read | SA, OM, LS, FS, PI, RV |
 | `POST /api/departments` | org.manage | SA, OM |
 | `PATCH /api/departments/:id` | org.manage | SA, OM |
 | `DELETE /api/departments/:id` | org.manage | SA, OM |
-| `GET /api/managed-scopes` | org.read | SA, OM, LS, FS, FL |
+| `GET /api/managed-scopes` | org.read | SA, OM, LS, FS, PI, RV |
 | `PUT /api/managed-scopes` | org.manage | SA, OM |
 
 ### 4.4 资产模块（assets.*）
 
 | 端点 | 权限 | 可执行角色 |
 |------|------|-----------|
-| `GET /api/buildings` | assets.read | SA, OM, LS, FS, FL |
+| `GET /api/buildings` | assets.read | SA, OM, LS, FS, PI, RV |
 | `POST /api/buildings` | assets.write | SA, OM |
-| `GET /api/buildings/:id` | assets.read | SA, OM, LS, FS, FL |
+| `GET /api/buildings/:id` | assets.read | SA, OM, LS, FS, PI, RV |
 | `PATCH /api/buildings/:id` | assets.write | SA, OM |
-| `GET /api/floors` | assets.read | SA, OM, LS, FS, FL |
+| `GET /api/floors` | assets.read | SA, OM, LS, FS, PI, RV |
 | `POST /api/floors` | assets.write | SA, OM |
-| `GET /api/floors/:id` | assets.read | SA, OM, LS, FS, FL |
+| `GET /api/floors/:id` | assets.read | SA, OM, LS, FS, PI, RV |
 | `POST /api/floors/:id/cad` | assets.write | SA, OM |
-| `GET /api/floors/:id/heatmap` | assets.read | SA, OM, LS, FS, FL |
-| `GET /api/floors/:id/plans` | assets.read | SA, OM, LS, FS, FL |
+| `GET /api/floors/:id/heatmap` | assets.read | SA, OM, LS, FS, PI, RV |
+| `GET /api/floors/:id/plans` | assets.read | SA, OM, LS, FS, PI, RV |
 | `PATCH /api/floor-plans/:id/set-current` | assets.write | SA, OM |
-| `GET /api/units` | assets.read | SA, OM, LS, FS, FL |
+| `GET /api/units` | assets.read | SA, OM, LS, FS, PI, RV |
 | `POST /api/units` | assets.write | SA, OM |
-| `GET /api/units/:id` | assets.read | SA, OM, LS, FS, FL |
+| `GET /api/units/:id` | assets.read | SA, OM, LS, FS, PI, RV |
 | `PATCH /api/units/:id` | assets.write | SA, OM |
 | `POST /api/units/import` | assets.write + import.execute | SA, OM |
-| `GET /api/renovations` | assets.read | SA, OM, LS, FS, FL |
+| `GET /api/renovations` | assets.read | SA, OM, LS, FS, PI, RV |
 | `POST /api/renovations` | assets.write | SA, OM |
-| `GET /api/renovations/:id` | assets.read | SA, OM, LS, FS, FL |
+| `GET /api/renovations/:id` | assets.read | SA, OM, LS, FS, PI, RV |
 | `PATCH /api/renovations/:id` | assets.write | SA, OM |
 | `POST /api/renovations/:id/photos` | assets.write | SA, OM |
-| `GET /api/units/export` | assets.read | SA, OM, LS, FS, FL |
-| `GET /api/assets/overview` | assets.read | SA, OM, LS, FS, FL |
+| `GET /api/units/export` | assets.read | SA, OM, LS, FS, PI, RV |
+| `GET /api/assets/overview` | assets.read | SA, OM, LS, FS, PI, RV |
 
 ### 4.5 租务与合同（contracts.*）
 
 | 端点 | 权限 | 可执行角色 |
 |------|------|-----------|
-| `GET /api/tenants` | contracts.read | SA, OM, LS, FS, FL¹ |
+| `GET /api/tenants` | contracts.read | SA, OM, LS, FS, PI¹, RV² |
 | `POST /api/tenants` | contracts.write | SA, OM, LS |
-| `GET /api/tenants/:id` | contracts.read | SA, OM, LS, FS, FL¹ |
+| `GET /api/tenants/:id` | contracts.read | SA, OM, LS, FS, PI¹, RV² |
 | `PATCH /api/tenants/:id` | contracts.write | SA, OM, LS |
-| `GET /api/contracts` | contracts.read | SA, OM, LS, FS |
+| `GET /api/contracts` | contracts.read | SA, OM, LS, FS, RV² |
 | `POST /api/contracts` | contracts.write | SA, OM, LS |
-| `GET /api/contracts/:id` | contracts.read | SA, OM, LS, FS |
+| `GET /api/contracts/:id` | contracts.read | SA, OM, LS, FS, RV² |
 | `PATCH /api/contracts/:id` | contracts.write | SA, OM, LS |
 | `POST /api/contracts/:id/sign` | contracts.write | SA, OM, LS |
 | `POST /api/contracts/:id/activate` | contracts.write | SA, OM, LS |
@@ -181,10 +190,10 @@
 | `POST /api/escalation-templates` | contracts.write | SA, OM, LS |
 | `PATCH /api/escalation-templates/:id` | contracts.write | SA, OM, LS |
 | `DELETE /api/escalation-templates/:id` | contracts.write | SA, OM |
-| `GET /api/wale/current` | contracts.read | SA, OM, LS, FS |
-| `GET /api/wale/trend` | contracts.read | SA, OM, LS, FS |
-| `GET /api/wale/waterfall` | contracts.read | SA, OM, LS, FS |
-| `GET /api/alerts` | alerts.read | SA, OM, LS, FS |
+| `GET /api/wale/current` | contracts.read | SA, OM, LS, FS, RV |
+| `GET /api/wale/trend` | contracts.read | SA, OM, LS, FS, RV |
+| `GET /api/wale/waterfall` | contracts.read | SA, OM, LS, FS, RV |
+| `GET /api/alerts` | alerts.read | SA, OM, LS, FS, RV |
 | `POST /api/alerts/:id/resend` | alerts.write | SA, OM |
 | `PATCH /api/alerts/:id/dismiss` | alerts.write | SA, OM |
 
@@ -205,40 +214,40 @@
 
 | 端点 | 权限 | 可执行角色 |
 |------|------|-----------|
-| `GET /api/invoices` | finance.read | SA, OM, LS², FS |
+| `GET /api/invoices` | finance.read | SA, OM, LS³, FS, RV |
 | `POST /api/invoices/generate` | finance.write | SA, FS |
 | `PATCH /api/invoices/:id` | finance.write | SA, FS |
 | `POST /api/invoices/:id/cancel` | finance.write | SA, FS |
 | `GET /api/invoices/export` | finance.read | SA, OM, FS |
-| `GET /api/payments` | finance.read | SA, OM, FS |
+| `GET /api/payments` | finance.read | SA, OM, FS, RV |
 | `POST /api/payments` | finance.write | SA, FS |
 | `POST /api/payments/:id/allocate` | finance.write | SA, FS |
-| `GET /api/expenses` | finance.read | SA, OM, FS |
+| `GET /api/expenses` | finance.read | SA, OM, FS, RV |
 | `POST /api/expenses` | finance.write | SA, FS |
 | `PATCH /api/expenses/:id` | finance.write | SA, FS |
 | `DELETE /api/expenses/:id` | finance.write | SA, FS |
-| `GET /api/noi/current` | finance.read | SA, OM |
-| `GET /api/noi/trend` | finance.read | SA, OM |
-| `GET /api/noi/breakdown` | finance.read | SA, OM |
-| `GET /api/noi/budget` | finance.read | SA, OM, FS |
+| `GET /api/noi/current` | finance.read | SA, OM, RV |
+| `GET /api/noi/trend` | finance.read | SA, OM, RV |
+| `GET /api/noi/breakdown` | finance.read | SA, OM, RV |
+| `GET /api/noi/budget` | finance.read | SA, OM, FS, RV |
 | `PUT /api/noi/budget` | finance.write | SA, FS |
 
 ### 4.8 KPI（kpi.*）
 
 | 端点 | 权限 | 可执行角色 |
 |------|------|-----------|
-| `GET /api/kpi/metrics` | kpi.view | SA, OM, LS, FS, FL |
+| `GET /api/kpi/metrics` | kpi.view | SA, OM, LS, FS, MS, PI, RV |
 | `GET /api/kpi/schemes` | kpi.manage | SA, OM |
 | `POST /api/kpi/schemes` | kpi.manage | SA, OM |
 | `PATCH /api/kpi/schemes/:id` | kpi.manage | SA, OM |
 | `GET /api/kpi/schemes/:id` | kpi.manage | SA, OM |
 | `POST /api/kpi/schemes/:id/freeze` | kpi.manage | SA, OM |
-| `GET /api/kpi/snapshots` | kpi.view ∪ kpi.manage | SA, OM（全员）; LS, FS, FL（仅自己） |
-| `GET /api/kpi/snapshots/:id` | kpi.view ∪ kpi.manage | SA, OM（全员）; LS, FS, FL（仅自己） |
+| `GET /api/kpi/snapshots` | kpi.view ∪ kpi.manage | SA, OM（全员）; LS, FS, MS, PI（仅自己）; RV（全员只读） |
+| `GET /api/kpi/snapshots/:id` | kpi.view ∪ kpi.manage | SA, OM（全员）; LS, FS, MS, PI（仅自己）; RV（全员只读） |
 | `POST /api/kpi/snapshots/:id/recalculate` | kpi.manage | SA, OM |
 | `GET /api/kpi/rankings` | kpi.manage | SA, OM |
 | `GET /api/kpi/export` | kpi.manage | SA, OM |
-| `POST /api/kpi/appeals` | kpi.appeal | SA, OM, LS, FS, FL（仅自己的快照） |
+| `POST /api/kpi/appeals` | kpi.appeal | SA, OM, LS, FS, MS, PI（仅自己的快照） |
 | `PATCH /api/kpi/appeals/:id/review` | kpi.manage | SA, OM |
 | `GET /api/kpi/appeals` | kpi.manage ∪ kpi.appeal | SA, OM（全部）; 其他（仅自己） |
 
@@ -247,7 +256,7 @@
 | 端点 | 权限 | 可执行角色 |
 |------|------|-----------|
 | `GET /api/meter-readings` | finance.read | SA, OM, LS, FS |
-| `POST /api/meter-readings` | meterReading.write | SA, OM, LS, FS, FL |
+| `POST /api/meter-readings` | meterReading.write | SA, OM, LS, FS, MS, PI |
 | `GET /api/turnover-reports` | finance.read | SA, OM, FS |
 | `POST /api/turnover-reports` | finance.write | SA, FS |
 | `PATCH /api/turnover-reports/:id/review` | turnoverReview.approve | SA, OM, FS |
@@ -256,14 +265,14 @@
 
 | 端点 | 权限 | 可执行角色 |
 |------|------|-----------|
-| `GET /api/work-orders` | workorders.read | SA, OM, LS, FL |
-| `POST /api/work-orders` | workorders.write | SA, OM, FL |
-| `GET /api/work-orders/:id` | workorders.read | SA, OM, LS, FL |
-| `PATCH /api/work-orders/:id` | workorders.write | SA, OM, FL |
+| `GET /api/work-orders` | workorders.read | SA, OM, LS, MS, PI |
+| `POST /api/work-orders` | workorders.write | SA, OM, MS |
+| `GET /api/work-orders/:id` | workorders.read | SA, OM, LS, MS, PI |
+| `PATCH /api/work-orders/:id` | workorders.write | SA, OM, MS |
 | `POST /api/work-orders/:id/assign` | workorders.write | SA, OM |
-| `POST /api/work-orders/:id/complete` | workorders.write | SA, OM, FL |
+| `POST /api/work-orders/:id/complete` | workorders.write | SA, OM, MS |
 | `POST /api/work-orders/:id/inspect` | workorders.write | SA, OM |
-| `POST /api/work-orders/:id/photos` | workorders.write | SA, OM, FL |
+| `POST /api/work-orders/:id/photos` | workorders.write | SA, OM, MS |
 | `GET /api/suppliers` | workorders.read | SA, OM |
 | `POST /api/suppliers` | workorders.write | SA, OM |
 | `PATCH /api/suppliers/:id` | workorders.write | SA, OM |
@@ -272,11 +281,11 @@
 
 | 端点 | 权限 | 可执行角色 |
 |------|------|-----------|
-| `GET /api/subleases` | sublease.read | SA, OM, LS, FS |
+| `GET /api/subleases` | sublease.read | SA, OM, LS, FS, RV |
 | `POST /api/subleases` | sublease.write | SA, OM, LS |
 | `PATCH /api/subleases/:id` | sublease.write | SA, OM, LS |
 | `PATCH /api/subleases/:id/review` | sublease.write | SA, OM, LS |
-| `GET /api/subleases/dashboard` | sublease.read | SA, OM |
+| `GET /api/subleases/dashboard` | sublease.read | SA, OM, RV |
 | `GET /api/subleases/import-template` | sublease.write | SA, OM, LS |
 | `POST /api/subleases/import` | sublease.write + import.execute | SA, OM, LS |
 | **二房东外部端点** | | |
@@ -313,7 +322,9 @@
 | OM | operations_manager |
 | LS | leasing_specialist |
 | FS | finance_staff |
-| FL | frontline_staff |
+| MS | maintenance_staff |
+| PI | property_inspector |
+| RV | report_viewer |
 | SL | sub_landlord |
 
 ---
@@ -323,6 +334,6 @@
 1. **权限解析**: `GET /api/auth/me` 返回 `permissions[]` 数组，中间件将当前请求路径 + 方法映射到所需权限字符串
 2. **复合权限**: 部分端点需要多权限（如导入需 `assets.write` + `import.execute`），中间件用 AND 逻辑校验
 3. **行级过滤**: `sub_landlord` 角色在 Repository 层注入 `WHERE master_contract_id = :bound_contract_id` 条件
-4. **数据范围过滤**: 非 `super_admin` 角色按 `user_managed_scopes` 配置过滤数据，优先级：个人范围 > 部门默认范围
+4. **数据范围过滤**: 非 `super_admin` / `report_viewer` 角色按 `user_managed_scopes` 配置过滤数据，优先级：个人范围 > 部门默认范围；`report_viewer` 全局只读无需范围限制
 5. **审计日志**: 所有写操作（POST/PATCH/PUT/DELETE）触发 `audit_logs` 记录
 6. **二房东端点隔离**: `/api/portal/*` 端点独立路由组，仅 `sub_landlord` 可访问，其他角色 403

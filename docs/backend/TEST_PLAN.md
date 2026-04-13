@@ -256,7 +256,9 @@
 | `ops_manager` | 资产/合同/财务 R+W、工单审批、KPI 管理 | 用户管理（403） |
 | `leasing_specialist` | 合同/租客 R+W、财务只读 | 账单核销（403）、用户管理（403） |
 | `finance_staff` | 财务 R+W、核销、抄表 | 合同写（403）、用户管理（403） |
-| `frontline_staff` | 资产/租客只读、工单创建+完工 | 合同写（403）、财务写（403） |
+| `frontline_staff` → `maintenance_staff` | 工单创建+完工、水电抄表 | 合同写（403）、财务写（403） |
+| `property_inspector` | 资产只读、工单只读、水电抄表 | 合同写（403）、财务写（403）、工单写（403） |
+| `report_viewer` | 资产/合同/财务只读、NOI/WALE | 任何写操作（403） |
 | `sub_landlord` | `/sublease-portal/*` | 其余所有端点（403） |
 
 > **实现方式**: 使用参数化测试（parameterized test），遍历 `角色 × 端点 × 预期状态码` 三元组。
@@ -402,7 +404,7 @@
 | # | 风险类别 | 测试场景 | 预期 |
 |---|---------|---------|------|
 | A01 | 访问控制失效 | 二房东 A 通过修改 URL 参数访问二房东 B 数据 | 403 或空结果 |
-| A01 | 访问控制失效 | frontline 角色访问 `/api/users` | 403 |
+| A01 | 访问控制失效 | maintenance_staff 角色访问 `/api/users` | 403 |
 | A01 | 访问控制失效 | 修改 JWT payload 中 role 字段 | 签名验证失败 401 |
 | A02 | 加密失效 | 直接查询数据库 `cert_no_encrypted` 字段 | 密文不可读，非明文 |
 | A02 | 加密失效 | API 默认返回 `cert_no` | 仅后 4 位可见 |
@@ -843,7 +845,7 @@ src/components/__tests__/<component>.test.ts
 src/pages/__tests__/<page>.test.ts       // Admin 为 src/views/__tests__/<view>.test.ts
 
 // 测试方法命名：should_<预期行为>_when_<前置条件>
-test('should return 403 when frontline accesses finance write', () { ... });
+test('should return 403 when maintenance_staff accesses finance write', () { ... });
 test('should calculate WALE correctly when multi-unit contracts exist', () { ... });
 ```
 

@@ -203,9 +203,9 @@ VALUES
     (v_user_fin,     '李财务',           'li.fin@propos.local',
      '$2a$10$YKdJkBpVBhzRnzJeA7EBOe8Klfyr0YgmGq3aTxMm3B3fjkuoF9NOC',
      'finance_staff', v_dept_fin, TRUE, 1),
-    (v_user_front,   '赵前线',           'zhao.front@propos.local',
+    (v_user_front,   '赵维修',           'zhao.maint@propos.local',
      '$2a$10$YKdJkBpVBhzRnzJeA7EBOe8Klfyr0YgmGq3aTxMm3B3fjkuoF9NOC',
-     'frontline_staff', v_dept_ops, TRUE, 1),
+     'maintenance_staff', v_dept_ops, TRUE, 1),
     (v_user_sublord, '鼎盛物业有限公司', 'dingsheng@external.com',
      '$2a$10$YKdJkBpVBhzRnzJeA7EBOe8Klfyr0YgmGq3aTxMm3B3fjkuoF9NOC',
      'sub_landlord', NULL, TRUE, 1);

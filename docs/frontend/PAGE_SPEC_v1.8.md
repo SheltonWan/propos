@@ -190,10 +190,12 @@ routes: [
 
 | 角色 | uni-app 可访问 Tab | Admin 可访问路由 |
 |------|------------------|----------------|
-| `super_admin` / `ops_manager` | 全部 5 Tab | 全部路由 |
-| `leasing_agent` | 资产 / 合同 / 工单 | assets / contracts / workorders |
+| `super_admin` / `operations_manager` | 全部 5 Tab | 全部路由 |
+| `leasing_specialist` | 资产 / 合同 / 工单 | assets / contracts / workorders |
 | `finance_staff` | 财务 / 合同（只读） | finance / contracts（只读） |
-| `frontline` | 工单 / 资产（只读） | workorders |
+| `maintenance_staff` | 总览 / 工单 | workorders |
+| `property_inspector` | 总览 / 资产（只读）/ 合同（只读、金额脱敏）/ 工单（只读） | assets / contracts（只读）/ workorders（只读） |
+| `report_viewer` | 总览 / 资产（只读）/ 合同（只读、PII脱敏）/ 财务（只读） | assets / contracts / finance（全只读） |
 | `sub_landlord` | 二房东门户（`subleases/`） | 不开放 Admin |
 
 > 角色在登录后从 JWT Claims 解析写入 Pinia `useAuthStore`；uni-app 守卫读取 store 中的 `role` 字段动态控制 TabBar 可见性；Admin `router.beforeEach` 读取 `localStorage.access_token`，完整角色鉴权委托给后端 RBAC 中间件。
@@ -694,9 +696,9 @@ dashboard/index.vue
     ├── ── 核心指标（2×2 网格，L1 概览层，RBAC 自适应）──
     │   view.metric-grid
     │   ├── MetricCard("综合出租率", "89.2%", trend: "↑2.1%")           ← 全角色可见
-    │   ├── MetricCard("当月 NOI / 收款率 / 在租合同")                   ← SA/OM=NOI, LS/FS=收款率, FL=在租合同
+    │   ├── MetricCard("当月 NOI / 收款率 / 在租合同")                   ← SA/OM/RV=NOI, LS/FS=收款率, MS=在租合同, PI=在租合同
     │   ├── MetricCard("WALE(收入)", "3.2 年")                          ← 全角色可见
-    │   └── MetricCard("收款率 / WALE(面积) / 空置房源")                 ← SA/OM=收款率, LS/FS=WALE(面积), FL=空置数
+    │   └── MetricCard("收款率 / WALE(面积) / 空置房源")                 ← SA/OM/RV=收款率, LS/FS=WALE(面积), MS/PI=空置数
     │   注: 每角色始终显示 4 个卡片，通过 RBAC 规则自适应填充
     │
     ├── ── 三业态概览（垂直紧凑面板行，同屏全显）──
@@ -1782,11 +1784,24 @@ finance/index.vue
     │   ├── SecondaryIconRow（水电/账单/KPI 3 入口）
     │   └── CompactCollectionWidget（收款进度条 + 已收/应收统计）
     │
-    ── 前线员工视图（frontline_staff，默认分支）──
+    ── 维修技工视图（maintenance_staff）──
         ├── Header（深琥珀渐变 #78350f→#92400e，标题"水电录入"，右上角 🟡 圆钮）
         ├── SectionLabel "待录入"
         ├── FeaturedCard — 全宽（水电录入 🟡×2 → /finance/meter-readings/new）
         └── SecondaryIconRow（账单查看/KPI 2 入口）
+    ── 楼管巡检视图（property_inspector）──
+        ├── Header（深青渐变 #134e4a→#065f46，标题"巡检管理"）
+        ├── MiniAssetCard（分业态出租率 3 卡）
+        ├── FeaturedCard — 全宽（水电抄表 → /finance/meter-readings/new）
+        ├── SecondaryIconRow（工单查看/租客信息/KPI 3 入口）
+        └── WorkOrderReadOnlyList（最近 5 条工单，只读）
+    ── 只读观察视图（report_viewer）──
+        ├── Header（深紫渐变 #3b0764→#581c87，标题"财务概览"）
+        ├── NOISummaryCard（只读）
+        ├── WALESummaryCard（只读）
+        ├── RevenueSnapshotCard（只读）
+        ├── KPIOverviewCard（只读）
+        └── 注: 零操作按钮
 ```
 
 **共用子组件清单**：
@@ -1800,7 +1815,10 @@ finance/index.vue
 | `NOISummaryCard` | 深色 NOI 摘要卡（仅管理层视图）|
 | `WALESummaryCard` | 深色 WALE 摘要卡（仅管理层视图）|
 | `RevenueSnapshotCard` | 收入快报卡（仅管理层视图）|
-| `OverdueSection` | 逾期账单 Top 5 列表（管理层 / 财务专员视图）|
+| `OverdueSection` | 逾期账单 Top 5 列表（管理层 / 财务专员 / 只读观察视图）|
+| `MiniAssetCard` | 分业态出租率迷你卡（楼管巡检视图）|
+| `WorkOrderReadOnlyList` | 最近工单只读列表（楼管巡检视图）|
+| `KPIOverviewCard` | KPI 总分概览卡（只读观察视图）|
 
 ### 7.2 账单列表页
 
@@ -2685,7 +2703,7 @@ UserFormView
     │
     ├── ElDivider "角色与权限"
     ├── ElFormItem(label="角色") → ElSelect
-    │   options: super_admin / ops_manager / leasing_specialist / finance / frontline / sub_landlord
+    │   options: super_admin / operations_manager / leasing_specialist / finance_staff / maintenance_staff / property_inspector / report_viewer / sub_landlord
     ├── ElFormItem(label="所属部门") → ElTreeSelect(:data="departments")
     │
     ├── ElDivider "初始密码" (v-if="!isEdit")

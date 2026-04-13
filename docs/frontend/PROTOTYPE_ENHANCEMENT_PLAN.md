@@ -104,8 +104,14 @@
    - 2 功能卡（押金管理 / 营业额申报）+ 3 二级图标入口
    - `CompactCollectionWidget`（收款进度）
 
-4. **前线员工视图**（`frontline_staff`，深琥珀 Header，水电待录入 🟡2）
-   - 1 全宽水电录入大卡 + 2 二级图标入口（账单查看 / KPI）
+4. **维修技工视图**（`maintenance_staff`，深琥珀 Header，水电待录入 🟡2）
+   - 1 全宽水电录入大卡 + 2 二级图标入口（工单查看 / KPI）
+
+5. **楼管巡检员视图**（`property_inspector`，靛蓝 Header）
+   - 2 快捷入口（资产查看 / 合同查看）+ 工单列表 + 水电录入/KPI 入口
+
+6. **只读观察员视图**（`report_viewer`，深紫 Header）
+   - 4 只读指标卡（NOI / WALE / 出租率 / 逾期额）+ 2 快捷入口（资产总览 / 合同列表）
 
 #### Step 3: Profile 降级为 L2
 

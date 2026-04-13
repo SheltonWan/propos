@@ -416,12 +416,12 @@ $$= 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = \textbf{94.03 分}$$
 
 | work_order_id | work_order_type | unit | category | priority | status | reporter_user_id | supplier_id | actual_cost | note |
 |-------------|-----------------|------|----------|----------|--------|-----------------|------------|------------|------|
-| WO-001 | repair | 10A | 空调维修 | urgent | completed | U-FRONT | SUP-001 | ¥850.00 | 已完工，费用计入 EXP-003 |
-| WO-002 | repair | A302 | 水管漏水 | critical | in_progress | U-FRONT | SUP-002 | — | 处理中，待验收 |
-| WO-003 | repair | S101 | 门锁更换 | normal | submitted | U-FRONT | — | — | 未派单，待分配供应商 |
-| WO-004 | complaint | 10A | 环境噪音 | normal | completed | U-FRONT | — | — | 投诉类工单，已服务处理完毕 |
-| WO-005 | complaint | A302 | 公区卫生 | urgent | in_progress | U-FRONT | — | — | 投诉类工单，处理中 |
-| WO-006 | inspection | 10A | 合同到期验房 | normal | pending_inspection | U-FRONT | — | — | 退租验房，关联合同 C-001，待验收确认 |
+| WO-001 | repair | 10A | 空调维修 | urgent | completed | U-MAINT | SUP-001 | ¥850.00 | 已完工，费用计入 EXP-003 |
+| WO-002 | repair | A302 | 水管漏水 | critical | in_progress | U-MAINT | SUP-002 | — | 处理中，待验收 |
+| WO-003 | repair | S101 | 门锁更换 | normal | submitted | U-MAINT | — | — | 未派单，待分配供应商 |
+| WO-004 | complaint | 10A | 环境噪音 | normal | completed | U-INSP | — | — | 投诉类工单（巡检员上报），已服务处理完毕 |
+| WO-005 | complaint | A302 | 公区卫生 | urgent | in_progress | U-INSP | — | — | 投诉类工单（巡检员上报），处理中 |
+| WO-006 | inspection | 10A | 合同到期验房 | normal | pending_inspection | U-INSP | — | — | 退租验房，关联合同 C-001，待验收确认 |
 
 ---
 
@@ -446,7 +446,9 @@ $$= 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = \textbf{94.03 分}$$
 | U-MGR | 陈经理 | chen.mgr@propos.local | operations_manager | D-OPS | null |
 | U-LEASE | 王五 | wang.lease@propos.local | leasing_specialist | D-LEASE-OFFICE | null |
 | U-FIN | 李财务 | li.fin@propos.local | finance_staff | D-FIN | null |
-| U-FRONT | 赵前线 | zhao.front@propos.local | frontline_staff | D-OPS | null |
+| U-MAINT | 赵师傅 | zhao.maint@propos.local | maintenance_staff | D-OPS | null |
+| U-INSP | 周楼管 | zhou.insp@propos.local | property_inspector | D-OPS | null |
+| U-VIEW | 钱投资 | qian.viewer@propos.local | report_viewer | D-ROOT | null |
 | U-SUBLORD | 鼎盛物业 | dingsheng@external.com | sub_landlord | null | **C-SUB-MASTER** |
 
 > **U-SUBLORD 关键**: `bound_contract_id = C-SUB-MASTER` 实现二房东 RBAC 行级隔离——这个字段缺失时 `SubleaseRepository` 的 `WHERE master_contract_id = $bound_contract_id` 过滤将失效。

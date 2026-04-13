@@ -29,6 +29,11 @@ Middleware rbacMiddleware() {
         throw const UnauthorizedException();
       }
 
+      // 只读观察者限制：仅允许 GET 请求
+      if (ctx.role == UserRole.reportViewer && method != 'GET') {
+        throw const ForbiddenException();
+      }
+
       // 二房东角色限制：只能访问自身外部填报路由
       if (ctx.role == UserRole.subLandlord && !_isSubLandlordPath(path)) {
         throw const ForbiddenException();
@@ -273,7 +278,7 @@ bool _hasPermissions(UserRole role, List<String> required) {
 }
 
 const _permissionMatrix = <UserRole, Set<String>>{
-  UserRole.admin: {
+  UserRole.superAdmin: {
     'org.read', 'org.manage',
     'assets.read', 'assets.write',
     'contracts.read', 'contracts.write',
@@ -308,7 +313,7 @@ const _permissionMatrix = <UserRole, Set<String>>{
     'import.execute',
     'reports.read',
   },
-  UserRole.leaseSpecialist: {
+  UserRole.leasingSpecialist: {
     'org.read',
     'assets.read',
     'contracts.read', 'contracts.write',
@@ -341,25 +346,34 @@ const _permissionMatrix = <UserRole, Set<String>>{
     'reports.read',
   },
   UserRole.maintenanceStaff: {
+    'kpi.view',
+    'kpi.appeal',
+    'meterReading.write',
+    'workorders.read',
+    'workorders.write',
+  },
+  UserRole.propertyInspector: {
     'org.read',
     'assets.read',
     'contracts.read',
     'kpi.view',
     'kpi.appeal',
     'meterReading.write',
-    'workorders.read', 'workorders.write',
+    'workorders.read',
   },
-  UserRole.subLandlord: {
-    'sublease.portal',
-  },
-  UserRole.readOnly: {
+  UserRole.reportViewer: {
     'org.read',
     'assets.read',
     'contracts.read',
+    'deposit.read',
     'finance.read',
-    'workorders.read',
     'kpi.view',
+    'sublease.read',
+    'alerts.read',
     'reports.read',
+  },
+  UserRole.subLandlord: {
+    'sublease.portal',
   },
 };
 

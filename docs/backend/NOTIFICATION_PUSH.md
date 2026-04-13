@@ -192,8 +192,10 @@ class NotifyService {
 |---------|---------|------|
 | `lease_expiry_90/60/30` | `leasing_specialist`, `operations_manager` | 招商 + 运营经理 |
 | `payment_overdue_1/7/15` | `finance_staff`, `leasing_specialist` | 财务 + 招商 |
-| `monthly_expiry_summary` | `operations_manager`, `super_admin` | 管理层 |
+| `monthly_expiry_summary` | `operations_manager`, `super_admin`, `report_viewer` | 管理层 + 只读观察者 |
 | `deposit_refund_reminder` | `finance_staff` | 财务专员 |
+| `workorder_assigned` | `maintenance_staff` | 维修技工（工单派单通知） |
+| `workorder_overdue` | `maintenance_staff`, `operations_manager` | 超期工单预警 |
 
 ---
 
