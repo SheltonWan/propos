@@ -1,8 +1,9 @@
 # 实时通知与推送方案
 
-> **文档版本**: v1.0
-> **更新日期**: 2026-04-08
-> **对应 PRD**: v1.7 §2.3 智能预警引擎
+> **文档版本**: v1.1
+> **更新日期**: 2026-04-13
+> **对应 PRD**: v1.8 §2.3 智能预警引擎
+> **对应 data_model**: v1.5（alerts 表新增 target_roles user_role[] 字段）
 
 ---
 
@@ -134,7 +135,7 @@ class NotifyService {
     required String title,
     required String message,
     UUID? targetUserId,          // 指定用户；null 表示按角色广播
-    List<String>? targetRoles,   // 广播角色列表
+    List<String>? targetRoles,   // 广播角色列表（对应 alerts.target_roles user_role[] 字段）
   }) async {
     final recipients = targetUserId != null
         ? [targetUserId]

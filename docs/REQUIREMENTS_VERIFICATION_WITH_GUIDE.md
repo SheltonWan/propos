@@ -2,7 +2,7 @@
 
 > **版本**: v1.0  
 > **日期**: 2026-04-12  
-> **依据文档**: PRD v1.8 / PHASE1_IMPLEMENTATION_CHECKLIST_v1.7 / data_model v1.3 / GAP_VERIFICATION_GUIDE v1.0  
+> **依据文档**: PRD v1.8 / PHASE1_IMPLEMENTATION_CHECKLIST_v1.7 / data_model v1.5 / GAP_VERIFICATION_GUIDE v1.0  
 > **用途**: 逐需求点细粒度验收 + 已实现需求的前端原型人工验证操作指引  
 > **验证对象**: `/Users/wanxt/app/propos/frontend` 原型（React 18 + Tailwind CSS）  
 > **状态图例**: ⬜ 未实现 / ✅ 已完成（前端原型已体现） / 🔄 部分实现 / ❌ 有缺陷/阻塞

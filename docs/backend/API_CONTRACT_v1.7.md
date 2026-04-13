@@ -3,7 +3,7 @@
 > **版本**: v1.7  
 > **日期**: 2026-04-08  
 > **范围**: Phase 1 全端点 Request / Response 字段级定义  
-> **依据**: API_INVENTORY v1.5 / data_model v1.4 / PRD v1.8 / ARCH v1.4  
+> **依据**: API_INVENTORY v1.5 / data_model v1.5 / PRD v1.8 / ARCH v1.4  
 > **信封协议**: 成功 `{ "data": <payload>, "meta"?: { "page", "pageSize", "total" } }` / 失败 `{ "error": { "code": "SCREAMING_SNAKE", "message": "..." } }`
 
 ---
@@ -991,7 +991,7 @@ Content-Disposition: attachment; filename="units_{property_type}.xlsx"
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `tenant_type` | string(enum) | 否 | `corporate` / `individual` |
-| `credit_rating` | string | 否 | `A` / `B` / `C` |
+| `credit_rating` | string | 否 | `A` / `B` / `C` / `D` |
 | `keyword` | string | 否 | 搜索关键字（匹配 display_name） |
 | `page` | integer | 否 | 页码 |
 | `pageSize` | integer | 否 | 每页条数 |
@@ -1050,7 +1050,7 @@ Content-Disposition: attachment; filename="units_{property_type}.xlsx"
 | `contact_email` | string? | 联系邮箱 |
 | `emergency_contact_name` | string? | 紧急联系人 |
 | `emergency_contact_phone_masked` | string? | 紧急联系电话（脱敏） |
-| `credit_rating` | string? | 信用评级（A/B/C） |
+| `credit_rating` | string? | 信用评级（A/B/C/D） |
 | `overdue_count` | integer | 历史逾期次数 |
 | `times_overdue_past_12m` | integer | 12个月内逾期次数 |
 | `max_single_overdue_days` | integer | 单次最长逾期天数 |
@@ -1137,6 +1137,7 @@ Content-Disposition: attachment; filename="units_{property_type}.xlsx"
 | `tenant_name` | string | 租客名称 |
 | `status` | string(enum) | 合同状态 |
 | `property_type` | string(enum) | 业态 |
+| `pricing_model` | string(enum) | 计租模型：`area` / `flat` / `revenue` |
 | `start_date` | string(date) | 起租日 |
 | `end_date` | string(date) | 到期日 |
 | `base_monthly_rent` | number | 基准月租金（元） |
@@ -1158,6 +1159,7 @@ Content-Disposition: attachment; filename="units_{property_type}.xlsx"
 | `contract_no` | string | 是 | 合同编号（唯一，最大 50 字符） |
 | `tenant_id` | string(uuid) | 是 | 租客 ID |
 | `property_type` | string(enum) | 是 | 业态 |
+| `pricing_model` | string(enum) | 否 | 计租模型：`area`（默认）/ `flat` / `revenue` |
 | `start_date` | string(date) | 是 | 起租日 |
 | `end_date` | string(date) | 是 | 到期日（≥start_date） |
 | `free_rent_days` | integer | 否 | 免租天数（默认 0） |
@@ -1210,6 +1212,7 @@ Content-Disposition: attachment; filename="units_{property_type}.xlsx"
 | `tenant_name` | string | 租客名称 |
 | `status` | string(enum) | 合同状态 |
 | `property_type` | string(enum) | 业态 |
+| `pricing_model` | string(enum) | 计租模型：`area` / `flat` / `revenue` |
 | `start_date` | string(date) | 起租日 |
 | `end_date` | string(date) | 到期日 |
 | `free_rent_days` | integer | 免租天数 |
@@ -2635,7 +2638,7 @@ Content-Disposition: attachment; filename="invoices_{period}.xlsx"
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `id` | string(uuid) | 指标 ID |
-| `code` | string | 指标编号（K01~K10） |
+| `code` | string | 指标编号（K01~K14） |
 | `name` | string | 指标名称 |
 | `description` | string? | 描述 |
 | `default_full_score_threshold` | number | 默认满分阈值 |
@@ -2645,6 +2648,7 @@ Content-Disposition: attachment; filename="invoices_{period}.xlsx"
 | `direction` | string | 方向：`positive` / `negative` |
 | `source_module` | string | 数据来源模块 |
 | `is_manual_input` | boolean | 是否手动录入 |
+| `category` | string(enum) | 指标分类：`leasing` / `finance` / `service` / `growth` |
 | `is_enabled` | boolean | 是否启用 |
 
 ---
@@ -2707,7 +2711,7 @@ Content-Disposition: attachment; filename="invoices_{period}.xlsx"
 | `period_type` | string(enum) | 评估周期：`monthly` / `quarterly` / `yearly` |
 | `effective_from` | string(date) | 生效起始 |
 | `effective_to` | string(date)? | 生效截止 |
-| `is_active` | boolean | 是否启用 |
+| `status` | string(enum) | 方案状态：`draft` / `active` / `archived` |
 | `scoring_mode` | string | `official` / `trial` |
 | `created_at` | string(datetime) | 创建时间 |
 
@@ -2744,7 +2748,7 @@ Content-Disposition: attachment; filename="invoices_{period}.xlsx"
 | `period_type` | string(enum) | 评估周期 |
 | `effective_from` | string(date) | 生效起始 |
 | `effective_to` | string(date)? | 生效截止 |
-| `is_active` | boolean | 是否启用 |
+| `status` | string(enum) | 方案状态：`draft` / `active` / `archived` |
 | `scoring_mode` | string | 评分模式 |
 | `metrics` | `KpiSchemeMetricConfig[]` | 方案指标列表 |
 | `targets` | `KpiSchemeTargetConfig[]` | 绑定对象列表 |
@@ -2795,16 +2799,16 @@ Content-Disposition: attachment; filename="invoices_{period}.xlsx"
 
 ---
 
-### 4D.5 `DELETE /api/kpi/schemes/:id` — 停用方案
+### 4D.5 `DELETE /api/kpi/schemes/:id` — 归档方案
 
 **权限**: `kpi.manage`
 
-> 逻辑删除（`is_active = false`），已有快照不受影响。
+> 将方案状态设为 `archived`，已有快照不受影响。
 
 **Response 200**
 
 ```json
-{ "data": { "message": "方案已停用" } }
+{ "data": { "message": "方案已归档" } }
 ```
 
 ---

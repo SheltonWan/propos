@@ -1,6 +1,6 @@
 # PropOS Phase 1 数据模型文档
 
-> **版本**: v1.4
+> **版本**: v1.5
 > **日期**: 2026-04-13
 > **对应 PRD**: v1.8
 > **范围**: Phase 1 五个核心模块
@@ -96,7 +96,15 @@ work_orders (→ units, buildings, floors, users)    ← M4 工单
 CREATE TYPE property_type AS ENUM ('office', 'retail', 'apartment');
 
 -- 单元出租状态
-CREATE TYPE unit_status AS ENUM ('leased', 'vacant', 'expiring_soon', 'non_leasable');
+CREATE TYPE unit_status AS ENUM (
+    'leased',        -- 已租
+    'vacant',        -- 空置
+    'expiring_soon', -- 即将到期（≤90天）
+    'non_leasable',  -- 非可租（公共区域/设备间）
+    'renovating',    -- 改造中（v1.5 新增）
+    'pre_lease'      -- 预租/意向锁定（v1.5 新增）
+);
+-- 前端映射：rented → leased, pre-lease → pre_lease, renovating → renovating
 
 -- 单元装修状态
 CREATE TYPE unit_decoration AS ENUM ('blank', 'simple', 'refined', 'raw');
@@ -125,6 +133,15 @@ CREATE TYPE contract_status AS ENUM (
     'expired',         -- 已到期
     'renewed',         -- 已续签
     'terminated'       -- 已终止
+);
+-- 前端映射：draft → quoting, pending_start → pending_sign, expiring → expiring_soon
+-- 前端无对应值的后端状态：renewed（前端直接显示新合同链）
+
+-- 计租模型（v1.5 新增）
+CREATE TYPE pricing_model AS ENUM (
+    'area',    -- 按面积计租（元/m²/月），单元级单价在 contract_units
+    'flat',    -- 整套月租（base_monthly_rent 即总租金）
+    'revenue'  -- 保底+分成（revenue_share_enabled=true 且有 min_guarantee_rent/revenue_share_rate）
 );
 
 -- 租金递增类型
@@ -229,6 +246,21 @@ CREATE TYPE sublease_review_status AS ENUM (
 -- KPI 评估周期
 CREATE TYPE kpi_period_type AS ENUM ('monthly', 'quarterly', 'yearly');
 
+-- KPI 方案状态（v1.5 新增，替换 kpi_schemes.is_active BOOLEAN）
+CREATE TYPE kpi_scheme_status AS ENUM (
+    'draft',    -- 草稿
+    'active',   -- 生效中
+    'archived'  -- 已归档
+);
+
+-- KPI 指标分类（v1.5 新增）
+CREATE TYPE kpi_metric_category AS ENUM (
+    'leasing',  -- 租务类
+    'finance',  -- 财务类
+    'service',  -- 服务类
+    'growth'    -- 增长类
+);
+
 -- 押金状态（v1.7 新增）
 CREATE TYPE deposit_status AS ENUM (
     'collected',           -- 已收取
@@ -260,8 +292,8 @@ CREATE TYPE import_data_type AS ENUM ('units', 'contracts', 'invoices');
 -- 导入回滚状态（v1.7 新增）
 CREATE TYPE import_rollback_status AS ENUM ('committed', 'rolled_back');
 
--- 信用评级（v1.7 新增）
-CREATE TYPE credit_rating AS ENUM ('A', 'B', 'C');
+-- 信用评级（v1.7 新增，v1.5 扩展 D 级）
+CREATE TYPE credit_rating AS ENUM ('A', 'B', 'C', 'D');
 ```
 
 > **v1.7 建模约束**: KPI 表保留完整结构，但业务语义为"试运行评分"；财务核销改为"收款主记录 + 分配明细"双表，以支持部分收款和跨账单核销；合同-单元改为 M:N 关联（通过 `contract_units`），每个单元独立记录计费面积与单价；新增押金独立建账、水电抄表、营业额对账、导入批次追踪。
@@ -491,6 +523,19 @@ CREATE INDEX idx_units_ext_fields   ON units USING GIN(ext_fields);
 | `retail`（商铺） | `{"frontage_width": 8.5, "street_facing": true, "retail_ceiling_height": 5.2}` |
 | `apartment`（公寓） | `{"bedroom_count": 2, "en_suite_bathroom": true, "occupant_count": null}` |
 
+**公共可选字段（所有业态通用，v1.5 新增）**
+
+楼层平面图热区绘制坐标，仅用于前端 SVG 热区渲染，不影响业务查询：
+
+```jsonc
+{
+  "svg_x": 0,       // 热区左上角 X 坐标（px）
+  "svg_y": 0,       // 热区左上角 Y 坐标（px）
+  "svg_w": 140,     // 热区宽度（px）
+  "svg_h": 108      // 热区高度（px）
+}
+```
+
 ### 4.4 renovation_records（改造记录）
 
 ```sql
@@ -539,13 +584,14 @@ CREATE TABLE tenants (
     contact_email          VARCHAR(255),
     emergency_contact_name  VARCHAR(100),
     emergency_contact_phone TEXT,       -- 加密：AES-256-GCM
-    -- 信用评级（系统自动计算：A/B/C）
-    credit_rating   CHAR(1) CHECK (credit_rating IN ('A','B','C')),
+    -- 信用评级（系统自动计算：A/B/C/D，v1.5 扩展 D 级）
+    credit_rating   CHAR(1) CHECK (credit_rating IN ('A','B','C','D')),
     overdue_count   SMALLINT NOT NULL DEFAULT 0, -- 历史逾期次数（用于信用计算）
-    -- 信用评级计算辅助字段（v1.7 新增）
+    -- 信用评级计算辅助字段（v1.7 新增，v1.5 补充 D 级）
     -- 评级规则：A（优质）= 12 个月内逾期 ≤1 次且单次 ≤3 天；
     --          B（一般）= 12 个月内逾期 2~3 次或单次 4~15 天；
-    --          C（风险）= 12 个月内逾期 ≥4 次或单次 >15 天
+    --          C（风险）= 12 个月内逾期 4~5 次或单次 16~30 天；
+    --          D（重点监控）= 12 个月内逾期 ≥6 次或单次 >30 天
     -- 每月 1 日自动重算；新租户默认 B 级；签约满 3 个月后首次评级
     last_rating_date          DATE,             -- 最近一次评级日期
     times_overdue_past_12m    SMALLINT NOT NULL DEFAULT 0, -- 12 个月内逾期次数
@@ -571,6 +617,9 @@ CREATE TABLE contracts (
     tenant_id         UUID           NOT NULL REFERENCES tenants(id),
     status            contract_status NOT NULL DEFAULT 'quoting',
     property_type     property_type  NOT NULL, -- 冗余，与单元业态一致，便于聚合查询
+    -- 计租模型（v1.5 新增）
+    pricing_model     pricing_model  NOT NULL DEFAULT 'area',
+    -- area=按面积计租，单元级单价在 contract_units；flat=整套月租，base_monthly_rent 即总租金；revenue=保底+分成
 
     -- 合同期限
     start_date        DATE           NOT NULL,
@@ -791,6 +840,8 @@ CREATE TABLE alerts (
     triggered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     -- 目标用户（NULL 表示按角色广播，非 NULL 表示定向推送）
     target_user_id UUID     REFERENCES users(id),
+    -- 目标角色（v1.5 新增，当 target_user_id 为 NULL 时按角色广播）
+    target_roles   user_role[],
     -- 是否已读/处理
     is_read      BOOLEAN    NOT NULL DEFAULT FALSE,
     read_by      UUID       REFERENCES users(id),
@@ -1050,14 +1101,16 @@ CREATE INDEX idx_noi_budgets_period   ON noi_budgets(period_year, period_month);
 
 ### 6.8 kpi_metric_definitions（KPI 指标定义库）
 
-系统预定义 10 个指标（K01-K10），由初始化脚本 seed，不允许用户新增。Phase 1 中这些指标用于正式 KPI 考核评分。
+系统预定义 14 个指标（K01-K14），由初始化脚本 seed，不允许用户新增。Phase 1 中这些指标用于正式 KPI 考核评分。
 
 ```sql
 CREATE TABLE kpi_metric_definitions (
     id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    code                VARCHAR(10) UNIQUE NOT NULL, -- 'K01' ~ 'K10'
+    code                VARCHAR(10) UNIQUE NOT NULL, -- 'K01' ~ 'K14'
     name                VARCHAR(100) NOT NULL,
     description         TEXT,
+    -- 指标分类（v1.5 新增）
+    category            kpi_metric_category NOT NULL DEFAULT 'leasing',
     -- 默认满分/及格/红线阈值（各方案可覆盖）
     default_full_score_threshold  NUMERIC(10,4) NOT NULL, -- 如 0.95（95%）
     default_pass_threshold        NUMERIC(10,4) NOT NULL, -- 及格线
@@ -1080,18 +1133,22 @@ CREATE TABLE kpi_metric_definitions (
 
 **初始化数据（Seed）**
 
-| code | name | full_score | pass | fail | higher_is_better | direction |
-|------|------|-----------|------|------|-----------------|-----------|
-| K01 | 出租率 | 0.95 | 0.80 | 0.60 | TRUE | positive |
-| K02 | 收款及时率 | 0.95 | 0.85 | 0.70 | TRUE | positive |
-| K03 | 租户集中度 | 0.40 | 0.55 | 0.70 | FALSE | negative |
-| K04 | 续约率 | 0.80 | 0.60 | 0.40 | TRUE | positive |
-| K05 | 工单响应时效（小时，仅 repair） | 24 | 48 | 72 | FALSE | negative |
-| K06 | 空置周转天数 | 30 | 60 | 90 | FALSE | negative |
-| K07 | NOI 达成率 | 1.00 | 0.85 | 0.70 | TRUE | positive |
-| K08 | 逾期率 | 0.05 | 0.15 | 0.20 | FALSE | negative |
-| K09 | 租金递增执行率 | 0.95 | 0.85 | 0.70 | TRUE | positive |
-| K10 | 租户满意度（手动）| 90 | 75 | 60 | TRUE | positive |
+| code | name | category | full_score | pass | fail | higher_is_better | direction |
+|------|------|----------|-----------|------|------|-----------------|-----------|
+| K01 | 出租率 | leasing | 0.95 | 0.80 | 0.60 | TRUE | positive |
+| K02 | 收款及时率 | finance | 0.95 | 0.85 | 0.70 | TRUE | positive |
+| K03 | 租户集中度 | leasing | 0.40 | 0.55 | 0.70 | FALSE | negative |
+| K04 | 续约率 | leasing | 0.80 | 0.60 | 0.40 | TRUE | positive |
+| K05 | 工单响应时效（小时，仅 repair） | service | 24 | 48 | 72 | FALSE | negative |
+| K06 | 空置周转天数 | leasing | 30 | 60 | 90 | FALSE | negative |
+| K07 | NOI 达成率 | finance | 1.00 | 0.85 | 0.70 | TRUE | positive |
+| K08 | 逾期率 | finance | 0.05 | 0.15 | 0.20 | FALSE | negative |
+| K09 | 租金递增执行率 | leasing | 0.95 | 0.85 | 0.70 | TRUE | positive |
+| K10 | 租户满意度（手动）| service | 90 | 75 | 60 | TRUE | positive |
+| K11 | 预防性维修率 | service | 0.90 | 0.70 | 0.50 | TRUE | positive |
+| K12 | 空置面积降幅 | growth | 0.20 | 0.10 | 0 | TRUE | positive |
+| K13 | 新签约面积（m²） | growth | 2000 | 1000 | 500 | TRUE | positive |
+| K14 | 续签率 | leasing | 0.80 | 0.60 | 0.40 | TRUE | positive |
 
 ### 6.9 kpi_schemes（KPI 方案）
 
@@ -1103,7 +1160,9 @@ CREATE TABLE kpi_schemes (
     -- 方案有效期（支持版本迭代，旧方案数据保留）
     effective_from DATE          NOT NULL,
     effective_to   DATE,                   -- NULL 表示持续有效
-    is_active    BOOLEAN         NOT NULL DEFAULT TRUE,
+    -- 方案状态（v1.5 替换原 is_active BOOLEAN）
+    -- 状态流转：draft → active → archived
+    status       kpi_scheme_status NOT NULL DEFAULT 'draft',
     scoring_mode VARCHAR(20)     NOT NULL DEFAULT 'official', -- 'trial', 'official'
     created_by   UUID            REFERENCES users(id),
     created_at   TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
@@ -1511,7 +1570,7 @@ ALTER TABLE expenses
 4. users（第一个超级管理员，含 department_id）
 5. refresh_tokens
 6. user_managed_scopes（部门默认管辖范围）
-7. kpi_metric_definitions（seed K01~K10，含 direction 字段）
+7. kpi_metric_definitions（seed K01~K14，含 direction + category 字段）
 8. escalation_templates（递增规则模板）
 9. 延迟 FK 约束（ALTER TABLE）
 8. 批量导入：639 套单元（Excel 导入工具，经 import_batches 追踪）
@@ -1550,3 +1609,38 @@ ALTER TABLE expenses
 23. **工单费用性质**：work_orders 新增 `cost_nature` 枚举字段（opex/capex），repair 类型完工时可标注，财务侧据此判断是否计入 NOI OpEx。
 24. **专业服务费类目**：expense_category 枚举新增 `professional_service`，用于消防检测、电梯年检等合规性支出。
 25. **cost_nature ENUM**：新建 `cost_nature` 类型，配合 v1.8 工单 CapEx/OpEx 标注需求。
+
+---
+
+## 十四、v1.5 建模补充说明
+
+1. **unit_status 扩展**：新增 `'renovating'`（改造中）和 `'pre_lease'`（预租/意向锁定），对齐前端原型楼层色块状态。
+2. **pricing_model 新增**：新增 `pricing_model` 枚举（area/flat/revenue）及 contracts 表字段，明确三种计租模式。
+3. **credit_rating D 级**：信用评级扩展到 A/B/C/D 四级，D 维重点监控（12 个月内逾期 ≥6 次或单次 >30 天）。
+4. **kpi_scheme_status 新增**：替换 kpi_schemes.is_active BOOLEAN 为 status 枚举（draft/active/archived），支持方案生命周期管理。
+5. **kpi_metric_category 新增**：kpi_metric_definitions 新增 category 字段（leasing/finance/service/growth），便于指标分类展示和筛选。
+6. **KPI 指标扩充至 K14**：新增 K11（预防性维修率）、K12（空置面积降幅）、K13（新签约面积）、K14（续签率）。
+7. **alerts.target_roles 新增**：支持按角色广播通知，与 target_user_id 互补。
+8. **units.ext_fields SVG 约定**：ext_fields 增加公共可选字段 svg_x/svg_y/svg_w/svg_h，用于楼层平面图热区绘制。
+
+---
+
+## 十五、前后端枚举映射表
+
+下表列出前端原型 Mock 数据与后端数据模型之间的枚举值命名差异，前端应在 API 层做映射转换。
+
+| 枚举类型 | 前端 Mock 值 | 后端模型值 | 说明 |
+|---------|------------|------------|------|
+| `unit_status` | `rented` | `leased` | 已租 |
+| `unit_status` | `pre-lease` | `pre_lease` | 预租/意向锁定 |
+| `unit_status` | `renovating` | `renovating` | 改造中（一致） |
+| `contract_status` | `draft` | `quoting` | 报价中/草稿 |
+| `contract_status` | `pending_start` | `pending_sign` | 待签约 |
+| `contract_status` | `expiring` | `expiring_soon` | 即将到期 |
+| `deposit_status` | `held` | `collected` | 已收取 |
+| `deposit_status` | `partial` | `partially_credited` | 部分冲抵 |
+| `deposit_status` | `returned` | `refunded` | 已退还 |
+| `work_order_status` | `pending` | `submitted` | 已提交 |
+| `work_order_status` | `processing` | `in_progress` | 处理中 |
+| `work_order_priority` | `high` | `urgent` | 紧急 |
+| `kpi_scheme` | `is_active: true` | `status: 'active'` | 方案生效中 |

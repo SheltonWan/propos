@@ -1,8 +1,8 @@
 # PropOS RBAC 权限矩阵（角色 × 端点级映射）
 
-> **版本**: v2.0  
+> **版本**: v2.1  
 > **日期**: 2026-04-13  
-> **依据**: PRD v1.8（二、用户角色与权限矩阵）/ API_INVENTORY v1.5 / ARCH v1.4 / data_model v1.4 / ROLE_EXPANSION_PLAN v1.0  
+> **依据**: PRD v1.8（二、用户角色与权限矩阵）/ API_INVENTORY v1.5 / ARCH v1.5 / data_model v1.5 / ROLE_EXPANSION_PLAN v1.0  
 > **用途**: 后端 RBAC 中间件实现参考；权限审计基线  
 > **变更**: v2.0 — 角色体系从 6 个扩展至 8 个（新增 `property_inspector`、`report_viewer`；`frontline_staff` 更名为 `maintenance_staff`）
 
@@ -240,6 +240,7 @@
 | `GET /api/kpi/schemes` | kpi.manage | SA, OM |
 | `POST /api/kpi/schemes` | kpi.manage | SA, OM |
 | `PATCH /api/kpi/schemes/:id` | kpi.manage | SA, OM |
+| `PATCH /api/kpi/schemes/:id/status` | kpi.manage | SA, OM（draft→active 需 OM+；active→archived 需 SA） |
 | `GET /api/kpi/schemes/:id` | kpi.manage | SA, OM |
 | `POST /api/kpi/schemes/:id/freeze` | kpi.manage | SA, OM |
 | `GET /api/kpi/snapshots` | kpi.view ∪ kpi.manage | SA, OM（全员）; LS, FS, MS, PI（仅自己）; RV（全员只读） |

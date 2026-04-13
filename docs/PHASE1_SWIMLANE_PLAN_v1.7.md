@@ -1,8 +1,8 @@
 # PropOS Phase 1 开发泳道计划 v1.7
 
-> 版本: v1.3
+> 版本: v1.4
 > 日期: 2026-04-13
-> 依据文档: PRD v1.8 / ARCH v1.4 / data_model v1.4 / Phase 1 实施清单 v1.7(v1.3)
+> 依据文档: PRD v1.8 / ARCH v1.5 / data_model v1.5 / Phase 1 实施清单 v1.7(v1.4)
 > 目标: 将 Must / Should 任务按后端、Flutter、数据初始化三条泳道展开，便于并行实施。
 
 ---
@@ -173,3 +173,12 @@
 - FE-09：工单完工页增加费用性质选择（经常性 OpEx / 资本性 CapEx）；CapEx 工单不自动应射到 NOI。
 - data_model 从 v1.3 升级到 v1.4：`expense_category` 枚举新增 `professional_service`，`work_orders` 表新增 `cost_nature`（opex/capex）列。
 - 依据文档升级：PRD v1.7 → v1.8，ARCH v1.2 → v1.4，实施清单 v1.7(v1.2) → v1.7(v1.3)。
+
+### v1.4 对齐 data_model v1.5（2026-04-13）
+
+- 信用评级 `credit_rating` 枚举新增 D 级（12个月内逾期≥6次或单次>30天）。
+- KPI 指标从 K01~K10 扩展至 K01~K14，新增 K11 预防性维修率、K12 空置面积降幅、K13 新签约面积、K14 续签率。
+- KPI 方案 `is_active` 布尔字段迁移为 `status` 枚举（draft/active/archived），新增 `PATCH /api/kpi/schemes/:id/status` 端点。
+- 合同新增 `pricing_model`（area/flat/revenue）字段。
+- 预警 `alerts` 表新增 `target_roles user_role[]` 支持按角色广播推送。
+- 依据文档升级：ARCH v1.4 → v1.5，data_model v1.4 → v1.5，实施清单 v1.7(v1.3) → v1.7(v1.4)。

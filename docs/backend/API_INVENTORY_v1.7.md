@@ -3,7 +3,7 @@
 > 版本: v1.5
 > 日期: 2026-04-13
 > 范围: Phase 1 Must + 部分 Should
-> 依据: PRD v1.8 / ARCH v1.4 / data_model v1.4
+> 依据: PRD v1.8 / ARCH v1.4 / data_model v1.5
 > 说明: 所有接口统一使用响应信封。成功为 `{ data, meta? }`，失败为 `{ error: { code, message } }`。分页参数统一为 `page` 和 `pageSize`，默认 20，最大 100。
 > **契约文档**: 各端点字段级 Request/Response DTO 定义见 [API_CONTRACT_v1.7.md](API_CONTRACT_v1.7.md)
 
@@ -198,14 +198,15 @@
 | GET | /api/noi/vacancy-loss | 空置损失测算（基于 `market_rent_reference` 字段） | finance.read |
 | GET | /api/noi/budget | NOI 预算列表 | finance.read |
 | POST | /api/noi/budget | 录入 NOI 预算（用于 K07 NOI 达成率计算） | finance.write |
-| GET | /api/kpi/metrics | KPI 指标定义库列表（K01~K10，含 `direction`、`is_enabled`） | kpi.view |
+| GET | /api/kpi/metrics | KPI 指标定义库列表（K01~K14，含 `direction`、`category`、`is_enabled`） | kpi.view |
 | PATCH | /api/kpi/metrics/:id | 启用/停用指标（`is_enabled`） | kpi.manage |
-| POST | /api/kpi/metrics/:id/manual-input | 录入手动指标值（仅 K10 租户满意度，需 `period_start`、`period_end`、`value`、`target_user_id`） | kpi.manage |
+| POST | /api/kpi/metrics/:id/manual-input | 录入手动指标值（K10 租户满意度，需 `period_start`、`period_end`、`value`、`target_user_id`） | kpi.manage |
 | GET | /api/kpi/schemes | KPI 考核方案列表 | kpi.view |
 | POST | /api/kpi/schemes | 创建 KPI 考核方案 | kpi.manage |
 | GET | /api/kpi/schemes/:id | KPI 方案详情（含绑定指标与权重） | kpi.view |
 | PATCH | /api/kpi/schemes/:id | 更新方案基本信息（名称、周期、有效期等） | kpi.manage |
-| DELETE | /api/kpi/schemes/:id | 停用方案（逻辑删除，已有快照不受影响） | kpi.manage |
+| PATCH | /api/kpi/schemes/:id/status | 方案状态转换（draft→active→archived） | kpi.manage |
+| DELETE | /api/kpi/schemes/:id | 归档方案（设 status=archived，已有快照不受影响） | kpi.manage |
 | GET | /api/kpi/schemes/:id/metrics | 方案指标列表（含权重与阈值覆盖） | kpi.view |
 | PUT | /api/kpi/schemes/:id/metrics | 覆盖方案指标配置（权重/阈值，需校验权重之和 = 100%） | kpi.manage |
 | GET | /api/kpi/schemes/:id/targets | 方案绑定对象列表 | kpi.view |
@@ -465,6 +466,18 @@
 | 变更项 | 影响端点 |
 |--------|----------|
 | NOI Margin/OpEx Ratio 聚合 | `GET /api/noi/summary` 响应新增 `noi_margin`、`opex_ratio` 字段 |
+
+---
+
+## 十三、v1.5 数据模型对齐（data_model v1.5）
+
+| 变更项 | 影响端点 |
+|--------|----------|
+| `pricing_model` 枚举（area/flat/revenue） | `POST /api/contracts`、`GET /api/contracts/:id` 响应新增 `pricing_model` 字段 |
+| `credit_rating` 扩展 D 级 | `GET /api/tenants` 过滤器支持 `D`、DTO 说明更新 |
+| KPI 指标 K01~K14 | `GET /api/kpi/metrics` 指标数从 10 扩展到 14，新增 `category` 字段 |
+| KPI 方案 `is_active` → `status` | KPI 方案 DTO 改用 `status`（draft/active/archived），新增 `PATCH /api/kpi/schemes/:id/status` |
+| `alerts.target_roles` | 通知推送支持按角色广播 |
 | NOI 年度预算管理 | `GET/POST /api/noi/budget`（已存在）：`POST` 请求体新增 `period_month`（NULL=年度预算）支持 |
 | 工单完工费用性质 | `PATCH /api/workorders/:id/complete` 请求体新增 `cost_nature`（`"opex"` / `"capex"`，NULLABLE，仅 repair 类型适用） |
 | 运营支出类目扩展 | `POST /api/expenses` 请求体 `category` 新增 `"professional_service"` 枚举字字段展示 || HTTPS 强制 | 二房东门户强制 TLS 1.2+ |

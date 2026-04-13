@@ -2,7 +2,7 @@
 
 > **版本**: v1.1  
 > **日期**: 2026-04-09  
-> **依据**: PRD v1.7 / data_model v1.3 / API_CONTRACT v1.7  
+> **依据**: PRD v1.8 / data_model v1.5 / API_CONTRACT v1.7  
 > **用途**: 为开发自测、单元测试、集成测试与 WALE/NOI/KPI 验算提供标准化参考数据  
 
 ---
@@ -92,6 +92,7 @@
 | T-CORP-C | 聚鑫餐饮连锁有限公司 | corporate | 91440300MA5JLN9012 | 陈店长 | 13700003333 | A |
 | T-IND-D | 张三 | individual | 440305199001011234 | 张三 | 13600004444 | B |
 | T-SUBLORD | 鼎盛物业管理有限公司 | corporate | 91440300MA5ABC3456 | 赵总 | 13500005555 | A |
+| T-CORP-D | 恒通贸易有限公司 | corporate | 91440300MA5XYZ7890 | 周总 | 13400006666 | D |
 
 > **脱敏提示**: `id_number` 在数据库中 AES-256 加密存储；API 默认返回 `****1234` 格式。
 
@@ -604,20 +605,24 @@ $$= 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = \textbf{94.03 分}$$
 
 ## 二十二、KPI 指标库（kpi_metric_definitions）
 
-> 10 条系统预定义指标由 seed 写入，管理员可启用/停用，不可自行删除。`direction` 字段决定线性插值逻辑方向。
+> 14 条系统预定义指标由 seed 写入，管理员可启用/停用，不可自行删除。`direction` 字段决定线性插值逻辑方向。
 
-| metric_id | code | name | direction | default_full_score_threshold | default_pass_threshold | unit | data_source_key |
-|---------|------|------|---------|--------------------------|---------------------|------|----------------|
-| KM-K01 | K01 | 出租率 | positive | 0.95 | 0.80 | 比例 | assets.leasable_ratio |
-| KM-K02 | K02 | 收款及时率 | positive | 0.95 | 0.80 | 比例 | finance.payment_on_time_rate |
-| KM-K03 | K03 | 租户集中度 | negative | 0.40 | 0.60 | 比例（越低越好）| contracts.top3_rent_concentration |
-| KM-K04 | K04 | 续约率 | positive | 0.80 | 0.60 | 比例 | contracts.renewal_rate |
-| KM-K05 | K05 | 工单响应时效 | negative | 24 | 72 | 小时（越少越好）| workorders.avg_response_hours |
-| KM-K06 | K06 | 空置周转天数 | negative | 30 | 60 | 天（越少越好）| assets.avg_vacancy_days |
-| KM-K07 | K07 | NOI 达成率 | positive | 1.00 | 0.90 | 比例 | finance.noi_achievement_rate |
-| KM-K08 | K08 | 逾期率 | negative | 0.05 | 0.15 | 比例（越低越好）| finance.overdue_rate |
-| KM-K09 | K09 | 租金递增执行率 | positive | 0.95 | 0.80 | 比例 | contracts.escalation_execution_rate |
-| KM-K10 | K10 | 租户满意度 | positive | 90 | 70 | 分（0~100）| manual.satisfaction_score |
+| metric_id | code | name | category | direction | default_full_score_threshold | default_pass_threshold | unit | data_source_key |
+|---------|------|------|----------|---------|--------------------------|---------------------|------|----------------|
+| KM-K01 | K01 | 出租率 | leasing | positive | 0.95 | 0.80 | 比例 | assets.leasable_ratio |
+| KM-K02 | K02 | 收款及时率 | finance | positive | 0.95 | 0.80 | 比例 | finance.payment_on_time_rate |
+| KM-K03 | K03 | 租户集中度 | leasing | negative | 0.40 | 0.60 | 比例（越低越好）| contracts.top3_rent_concentration |
+| KM-K04 | K04 | 续约率 | leasing | positive | 0.80 | 0.60 | 比例 | contracts.renewal_rate |
+| KM-K05 | K05 | 工单响应时效 | service | negative | 24 | 72 | 小时（越少越好）| workorders.avg_response_hours |
+| KM-K06 | K06 | 空置周转天数 | leasing | negative | 30 | 60 | 天（越少越好）| assets.avg_vacancy_days |
+| KM-K07 | K07 | NOI 达成率 | finance | positive | 1.00 | 0.90 | 比例 | finance.noi_achievement_rate |
+| KM-K08 | K08 | 逾期率 | finance | negative | 0.05 | 0.15 | 比例（越低越好）| finance.overdue_rate |
+| KM-K09 | K09 | 租金递增执行率 | leasing | positive | 0.95 | 0.80 | 比例 | contracts.escalation_execution_rate |
+| KM-K10 | K10 | 租户满意度 | service | positive | 90 | 70 | 分（0~100）| manual.satisfaction_score |
+| KM-K11 | K11 | 预防性维修率 | service | positive | 0.90 | 0.70 | 比例 | workorders.preventive_rate |
+| KM-K12 | K12 | 空置面积降幅 | growth | positive | 0.20 | 0.10 | 比例 | assets.vacancy_reduction_rate |
+| KM-K13 | K13 | 新签约面积（m²） | growth | positive | 2000 | 1000 | m² | contracts.new_lease_area |
+| KM-K14 | K14 | 续签率 | leasing | positive | 0.80 | 0.60 | 比例 | contracts.renewal_rate_v2 |
 
 ---
 
@@ -625,10 +630,10 @@ $$= 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = \textbf{94.03 分}$$
 
 ### 23.1 考核方案（kpi_schemes）
 
-| scheme_id | name | period_type | effective_from | effective_to | is_active |
+| scheme_id | name | period_type | effective_from | effective_to | status |
 |----------|------|------------|---------------|------------|---------|
-| KS-001 | 租务部考核方案 2026Q3 | quarterly | 2025-07-01 | 2025-09-30 | true |
-| KS-002 | 全员 KPI 月度试行方案 | monthly | 2025-07-01 | 2025-07-31 | false |
+| KS-001 | 租务部考核方案 2026Q3 | quarterly | 2025-07-01 | 2025-09-30 | active |
+| KS-002 | 全员 KPI 月度试行方案 | monthly | 2025-07-01 | 2025-07-31 | archived |
 
 ### 23.2 方案-指标关联（kpi_scheme_metrics）
 
@@ -686,5 +691,5 @@ $$= 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = \textbf{94.03 分}$$
 > 2. 所有金额均为示意，实际部署前需替换为真实数据  
 > 3. UUID 简称（如 C-OFFICE-01、KM-K01）在 SQL 中替换为 `gen_random_uuid()` 生成的真实 UUID  
 > 4. 验算结果（WALE、NOI、KPI）可作为单元测试的 expected 值  
-> 5. P0 强依赖（必须先于业务代码写入）：`kpi_metric_definitions`（10条）、`departments`（6条）、`users`（6条）、`buildings`（3条）  
+> 5. P0 强依赖（必须先于业务代码写入）：`kpi_metric_definitions`（14条）、`departments`（6条）、`users`（6条）、`buildings`（3条）  
 > 6. 种子执行顺序参考：departments → buildings → floors → users → suppliers → units → tenants → contracts → contract_units → rent_escalation_phases → deposits → deposit_transactions → invoices → invoice_items → payments → payment_allocations → expenses → meter_readings → alerts → renovation_records → turnover_reports → subleases → kpi_metric_definitions → kpi_schemes → kpi_scheme_metrics → kpi_scheme_targets → noi_budgets → user_managed_scopes → kpi_score_snapshots → kpi_score_snapshot_items → kpi_appeals → work_orders

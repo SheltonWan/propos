@@ -1,13 +1,13 @@
 # PropOS Phase 1 项目开发日程计划
 
-> **版本**: v1.3
-> **制定日期**: 2026-04-05（v1.3 更新日期: 2026-04-08）
+> **版本**: v1.4
+> **制定日期**: 2026-04-05（v1.4 更新日期: 2026-04-13）
 > **计划开始日期**: 2026-04-08（周三）
 > **计划上线日期**: 2026-08-21（周五）
 > **开发模式**: Copilot Agent 主导（~85% 零手写代码）+ 人工基础设施配置
 > **每日投入**: 8 小时
 > **总工期**: 20 周 / 98 个工作日
-> **依据文档**: PRD v1.8 / ARCH v1.4 / data_model v1.4
+> **依据文档**: PRD v1.8 / ARCH v1.5 / data_model v1.5
 
 ---
 
@@ -490,7 +490,7 @@
 - `ContractListPage`（状态 Tab 筛选 + 合同卡片：单元号 / 租客名 / 到期日 / 月租金 / 状态色标）
 
 > 💬 **Copilot 提示语**（模板：`/uniapp-page` + `/admin-view`）：
-> 实现 `TenantListPage`、`TenantDetailPage` 和 `ContractListPage`。`TenantDetailPage` 工单 Tab 目前为占位组件，M4 完工后回填，**不要现在实现工单 List**。证件号显示时必须脱敏（仅末4位），Store 获取的数据中 `idNumber` 字段已为脱敏值，直接展示即可。信用评级（A/B/C）用 CSS 变量 / Element Plus Tag type 区分（A→success，B→warning，C→danger）。
+> 实现 `TenantListPage`、`TenantDetailPage` 和 `ContractListPage`。`TenantDetailPage` 工单 Tab 目前为占位组件，M4 完工后回填，**不要现在实现工单 List**。证件号显示时必须脱敏（仅末4位），Store 获取的数据中 `idNumber` 字段已为脱敏值，直接展示即可。信用评级（A/B/C/D）用 CSS 变量 / Element Plus Tag type 区分（A→success，B→warning，C→danger，D→danger）。
 > 附：`@file:.github/copilot-instructions.md`（UI色彩规范、状态色）`@file:docs/ARCH.md`
 
 #### Day 33 · 5月22日（周五）— M2 UI 合同详情 + 操作 + 预警
@@ -785,12 +785,12 @@
 
 #### Day 59 · 6月29日（周一）— KPI 指标定义存储
 
-- `kpi_metric_definitions` 表初始化（10 条预定义指标 K01~K10，含 code/name/defaultFullScore/defaultPassScore）
+- `kpi_metric_definitions` 表初始化（14 条预定义指标 K01~K14，含 code/name/category/defaultFullScore/defaultPassScore）
 - `kpi_schemes` + `kpi_scheme_metrics`（多对多关联，含权重 + 本方案满分阈值微调）
 - `KpiRepository`（方案 CRUD：create / update / delete + 权重校验 sum=1.0）
 
 > 💬 **Copilot 提示语**（模板：`/backend-module`）：
-> 初始化 KPI 指标定义体系。`kpi_metric_definitions` 表采用种子数据 SQL（`INSERT ... ON CONFLICT DO NOTHING`，**不允许重复插入**）初始化 K01~K10 十条记录；`defaultFullScore = 100`，`defaultPassScore = 60` 为常量（写到 `backend/lib/shared/constants/business_rules.dart` 的 `kKpiDefaultFullScore`，**不硬编码数字**）。`KpiRepository.validateWeights(List<double> weights)` 校验：`weights.reduce(+).toStringAsFixed(4) == '1.0000'`（使用定点精度避免浮点误差）。权重不合法抛 `AppException('INVALID_KPI_WEIGHTS', '权重之和必须为 1.0', 422)`。`kpi_schemes` 与 `kpi_metric_definitions` 多对多关联表 `kpi_scheme_metrics` 含 `weight NUMERIC(5,4)` + `custom_full_score INTEGER nullable`。
+> 初始化 KPI 指标定义体系。`kpi_metric_definitions` 表采用种子数据 SQL（`INSERT ... ON CONFLICT DO NOTHING`，**不允许重复插入**）初始化 K01~K14 十四条记录；`defaultFullScore = 100`，`defaultPassScore = 60` 为常量（写到 `backend/lib/shared/constants/business_rules.dart` 的 `kKpiDefaultFullScore`，**不硬编码数字**）。`KpiRepository.validateWeights(List<double> weights)` 校验：`weights.reduce(+).toStringAsFixed(4) == '1.0000'`（使用定点精度避免浮点误差）。权重不合法抛 `AppException('INVALID_KPI_WEIGHTS', '权重之和必须为 1.0', 422)`。`kpi_schemes` 与 `kpi_metric_definitions` 多对多关联表 `kpi_scheme_metrics` 含 `weight NUMERIC(5,4)` + `custom_full_score INTEGER nullable`。
 > 附：`@file:docs/backend/data_model.md`（KPI 实体定义）`@file:.github/copilot-instructions.md`（常量管理规则）
 
 #### Day 60 · 6月30日（周二）— KPI 数据聚合
@@ -802,7 +802,7 @@
   - K08 逾期率（invoices 逾期金额占比），K09 递增执行率（递增生效合同数占比），K10 满意度（手动录入）
 
 > 💬 **Copilot 提示语**（模板：`/backend-module`）：
-> 实现 `KpiGatherService.gatherMetricData()`。按 `metricCode` switch 分发到不同 SQL 聚合查询（K01~K10 各一个独立私有方法，**不在一个巨大 if-else 里写全部 10 个 SQL**，每个方法不超过 30 行）。K10（满意度）无自动数据源，读 `kpi_manual_entries` 表（创建该表：`scheme_id, metric_code, period, value NUMERIC(5,2), entered_by UUID`）。K05 工单响应时效 = `AVG(first_response_at - created_at)`，单位秒（PostgreSQL：`EXTRACT(EPOCH FROM (first_response_at - created_at))`），需 `work_orders` 表增加 `first_response_at TIMESTAMPTZ nullable` 列（生成补丁迁移 SQL）。所有聚合结果返回 `double`（`actualValue`），无数据时返回 `null`（由打分服务处理 null→0）。
+> 实现 `KpiGatherService.gatherMetricData()`。按 `metricCode` switch 分发到不同 SQL 聚合查询（K01~K14 各一个独立私有方法，**不在一个巨大 if-else 里写全部 14 个 SQL**，每个方法不超过 30 行）。K10（满意度）无自动数据源，读 `kpi_manual_entries` 表（创建该表：`scheme_id, metric_code, period, value NUMERIC(5,2), entered_by UUID`）。K05 工单响应时效 = `AVG(first_response_at - created_at)`，单位秒（PostgreSQL：`EXTRACT(EPOCH FROM (first_response_at - created_at))`），需 `work_orders` 表增加 `first_response_at TIMESTAMPTZ nullable` 列（生成补丁迁移 SQL）。所有聚合结果返回 `double`（`actualValue`），无数据时返回 `null`（由打分服务处理 null→0）。
 > 附：`@file:docs/backend/data_model.md`（KPI 指标清单）`@file:.github/copilot-instructions.md`
 
 #### Day 61 · 7月1日（周三）— KPI 打分 + 快照持久化
@@ -1291,7 +1291,7 @@
 | 合同提前终止流程（3 种终止类型） | Phase 2 M2 | +1 天 | Day 26~27 状态机 |
 | 含税/不含税标识 + 税率字段 | Phase 2 M2 + Phase 4 M3 | +0.5 天 | Day 25（后端）+ Day 65（前端） |
 | 押金独立管理（deposits + transactions） | Phase 2 M2 | +2 天 | Day 27~28 之间新增 |
-| 租户信用评级（A/B/C 自动重算） | Phase 2 M2 | +0.5 天 | Day 24 Tenant 后端 |
+| 租户信用评级（A/B/C/D 自动重算） | Phase 2 M2 | +0.5 天 | Day 24 Tenant 后端 |
 | 水电抄表与计费（meter_readings） | Phase 4 M3 | +2 天 | Day 55~56 之间新增 |
 | 商铺营业额申报审核（turnover_reports） | Phase 4 M3 | +1.5 天 | Day 39（已有骨架）扩展 |
 | WALE 双口径（收入加权 + 面积加权） | Phase 2 M2 | +0.5 天 | Day 28 WALE 服务 |

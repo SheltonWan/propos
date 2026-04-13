@@ -2,7 +2,7 @@
 
 > **版本**: v1.0  
 > **日期**: 2026-04-12  
-> **依据文档**: PRD v1.8 / PHASE1_IMPLEMENTATION_CHECKLIST_v1.7 / data_model v1.3  
+> **依据文档**: PRD v1.8 / PHASE1_IMPLEMENTATION_CHECKLIST_v1.7 / data_model v1.5  
 > **用途**: 逐需求点细粒度验收，替代仅靠人工记忆或高层级标准判断完成度  
 > **状态图例**: ⬜ 未实现 / ✅ 已完成 / 🔄 部分实现 / ❌ 有缺陷/阻塞
 

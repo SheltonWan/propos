@@ -1,8 +1,9 @@
 # PropOS 系统架构设计文档
 
-> **版本**: v1.4  
-> **日期**: 2026-04-09  
+> **版本**: v1.5  
+> **日期**: 2026-04-13  
 > **对应 PRD**: v1.8  
+> **对应 data_model**: v1.5  
 > **范围**: Phase 1 全模块
 
 ---
@@ -36,7 +37,7 @@
 10. 合同提前终止四种类型（`termination_type` 枚举），终止后未来账单自动取消、WALE 剩余租期归零。
 11. 新增水电抴表（`meter_readings`）、商铺营业额对账（`turnover_reports`）、导入批次追踪（`import_batches`）。
 12. KPI 新增反向指标方向字段（`direction`），线性插值逻辑翻转。
-13. 租客信用评级量化（A/B/C 三级），每月自动重算。
+13. 租客信用评级量化（A/B/C/D 四级），每月自动重算。
 14. PIPL 合规：脱敏还原需记录完整审计日志，合同终止后个人信息保留不超过 3 年。
 15. 外部门户强制 HTTPS/TLS 1.2+，密码复杂度要求 8 位以上含大小写字母+数字。
 
@@ -233,7 +234,7 @@ backend/
 │   │   │   │   ├── deposit_service.dart      # 押金收取/冻结/冲抵/退还/转移 + 审计
 │   │   │   │   ├── wale_service.dart         # WALE 双口径计算（收入加权 + 面积加权）
 │   │   │   │   ├── rent_escalation_service.dart  # 持久化递增规则配置，调用 rent_escalation_engine
-│   │   │   │   ├── credit_rating_service.dart    # 租户信用评级自动计算（A/B/C）
+│   │   │   │   ├── credit_rating_service.dart    # 租户信用评级自动计算（A/B/C/D）
 │   │   │   │   └── alert_service.dart        # 预警触发调度（定时任务钩子）
 │   │   │   └── controllers/
 │   │   │       ├── tenant_controller.dart

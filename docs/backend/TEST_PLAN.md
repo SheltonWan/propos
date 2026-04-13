@@ -2,7 +2,7 @@
 
 > **版本**: v1.1
 > **日期**: 2026-04-09
-> **对应文档**: PRD v1.8 / ARCH v1.4 / data_model v1.3 / API_CONTRACT v1.7 / IMPLEMENTATION_CHECKLIST v1.7
+> **对应文档**: PRD v1.8 / ARCH v1.5 / data_model v1.5 / API_CONTRACT v1.7 / IMPLEMENTATION_CHECKLIST v1.7
 > **范围**: Phase 1 全模块（M1~M5 + KPI + 基础底座）
 
 ---
@@ -551,7 +551,7 @@
 | 楼栋 | 3 | A 座写字楼、商铺区、公寓楼 |
 | 楼层 | 15 | A 座 10 层 + 商铺 2 层 + 公寓 3 层 |
 | 单元 | 50（测试子集） | 三业态各覆盖：leased/vacant/expiring_soon/non_leasable |
-| 租客 | 20 | 含企业/个人、信用 A/B/C 各级 |
+| 租客 | 20 | 含企业/个人、信用 A/B/C/D 各级 |
 | 合同 | 30 | 含全部 7 种状态、单/多单元、4 种终止类型 |
 | 账单 | 100 | 含 6 种状态（draft/issued/paid/overdue/cancelled/exempt） |
 | 收款记录 | 30 | 含全额/部分/跨账单核销 |
@@ -683,7 +683,7 @@
 | J3 invoice_overdue_check | 创建 due_date = 昨天的 issued 账单 → 触发 | issued → overdue |
 | J4 alert_engine | 创建符合预警条件的合同/账单 → 触发 | alerts 表有记录 + 通知发送 |
 | J5 deposit_refund_reminder | 创建 7 天后终止的合同 → 触发 | 提醒记录生成 |
-| J6 credit_rating_recalc | 创建有逾期记录的租户 → 触发 | 评级正确（A/B/C） |
+| J6 credit_rating_recalc | 创建有逾期记录的租户 → 触发 | 评级正确（A/B/C/D） |
 
 ### 14.2 幂等性与防重
 

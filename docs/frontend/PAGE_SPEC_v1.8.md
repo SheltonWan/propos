@@ -4,7 +4,7 @@
 |--------|------|
 | 版本 | v1.8 |
 | 日期 | 2026-04-12 |
-| 依据 | PRD v1.8 · ARCH v1.4 · API_CONTRACT v1.7 |
+| 依据 | PRD v1.8 · ARCH v1.5 · API_CONTRACT v1.7 |
 | 设计体系 | uni-app: `wot-design-uni` + CSS 变量 / Admin: Element Plus + 内置主题 |
 | 路由方案 | uni-app: `pages.json` + `uni.navigateTo` / Admin: Vue Router 4 `createWebHistory` |
 | 状态管理 | Pinia（`defineStore(id, setup)` 风格） |

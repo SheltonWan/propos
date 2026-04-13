@@ -3,7 +3,7 @@
 > 版本: v1.3
 > 日期: 2026-04-13
 > 范围: Phase 1 Must + 必要基础设施
-> 依据: PRD v1.8 / ARCH v1.4 / data_model v1.4
+> 依据: PRD v1.8 / ARCH v1.4 / data_model v1.5
 > 目标: 将数据模型文档转成迁移实施顺序，作为后续 SQL migration 编写基线。
 
 ---
@@ -39,6 +39,7 @@
 | 016 | **016_create_user_managed_scopes.sql** | **user_managed_scopes**（管辖范围，支持部门默认 + 个人覆盖） |
 | 017 | **017_create_kpi_targets_and_appeals.sql** | **kpi_scheme_targets**（方案绑定部门/员工）、**kpi_appeals**（KPI 申诉） |
 | 018 | **018_add_noi_budgets.sql** | **noi_budgets**（NOI 年度预算，v1.8 新增）：按楼栋/业态录入年度 NOI 预算，附加建楼栋和业态复合索引 |
+| 019 | **019_v1.5_model_alignment.sql** | data_model v1.5 对齐：枚举扩展（unit_status、credit_rating）、新增枚举（pricing_model、kpi_scheme_status、kpi_metric_category）、表结构变更（contracts.pricing_model、kpi_schemes.status、kpi_metric_definitions.category、alerts.target_roles）、K11-K14 种子 |
 
 ---
 
@@ -60,7 +61,15 @@ v1.7 新增：
 | `turnover_approval_status` | `pending`, `approved`, `rejected` |
 | `import_data_type` | `unit`, `contract`, `sublease`, `invoice` |
 | `import_rollback_status` | `none`, `rolling_back`, `rolled_back`, `rollback_failed` |
-| `credit_rating` | `A`, `B`, `C` |
+| `credit_rating` | `A`, `B`, `C`, `D` |
+
+v1.5 新增：
+
+| ENUM | 值 |
+|------|----|
+| `pricing_model` | `area`, `flat`, `revenue` |
+| `kpi_scheme_status` | `draft`, `active`, `archived` |
+| `kpi_metric_category` | `leasing`, `finance`, `service`, `growth` |
 
 ### 2. users 与审计基础设施
 
@@ -332,3 +341,23 @@ CHECK: `direction IN ('positive', 'negative')`
 | 新增 `cost_nature` ENUM（`opex`/`capex`） | 001（新） |
 | `work_orders` 表新增 `cost_nature cost_nature NULL` | 006 |
 | 新增 `noi_budgets` 表（NOI 年度预算） | 018（新） |
+
+### v1.4 对齐 data_model v1.5（2026-04-13）
+
+> 正式迁移文件：`backend/migrations/20260413_v1.5_model_alignment.sql`
+
+| 变更项 | 影响迁移文件 |
+|---------|------------|
+| `unit_status` ENUM 新增 `renovating` / `pre_lease` | 001（ALTER TYPE ADD VALUE） |
+| `credit_rating` ENUM 新增 `D` 级 | 001（ALTER TYPE ADD VALUE） |
+| 新增 `pricing_model` ENUM（area/flat/revenue） | 001（新 ENUM） |
+| 新增 `kpi_scheme_status` ENUM（draft/active/archived） | 001（新 ENUM） |
+| 新增 `kpi_metric_category` ENUM（leasing/finance/service/growth） | 001（新 ENUM） |
+| `contracts` 表新增 `pricing_model` 列 | 004 |
+| `kpi_metric_definitions` 表新增 `category` 列 | 011 |
+| `kpi_schemes` 表 `is_active BOOLEAN` → `status kpi_scheme_status` | 011 |
+| `alerts` 表新增 `target_roles user_role[]` 列 | 004 |
+| KPI 指标种子 K11-K14 | 014 |
+| 迁移序列追加 019_v1.5_model_alignment.sql | 全局 |
+
+**注意**：`ALTER TYPE ... ADD VALUE` 在 PostgreSQL 中不能在事务块内执行，需在事务外独立运行。
