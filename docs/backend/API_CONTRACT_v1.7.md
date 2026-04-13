@@ -3,7 +3,7 @@
 > **版本**: v1.7  
 > **日期**: 2026-04-08  
 > **范围**: Phase 1 全端点 Request / Response 字段级定义  
-> **依据**: API_INVENTORY v1.7 / data_model v1.3 / PRD v1.7 / ARCH v1.2  
+> **依据**: API_INVENTORY v1.5 / data_model v1.4 / PRD v1.8 / ARCH v1.4  
 > **信封协议**: 成功 `{ "data": <payload>, "meta"?: { "page", "pageSize", "total" } }` / 失败 `{ "error": { "code": "SCREAMING_SNAKE", "message": "..." } }`
 
 ---

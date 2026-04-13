@@ -1,9 +1,9 @@
 # PropOS 数据库迁移草案 v1.7
 
-> 版本: v1.2
-> 日期: 2026-04-08
+> 版本: v1.3
+> 日期: 2026-04-13
 > 范围: Phase 1 Must + 必要基础设施
-> 依据: PRD v1.7 / ARCH v1.2 / data_model v1.3
+> 依据: PRD v1.8 / ARCH v1.4 / data_model v1.4
 > 目标: 将数据模型文档转成迁移实施顺序，作为后续 SQL migration 编写基线。
 
 ---
@@ -21,12 +21,12 @@
 
 | 顺序 | 文件名建议 | 主要内容 |
 |------|-----------|---------|
-| 001 | 001_create_enums.sql | property_type、contract_status（默认值 `quoting`）、invoice_status、work_order_status、**work_order_type**（`repair`/`complaint`/`inspection`）、**sublease_review_status**（含 `draft`）、**deposit_status**、**termination_type**、**meter_type**、**reading_cycle**、**turnover_approval_status**、**import_data_type**、**import_rollback_status**、**credit_rating** 等 ENUM |
+| 001 | 001_create_enums.sql | property_type、contract_status（默认值 `quoting`）、invoice_status、work_order_status、**work_order_type**（`repair`/`complaint`/`inspection`）、**sublease_review_status**（含 `draft`）、**deposit_status**、**termination_type**、**meter_type**、**reading_cycle**、**turnover_approval_status**、**import_data_type**、**import_rollback_status**、**credit_rating**、**cost_nature**（`opex`/`capex`，v1.8 新增） 等 ENUM |
 | 002 | 002_create_users_and_audit.sql | users、audit_logs、job_execution_logs、**refresh_tokens** |
 | 003 | 003_create_assets.sql | buildings、floors、**floor_plans**（多版本图纸）、units（含 `market_rent_reference`、`predecessor_unit_ids`、`archived_at`）、renovation_records |
 | 004 | 004_create_contracts.sql | tenants（含信用评级字段、`data_retention_until`）、contracts（含 `tax_inclusive`、`applicable_tax_rate`、终止字段）、**contract_units**（M:N 中间表）、contract_attachments、rent_escalation_phases、**escalation_templates**（递增规则模板）、alerts（含 `target_user_id`） |
 | 005 | 005_create_finance.sql | invoices、invoice_items、payments、payment_allocations、expenses |
-| 006 | 006_create_workorders.sql | suppliers、work_orders、work_order_photos |
+| 006 | 006_create_workorders.sql | suppliers、work_orders（新增 `cost_nature` 列，v1.8）、work_order_photos |
 | 007 | 007_create_deposits.sql | **deposits**（押金主表）、**deposit_transactions**（押金交易流水） |
 | 008 | 008_create_meter_readings.sql | **meter_readings**（水电抄表记录，含阶梯计价字段） |
 | 009 | 009_create_turnover_reports.sql | **turnover_reports**（商铺营业额申报，含审批状态） |
@@ -38,6 +38,7 @@
 | 015 | **015_create_departments.sql** | **departments**（三级组织树：公司→部门→组） |
 | 016 | **016_create_user_managed_scopes.sql** | **user_managed_scopes**（管辖范围，支持部门默认 + 个人覆盖） |
 | 017 | **017_create_kpi_targets_and_appeals.sql** | **kpi_scheme_targets**（方案绑定部门/员工）、**kpi_appeals**（KPI 申诉） |
+| 018 | **018_add_noi_budgets.sql** | **noi_budgets**（NOI 年度预算，v1.8 新增）：按楼栋/业态录入年度 NOI 预算，附加建楼栋和业态复合索引 |
 
 ---
 
@@ -322,3 +323,12 @@ CHECK: `direction IN ('positive', 'negative')`
 ### v1.2 对齐 data_model v1.3（2026-04-08）
 
 内容已完整覆盖 data_model v1.3 所有新增表和字段（`floor_plans`、`escalation_templates`、`alerts.target_user_id`、`data_retention_until`、`sublease_review_status.draft`、`contracts.status` 默认 `quoting`），本次仅更新依据文档版本引用。
+
+### v1.3 对齐 PRD v1.8 / data_model v1.4（2026-04-13）
+
+| 变更项 | 影响迁移文件 |
+|---------|------------|
+| `expense_category` ENUM 新增 `professional_service`（专业服务费） | 001 |
+| 新增 `cost_nature` ENUM（`opex`/`capex`） | 001（新） |
+| `work_orders` 表新增 `cost_nature cost_nature NULL` | 006 |
+| 新增 `noi_budgets` 表（NOI 年度预算） | 018（新） |

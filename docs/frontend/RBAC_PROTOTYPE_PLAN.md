@@ -2,7 +2,7 @@
 
 > **版本**: v3.0
 > **日期**: 2026-04-13
-> **依据**: PRD v1.7 / RBAC_MATRIX v2.0 / PAGE_ROLE_VISIBILITY_MATRIX v1.0
+> **依据**: PRD v1.8 / RBAC_MATRIX v2.0 / PAGE_ROLE_VISIBILITY_MATRIX v1.0
 > **范围**: React 原型（`frontend/`），mock 角色切换，不含真实后端鉴权
 > **变更**:
 > - v3.0 — 采用**整区域隐藏**策略替代字段级 `***` 脱敏；补全 30+ 页面的角色适配；新增 `canViewFinancialData` / `canViewPII` helper；ROUTE_RULES 从 13 条扩展至 28 条

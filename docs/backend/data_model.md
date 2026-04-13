@@ -1,8 +1,8 @@
 # PropOS Phase 1 数据模型文档
 
-> **版本**: v1.3
-> **日期**: 2026-04-08
-> **对应 PRD**: v1.7
+> **版本**: v1.4
+> **日期**: 2026-04-13
+> **对应 PRD**: v1.8
 > **范围**: Phase 1 五个核心模块
 
 ---
@@ -178,7 +178,14 @@ CREATE TYPE expense_category AS ENUM (
     'repair',              -- 维修费
     'insurance',           -- 保险
     'tax',                 -- 税金
+    'professional_service', -- 专业服务费（消防检测/电梯年检等）（v1.8）
     'other'                -- 其他
+);
+
+-- 工单费用性质（v1.8）
+CREATE TYPE cost_nature AS ENUM (
+    'opex',  -- 经常性支出（汇入 NOI）
+    'capex'  -- 资本性支出（不计入 NOI）
 );
 
 -- 工单类型
@@ -1308,6 +1315,7 @@ CREATE TABLE work_orders (
     -- 成本（完工后录入，仅 repair 类型适用）
     material_cost     NUMERIC(10,2),    -- 材料费（元）
     labor_cost        NUMERIC(10,2),    -- 人工费（元）
+    cost_nature       cost_nature,              -- NULL 表示未标注（或非 repair 类型）（v1.8）
     -- 成本关联通过 expenses.work_order_id 反向引用，无需在此冗余 expense_id
     -- 验收 / 处理结论
     inspection_note   TEXT,             -- repair: 验收备注; complaint: 处理结论; inspection: 查验结论
@@ -1539,3 +1547,6 @@ ALTER TABLE expenses
 20. **预警定向推送**：alerts 新增 `target_user_id`，支持按用户级定向推送，不仅限于角色广播。
 21. **子租赁审核草稿**：sublease_review_status 枚举新增 `'draft'` 状态，支持二房东填报暂存。
 22. **合同初始状态**：contracts.status 默认值改为 `'quoting'`（报价中），与 PRD 合同生命周期一致。
+23. **工单费用性质**：work_orders 新增 `cost_nature` 枚举字段（opex/capex），repair 类型完工时可标注，财务侧据此判断是否计入 NOI OpEx。
+24. **专业服务费类目**：expense_category 枚举新增 `professional_service`，用于消防检测、电梯年检等合规性支出。
+25. **cost_nature ENUM**：新建 `cost_nature` 类型，配合 v1.8 工单 CapEx/OpEx 标注需求。

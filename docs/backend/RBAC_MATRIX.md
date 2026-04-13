@@ -2,7 +2,7 @@
 
 > **版本**: v2.0  
 > **日期**: 2026-04-13  
-> **依据**: PRD v1.7（二、用户角色与权限矩阵）/ API_INVENTORY v1.7 / ARCH v1.2 / ROLE_EXPANSION_PLAN v1.0  
+> **依据**: PRD v1.8（二、用户角色与权限矩阵）/ API_INVENTORY v1.5 / ARCH v1.4 / data_model v1.4 / ROLE_EXPANSION_PLAN v1.0  
 > **用途**: 后端 RBAC 中间件实现参考；权限审计基线  
 > **变更**: v2.0 — 角色体系从 6 个扩展至 8 个（新增 `property_inspector`、`report_viewer`；`frontline_staff` 更名为 `maintenance_staff`）
 

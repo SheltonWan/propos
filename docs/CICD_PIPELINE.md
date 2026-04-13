@@ -2,7 +2,7 @@
 
 > **版本**: v2.0
 > **日期**: 2026-04-08
-> **依据文档**: DEPLOYMENT v1.0 / TEST_PLAN v1.0 / ARCH v1.2 / DEV_ENV_SETUP v1.0
+> **依据文档**: DEPLOYMENT v1.0 / TEST_PLAN v1.0 / ARCH v1.4 / DEV_ENV_SETUP v1.0
 > **适用阶段**: Phase 1（单机部署 + GitHub Actions）
 
 ---

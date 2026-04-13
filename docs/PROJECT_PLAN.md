@@ -7,7 +7,7 @@
 > **开发模式**: Copilot Agent 主导（~85% 零手写代码）+ 人工基础设施配置
 > **每日投入**: 8 小时
 > **总工期**: 20 周 / 98 个工作日
-> **依据文档**: PRD v1.7 / ARCH v1.2 / data_model v1.3
+> **依据文档**: PRD v1.8 / ARCH v1.4 / data_model v1.4
 
 ---
 
@@ -1275,7 +1275,7 @@
 
 ---
 
-*本计划基于 PropOS PRD v1.7（2026-04-06）及 ARCH.md v1.2（2026-04-06）制定。如 PRD 需求变更，相关模块排期对应调整。*
+*本计划基于 PropOS PRD v1.8（2026-04-09）及 ARCH.md v1.4（2026-04-09）制定。如 PRD 需求变更，相关模块排期对应调整。*
 
 ---
 
@@ -1325,3 +1325,17 @@
 | `alerts.target_user_id` 定向推送 | Day 29（预警引擎后端） | `alert_service.dart` 生成预警时需填充 `target_user_id`，支持用户级定向 |
 | `data_retention_until` PIPL 合规 | Day 24（租客后端）+ Day 49（二房东后端） | `tenants` 和 `subleases` 表新增字段，合同终止后计算保留截止日 |
 | `contracts.status` 默认值 `quoting` | Day 25（合同 CRUD 后端） | 创建合同时状态初始化为 `quoting` 而非 `pending_sign` |
+
+---
+
+### v1.4 对齐 PRD v1.8 / ARCH v1.4（2026-04-13）
+
+以下 PRD v1.8 新增项在上方日计划中未显式提及，开发时需注意在对应 Day 中一并实现：
+
+| PRD v1.8 新增项 | 影响 Day | 具体补充 |
+|---|---|---|
+| `expense_category` 枚举新增 `professional_service`（专业服务费） | Day 4（001_create_enums.sql） | 迁移时补充枚举值；`expense` 录入页UI新增「专业服务费」选项 |
+| `work_orders.cost_nature` 列（opex/capex） | Day 38（工单完工流程） | `006_create_workorders.sql` 新增 `cost_nature` 列（NULLABLE，仅 repair 类型）；完工API请求体增加 `cost_nature` 字段 |
+| `noi_budgets` 表（NOI 年度预算） | Day 55（NOI 看板后端） | `018_add_noi_budgets.sql` 新建；`NOI BudgetRepository`/`NOIBudgetService` + `GET/POST /api/noi/budget` |
+| NOI Margin/OpEx Ratio 指标聚合 | Day 55（NOI API） | `GET /api/noi/summary` 响应增加 `noi_margin` 和 `opex_ratio` 字段 |
+| NOI 看板预算达成率（K07） | Day 55（NOI 看板前端） | 前端看板增加"预算 vs 实际"对比卡片，调用 `GET /api/noi/budget` |

@@ -1,8 +1,8 @@
 # PropOS Phase 1 开发泳道计划 v1.7
 
-> 版本: v1.2
-> 日期: 2026-04-08
-> 依据文档: PRD v1.7 / ARCH v1.2 / data_model v1.3 / Phase 1 实施清单 v1.7(v1.2)
+> 版本: v1.3
+> 日期: 2026-04-13
+> 依据文档: PRD v1.8 / ARCH v1.4 / data_model v1.4 / Phase 1 实施清单 v1.7(v1.3)
 > 目标: 将 Must / Should 任务按后端、Flutter、数据初始化三条泳道展开，便于并行实施。
 
 ---
@@ -34,7 +34,7 @@
 | B3 | BE-09a | 水电抄表与自动计费 API（v1.7 新增） | BE-09, BE-03a | meter_readings 接口 |
 | B3 | BE-09b | 营业额申报与审核 API（v1.7 新增） | BE-09, BE-03a | turnover_reports 接口 |
 | B3 | BE-10 | payments + payment_allocations 核销 API | BE-09 | payment 接口 |
-| B3 | BE-11 | NOI 聚合 API（不含税口径） | BE-09, BE-10 | NOI 看板接口 |
+| B3 | BE-11 | NOI 聚合 API（不含税口径，含 Margin/OpEx Ratio/预算接口）（v1.8 增强） | BE-09, BE-10 | NOI 看板接口 |
 | B4 | BE-12 | work order 状态机、SLA、成本归口 API | BE-03 | workorders 接口 |
 | B4 | BE-13 | sublease 门户 API、审核流（含 `draft` 草稿暂存）、版本留痕 | BE-03, BE-07 | subleases 接口 |
 | B4 | BE-14 | 二房东行级隔离与会话安全控制（含 HTTPS/TLS/密码复杂度） | BE-13, BE-01 | 门户安全闭环 |
@@ -61,8 +61,8 @@
 | F3 | FE-07 | 账单列表、详情、核销录入页（含含税/不含税双金额） | FE-01, BE-09, BE-10 | 财务主链路页面 |
 | F3 | FE-07a | 水电抄表录入页面（v1.7 新增） | FE-07, BE-09a | 抄表录入 + 费用预览 |
 | F3 | FE-07b | 营业额申报与审核页面（v1.7 新增） | FE-07, BE-09b | 申报提交 + 审核操作 |
-| F3 | FE-08 | NOI 基础看板页 | FE-07, BE-11 | NOI 页面 |
-| F4 | FE-09 | 工单提报、派单、处理、验收页面 | FE-01, BE-12 | 工单闭环页面 |
+| F3 | FE-08 | NOI 看板页（含 NOI Margin/OpEx Ratio 展示 + 预算达成率）（v1.8 增强） | FE-07, BE-11 | NOI 页面 |
+| F4 | FE-09 | 工单提报、派单、处理、验收页面（含 CapEx/OpEx 费用性质录入）（v1.8 增强） | FE-01, BE-12 | 工单闭环页面 |
 | F4 | FE-10 | 二房东门户登录、填报、提交、重提页面 | FE-01, BE-13, BE-14 | 门户页面 |
 | F4 | FE-11 | 内部审核页与穿透看板基础页 | FE-10, BE-13 | 穿透管理页面 |
 | F5 | FE-12 | 预警中心与失败任务可视化 | FE-01, BE-15 | 运维辅助页面 |
@@ -165,3 +165,11 @@
 - BE-15：补充 `alerts.target_user_id` 定向推送。
 - FE-05：补充合同初始状态默认 `quoting` 标注。
 - 依据文档引用从 `data_model v1.2` 更新为 `data_model v1.3`，实施清单从 v1.1 更新为 v1.2。
+
+### v1.3 对齐 PRD v1.8 / ARCH v1.4（2026-04-13）
+
+- BE-11：补充 NOI Margin（NOI÷EGI×100%）与 OpEx Ratio（OpEx÷EGI×100%）聚合接口，以及预算对比接口（`GET/POST /api/noi/budget`）。
+- FE-08：看板页增加 NOI Margin/OpEx Ratio 指标卡片，以及对比预算 NOI 并计算 K07 NOI 达成率。
+- FE-09：工单完工页增加费用性质选择（经常性 OpEx / 资本性 CapEx）；CapEx 工单不自动应射到 NOI。
+- data_model 从 v1.3 升级到 v1.4：`expense_category` 枚举新增 `professional_service`，`work_orders` 表新增 `cost_nature`（opex/capex）列。
+- 依据文档升级：PRD v1.7 → v1.8，ARCH v1.2 → v1.4，实施清单 v1.7(v1.2) → v1.7(v1.3)。

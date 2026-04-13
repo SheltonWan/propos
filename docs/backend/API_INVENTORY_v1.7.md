@@ -1,9 +1,9 @@
 # PropOS 后端 API 清单草案 v1.7
 
-> 版本: v1.4
-> 日期: 2026-04-08
+> 版本: v1.5
+> 日期: 2026-04-13
 > 范围: Phase 1 Must + 部分 Should
-> 依据: PRD v1.7 / ARCH v1.2 / data_model v1.3
+> 依据: PRD v1.8 / ARCH v1.4 / data_model v1.4
 > 说明: 所有接口统一使用响应信封。成功为 `{ data, meta? }`，失败为 `{ error: { code, message } }`。分页参数统一为 `page` 和 `pageSize`，默认 20，最大 100。
 > **契约文档**: 各端点字段级 Request/Response DTO 定义见 [API_CONTRACT_v1.7.md](API_CONTRACT_v1.7.md)
 
@@ -458,4 +458,13 @@
 | 员工部门变更 | 新增 `PATCH /api/users/:id/department` |
 | 租户信用评级 | `GET /api/tenants/:id` 响应增加 `credit_rating` 及统计字段 |
 | 密码复杂度 | 登录/改密接口增强校验 |
-| HTTPS 强制 | 二房东门户强制 TLS 1.2+ |
+---
+
+## 十二、v1.8 对齐变更摘要（PRD v1.8）
+
+| 变更项 | 影响端点 |
+|--------|----------|
+| NOI Margin/OpEx Ratio 聚合 | `GET /api/noi/summary` 响应新增 `noi_margin`、`opex_ratio` 字段 |
+| NOI 年度预算管理 | `GET/POST /api/noi/budget`（已存在）：`POST` 请求体新增 `period_month`（NULL=年度预算）支持 |
+| 工单完工费用性质 | `PATCH /api/workorders/:id/complete` 请求体新增 `cost_nature`（`"opex"` / `"capex"`，NULLABLE，仅 repair 类型适用） |
+| 运营支出类目扩展 | `POST /api/expenses` 请求体 `category` 新增 `"professional_service"` 枚举字字段展示 || HTTPS 强制 | 二房东门户强制 TLS 1.2+ |
