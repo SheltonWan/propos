@@ -157,7 +157,7 @@ const columns = baseColumns.filter(col =>
 
 | Tab | 所需权限 | SA | OM | LS | FS | MS | PI | RV |
 |-----|---------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| 总览 | — (所有人可见) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 首页 | — (所有人可见) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 资产 | `assets.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
 | 合同 | `contracts.read` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
 | 工单 | `workorders.read` | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
@@ -230,7 +230,7 @@ const columns = baseColumns.filter(col =>
 | `property_inspector` | 楼管巡检视图 | 深青 `#134e4a` | 资产概览卡 + 水电抄表 + 工单只读列表 + 租客基本信息 |
 | `report_viewer` | 只读观察视图 | 深紫 `#3b0764` | NOI + WALE + 出租率 + KPI 概览（全只读，零操作按钮） |
 
-- **MS（maintenance_staff）**：仅可达工单和总览，财务页不可达，展示极简水电录入 + 工单视图
+- **MS（maintenance_staff）**：仅可达工单和首页，财务页不可达，展示极简水电录入 + 工单视图
 - **PI（property_inspector）**：可达资产/合同（只读）/工单（只读），展示巡检视图 + 水电抄表 + 租客基本信息
 - **RV（report_viewer）**：可达资产/合同/财务（全只读），展示 NOI + WALE + KPI 概览，零操作按钮
 - **LS**：完整视图，包含押金 / 营业额申报 / 收款进度，无 NOI 卡片
@@ -323,7 +323,7 @@ const columns = baseColumns.filter(col =>
 逐一切换 7 个 Mock 角色，验证：
 
 1. **路由守卫**: MS 不可达 `/assets`、`/contracts`；PI 不可达 `/finance`；RV 不可达 `/work-orders`
-2. **Tab 可见性**: MS 仅见 总览+工单；PI 不见 财务
+2. **Tab 可见性**: MS 仅见 首页+工单；PI 不见 财务
 3. **整区域隐藏关键场景**:
    - ContractDetail 月租金 → PI 时整个财务卡片消失
    - UnitDetail 月租金 → PI/MS 时租金信息卡片消失

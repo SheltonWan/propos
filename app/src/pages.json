@@ -73,7 +73,7 @@
     "list": [
       {
         "pagePath": "pages/dashboard/index",
-        "text": "总览",
+        "text": "首页",
         "iconPath": "static/tabbar/dashboard.png",
         "selectedIconPath": "static/tabbar/dashboard-active.png"
       },

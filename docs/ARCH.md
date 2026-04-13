@@ -430,7 +430,7 @@ dependencies:
 {
   "pages": [
     { "path": "pages/auth/login",             "style": { "navigationBarTitleText": "登录", "navigationStyle": "custom" } },
-    { "path": "pages/dashboard/index",        "style": { "navigationBarTitleText": "总览" } },
+    { "path": "pages/dashboard/index",        "style": { "navigationBarTitleText": "首页" } },
     { "path": "pages/assets/index",           "style": { "navigationBarTitleText": "资产总览" } },
     { "path": "pages/assets/building-detail", "style": { "navigationBarTitleText": "楼栋详情" } },
     { "path": "pages/assets/floor-plan",      "style": { "navigationBarTitleText": "楼层热区图" } },
@@ -452,7 +452,7 @@ dependencies:
     "backgroundColor": "#ffffff",
     "borderStyle": "black",
     "list": [
-      { "pagePath": "pages/dashboard/index",  "text": "总览", "iconPath": "static/tabbar/dashboard.png",  "selectedIconPath": "static/tabbar/dashboard-active.png" },
+      { "pagePath": "pages/dashboard/index",  "text": "首页", "iconPath": "static/tabbar/dashboard.png",  "selectedIconPath": "static/tabbar/dashboard-active.png" },
       { "pagePath": "pages/assets/index",     "text": "资产", "iconPath": "static/tabbar/assets.png",     "selectedIconPath": "static/tabbar/assets-active.png" },
       { "pagePath": "pages/contracts/index",  "text": "合同", "iconPath": "static/tabbar/contracts.png",  "selectedIconPath": "static/tabbar/contracts-active.png" },
       { "pagePath": "pages/workorders/index", "text": "工单", "iconPath": "static/tabbar/workorders.png", "selectedIconPath": "static/tabbar/workorders-active.png" },
