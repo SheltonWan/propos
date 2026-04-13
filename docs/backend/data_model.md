@@ -294,6 +294,37 @@ CREATE TYPE import_rollback_status AS ENUM ('committed', 'rolled_back');
 
 -- 信用评级（v1.7 新增，v1.5 扩展 D 级）
 CREATE TYPE credit_rating AS ENUM ('A', 'B', 'C', 'D');
+
+-- 通知类型（v1.7 新增）
+CREATE TYPE notification_type AS ENUM (
+    'contract_expiring',    -- 合同即将到期
+    'invoice_overdue',      -- 账单逾期
+    'workorder_assigned',   -- 工单已派单
+    'workorder_completed',  -- 工单已完成
+    'approval_pending',     -- 待审批
+    'system_alert',         -- 系统预警
+    'kpi_published'         -- KPI 成绩已发布
+);
+
+-- 通知严重级别（v1.7 新增）
+CREATE TYPE notification_severity AS ENUM ('info', 'warning', 'critical');
+
+-- 催收方式（v1.7 新增）
+CREATE TYPE dunning_method AS ENUM ('phone', 'sms', 'letter', 'visit', 'legal');
+
+-- 审批类型（v1.7 新增）
+CREATE TYPE approval_type AS ENUM (
+    'contract_termination', -- 合同终止
+    'deposit_refund',       -- 押金退还
+    'invoice_adjustment',   -- 账单调整
+    'sublease_submission'   -- 子租赁提交
+);
+
+-- 审批状态（v1.7 新增）
+CREATE TYPE approval_status AS ENUM ('pending', 'approved', 'rejected');
+
+-- 续约意向（v1.7 新增）
+CREATE TYPE renewal_intent AS ENUM ('willing', 'undecided', 'unwilling');
 ```
 
 > **v1.7 建模约束**: KPI 表保留完整结构，但业务语义为"试运行评分"；财务核销改为"收款主记录 + 分配明细"双表，以支持部分收款和跨账单核销；合同-单元改为 M:N 关联（通过 `contract_units`），每个单元独立记录计费面积与单价；新增押金独立建账、水电抄表、营业额对账、导入批次追踪。
@@ -1520,6 +1551,53 @@ CREATE TABLE import_batches (
 
 CREATE INDEX idx_import_batches_type   ON import_batches(data_type);
 CREATE INDEX idx_import_batches_status ON import_batches(rollback_status);
+```
+
+---
+
+## 九-A、通知与催收
+
+### 9A.1 notifications（站内通知）
+
+**v1.7 新增**：站内通知存储，支持按角色/用户推送、已读未读管理、关联资源跳转。
+
+```sql
+CREATE TABLE notifications (
+    id              UUID                  PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID                  NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type            notification_type     NOT NULL,
+    severity        notification_severity NOT NULL DEFAULT 'info',
+    title           VARCHAR(200)          NOT NULL,
+    content         TEXT                  NOT NULL,
+    is_read         BOOLEAN               NOT NULL DEFAULT FALSE,
+    resource_type   VARCHAR(50),          -- 关联资源类型: contract / invoice / workorder 等
+    resource_id     UUID,                 -- 关联资源 ID（点击跳转用）
+    created_at      TIMESTAMPTZ           NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_user_unread ON notifications(user_id, is_read) WHERE is_read = FALSE;
+CREATE INDEX idx_notifications_user_time   ON notifications(user_id, created_at DESC);
+CREATE INDEX idx_notifications_type        ON notifications(type);
+```
+
+### 9A.2 dunning_logs（催收记录）
+
+**v1.7 新增**：记录每笔逾期账单的催收过程，支持多种催收方式和结果记录。
+
+```sql
+CREATE TABLE dunning_logs (
+    id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_id      UUID            NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    method          dunning_method  NOT NULL,
+    content         TEXT            NOT NULL,           -- 催收内容摘要
+    result          TEXT,                               -- 催收结果
+    dunning_date    DATE            NOT NULL,
+    created_by      UUID            NOT NULL REFERENCES users(id),
+    created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_dunning_logs_invoice ON dunning_logs(invoice_id);
+CREATE INDEX idx_dunning_logs_date    ON dunning_logs(dunning_date);
 ```
 
 ---

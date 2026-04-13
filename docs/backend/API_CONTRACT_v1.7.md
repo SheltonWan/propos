@@ -165,6 +165,7 @@
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
+| `search` | string | 否 | 模糊搜索（姓名或邮箱，最大 100 字符） |
 | `role` | string(enum) | 否 | 按角色过滤 |
 | `department_id` | string(uuid) | 否 | 按部门过滤 |
 | `is_active` | boolean | 否 | 按启停状态过滤 |
@@ -963,6 +964,9 @@ Content-Disposition: attachment; filename="units_{property_type}.xlsx"
 |------|------|------|
 | `total_units` | integer | 总套数 |
 | `total_leasable_units` | integer | 可租套数 |
+| `total_occupancy_rate` | number | 总体出租率（0~1，小数） |
+| `wale_income_weighted` | number | WALE 收入加权（年，保留 2 位小数） |
+| `wale_area_weighted` | number | WALE 面积加权（年，保留 2 位小数） |
 | `by_property_type` | `PropertyTypeStats[]` | 按业态分拆统计 |
 
 **`PropertyTypeStats`**
@@ -1144,6 +1148,8 @@ Content-Disposition: attachment; filename="units_{property_type}.xlsx"
 | `tax_inclusive` | boolean | 是否含税 |
 | `is_sublease_master` | boolean | 是否为二房东主合同 |
 | `unit_count` | integer | 关联单元数 |
+| `wale_contribution` | number? | WALE 贡献值（年，按收入加权口径，仅 `active` / `expiring_soon` 返回） |
+| `days_until_expiry` | integer? | 距到期日剩余天数（负值=已过期） |
 | `created_at` | string(datetime) | 创建时间 |
 
 ---
@@ -1237,6 +1243,8 @@ Content-Disposition: attachment; filename="units_{property_type}.xlsx"
 | `penalty_amount` | number? | 违约金 |
 | `deposit_deduction_details` | string? | 押金扣除明细 |
 | `contract_units` | `ContractUnitDetail[]` | 关联单元列表 |
+| `deposit_summary` | `DepositInlineSummary?` | 押金摘要（聚合当前合同所有押金） |
+| `renewal_chain` | `RenewalChainItem[]` | 续签合同链（从最老到最新排序，含自身） |
 | `created_by` | string(uuid)? | 创建人 |
 | `created_at` | string(datetime) | 创建时间 |
 | `updated_at` | string(datetime) | 更新时间 |
@@ -1251,6 +1259,25 @@ Content-Disposition: attachment; filename="units_{property_type}.xlsx"
 | `floor_name` | string? | 楼层名称 |
 | `billing_area` | number | 计费面积 |
 | `unit_price` | number | 单价 |
+
+**`DepositInlineSummary`**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `total_amount` | number | 押金总额（元） |
+| `current_balance` | number | 当前余额（元） |
+| `status` | string | 聚合状态：`normal`（余额=总额） / `partial_deducted`（已部分冲抵） / `refunded`（已退还） |
+
+**`RenewalChainItem`**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `contract_id` | string(uuid) | 合同 ID |
+| `contract_no` | string | 合同编号 |
+| `start_date` | string(date) | 起租日 |
+| `end_date` | string(date) | 到期日 |
+| `status` | string(enum) | 合同状态 |
+| `is_current` | boolean | 是否为当前查看的合同 |
 
 ---
 
@@ -1526,6 +1553,103 @@ Content-Disposition: attachment; filename="units_{property_type}.xlsx"
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `replayed_count` | integer | 补发数量 |
+
+---
+
+### 3.22 `GET /api/tenants/:id/contracts` — 租客关联合同列表
+
+**权限**: `contracts.read`
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `status` | string(enum) | 否 | 过滤合同状态 |
+
+**Response 200** — `TenantContractItem[]`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string(uuid) | 合同 ID |
+| `contract_no` | string | 合同编号 |
+| `status` | string(enum) | 合同状态 |
+| `start_date` | string(date) | 起租日 |
+| `end_date` | string(date) | 到期日 |
+| `monthly_rent` | number | 月租金（元） |
+| `unit_names` | string[] | 关联房间名称列表 |
+
+---
+
+### 3.23 `GET /api/tenants/:id/workorders` — 租客关联工单列表
+
+**权限**: `workorders.read`
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `status` | string(enum) | 否 | 工单状态过滤 |
+| `page` | integer | 否 | 页码 |
+| `pageSize` | integer | 否 | 每页条数 |
+
+**Response 200** — `TenantWorkOrderItem[]`（带 `meta`）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string(uuid) | 工单 ID |
+| `order_no` | string | 工单编号 |
+| `title` | string | 工单标题 |
+| `category` | string(enum) | 工单类别 |
+| `status` | string(enum) | 工单状态 |
+| `priority` | string(enum) | 优先级 |
+| `created_at` | string(datetime) | 创建时间 |
+| `resolved_at` | string(datetime)? | 解决时间 |
+
+---
+
+### 3.24 `GET /api/tenants/:id/credit` — 租客信用评分详情与趋势
+
+**权限**: `tenants.read`
+
+**Response 200** — `TenantCreditDetail`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `tenant_id` | string(uuid) | 租客 ID |
+| `credit_rating` | string(enum) | 当前信用等级：`A` / `B` / `C` / `D` |
+| `overdue_count` | integer | 累计逾期次数 |
+| `times_overdue_past_12m` | integer | 近12个月逾期次数 |
+| `max_single_overdue_days` | integer | 单次最长逾期天数 |
+| `last_rating_date` | string(date) | 最近评级日期 |
+| `trend` | CreditTrendPoint[] | 月度评分趋势（近12个月） |
+
+**`CreditTrendPoint`**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `month` | string | 月份标识（`2026-01`） |
+| `score` | number | 当月信用评分（0~100） |
+| `rating` | string(enum) | 当月信用等级 |
+
+---
+
+### 3.25 `GET /api/contracts/:id/chain` — 合同续约链
+
+**权限**: `contracts.read`
+
+> 返回同一租客 + 同一房间的历史续约合同链，按 start_date 升序。
+
+**Response 200** — `ContractChainItem[]`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `contract_id` | string(uuid) | 合同 ID |
+| `contract_no` | string | 合同编号 |
+| `start_date` | string(date) | 起租日 |
+| `end_date` | string(date) | 到期日 |
+| `monthly_rent` | number | 月租金（元） |
+| `status` | string(enum) | 合同状态 |
+| `is_current` | boolean | 是否为当前查看的合同 |
 
 ---
 
@@ -1864,6 +1988,76 @@ Content-Disposition: attachment; filename="rent_forecast_{contract_no}.xlsx"
 
 ---
 
+### 3C.5 `GET /api/contracts/wale/dashboard` — WALE 综合看板
+
+**权限**: `contracts.read`
+
+> 汇总全局及各业态 WALE，返回 KPI 目标达成率、同比环比。
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `building_id` | string(uuid) | 否 | 按楼栋过滤 |
+
+**Response 200** — `WaleDashboard`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `overall_wale_income` | number | 全局收入加权 WALE（年） |
+| `overall_wale_area` | number | 全局面积加权 WALE（年） |
+| `target_wale` | number? | KPI 目标 WALE |
+| `achievement_rate` | number? | 目标达成率（0~1） |
+| `by_property_type` | WaleByType[] | 各业态明细 |
+| `yoy_change` | number? | 同比变化率 |
+| `mom_change` | number? | 环比变化率 |
+
+**`WaleByType`**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `property_type` | string(enum) | 业态类型 |
+| `wale_income` | number | 收入加权 WALE |
+| `wale_area` | number | 面积加权 WALE |
+| `contract_count` | integer | 合同数 |
+| `total_area` | number | 总面积（m²） |
+
+---
+
+### 3C.6 `GET /api/contracts/at-risk` — 到期风险合同列表
+
+**权限**: `contracts.read`
+
+> 返回距到期日 ≤ 指定天数且尚未续约的合同列表。
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `days_threshold` | integer | 否 | 到期天数阈值（默认 90） |
+| `building_id` | string(uuid) | 否 | 按楼栋过滤 |
+| `property_type` | string(enum) | 否 | 按业态过滤 |
+| `page` | integer | 否 | 页码 |
+| `pageSize` | integer | 否 | 每页条数 |
+
+**Response 200** — `AtRiskContract[]`（带 `meta`）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `contract_id` | string(uuid) | 合同 ID |
+| `contract_no` | string | 合同编号 |
+| `tenant_name` | string | 租客名称 |
+| `unit_names` | string[] | 关联房间 |
+| `end_date` | string(date) | 到期日 |
+| `days_until_expiry` | integer | 距到期天数 |
+| `monthly_rent` | number | 月租金（元） |
+| `annual_rent` | number | 年化租金（元） |
+| `area` | number | 面积（m²） |
+| `wale_contribution` | number | WALE 贡献值（年） |
+| `renewal_intent` | string? | 续约意向：`willing` / `undecided` / `unwilling` / `null` |
+
+---
+
 ## 四、财务与 NOI
 
 ### 4.1 `GET /api/invoices` — 账单分页列表
@@ -1900,6 +2094,7 @@ Content-Disposition: attachment; filename="rent_forecast_{contract_no}.xlsx"
 | `outstanding_amount` | number | 未收金额 |
 | `status` | string(enum) | 账单状态 |
 | `due_date` | string(date) | 缴款截止日 |
+| `days_overdue` | integer? | 逾期天数（未逾期为 `null`，逾期从 `due_date` 次日起计） |
 | `invoice_issued` | boolean | 是否已开票 |
 | `created_at` | string(datetime) | 创建时间 |
 
@@ -1977,8 +2172,21 @@ Content-Disposition: attachment; filename="invoices_{period}.xlsx"
 | `last_reminded_at` | string(datetime)? | 最近催收时间 |
 | `reported_revenue` | number? | 本期申报营业额（商铺） |
 | `created_by` | string(uuid)? | 创建人 |
+| `items` | InvoiceItemInline[] | 费项明细（内联，省去独立请求；与 §4.5 结构一致） |
 | `created_at` | string(datetime) | 创建时间 |
 | `updated_at` | string(datetime) | 更新时间 |
+
+**`InvoiceItemInline`**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string(uuid) | 费项 ID |
+| `item_type` | string(enum) | 费项类型 |
+| `description` | string? | 费项说明 |
+| `quantity` | number? | 数量 |
+| `unit` | string? | 单位 |
+| `unit_price` | number? | 单价 |
+| `amount` | number | 金额（元） |
 
 ---
 
@@ -2396,6 +2604,110 @@ Content-Disposition: attachment; filename="invoices_{period}.xlsx"
 
 ---
 
+### 4.22 `PATCH /api/noi/budget/:id` — 更新 NOI 预算
+
+**权限**: `finance.write`
+
+**Request Body**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `budget_noi` | number | 否 | 预算 NOI（元） |
+
+**Response 200** — `NoiBudgetItem`
+
+---
+
+### 4.23 `DELETE /api/noi/budget/:id` — 删除 NOI 预算
+
+**权限**: `finance.write`
+
+**Response 204** — 无内容
+
+**错误码**
+
+| 错误码 | 说明 |
+|--------|------|
+| `NOI_BUDGET_NOT_FOUND` | 预算记录不存在 |
+
+---
+
+### 4.24 `GET /api/invoices/:id/payments` — 账单收款记录
+
+**权限**: `finance.read`
+
+**Response 200** — `InvoicePaymentItem[]`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string(uuid) | 收款记录 ID |
+| `invoice_id` | string(uuid) | 账单 ID |
+| `amount` | number | 收款金额（元） |
+| `payment_method` | string(enum) | 收款方式：`bank_transfer` / `cash` / `pos` / `wechat` / `alipay` / `other` |
+| `payment_date` | string(date) | 收款日期 |
+| `reference_no` | string? | 流水号/凭证号 |
+| `notes` | string? | 备注 |
+| `created_by` | string(uuid) | 操作人 |
+| `created_at` | string(datetime) | 创建时间 |
+
+---
+
+### 4.25 `GET /api/dunning-logs` — 催收记录列表
+
+**权限**: `finance.read`
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `invoice_id` | string(uuid) | 否 | 按账单过滤 |
+| `tenant_id` | string(uuid) | 否 | 按租客过滤 |
+| `method` | string(enum) | 否 | 催收方式过滤 |
+| `page` | integer | 否 | 页码 |
+| `pageSize` | integer | 否 | 每页条数 |
+
+**Response 200** — `DunningLogItem[]`（带 `meta`）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string(uuid) | 催收记录 ID |
+| `invoice_id` | string(uuid) | 关联账单 ID |
+| `invoice_no` | string | 账单编号 |
+| `tenant_name` | string | 租客名称 |
+| `method` | string(enum) | 催收方式：`phone` / `sms` / `letter` / `visit` / `legal` |
+| `content` | string | 催收内容摘要 |
+| `result` | string? | 催收结果 |
+| `dunning_date` | string(date) | 催收日期 |
+| `created_by` | string(uuid) | 操作人 |
+| `created_at` | string(datetime) | 创建时间 |
+
+---
+
+### 4.26 `POST /api/dunning-logs` — 新增催收记录
+
+**权限**: `finance.write`
+
+**Request Body**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `invoice_id` | string(uuid) | 是 | 关联账单 ID |
+| `method` | string(enum) | 是 | 催收方式 |
+| `content` | string | 是 | 催收内容 |
+| `result` | string | 否 | 催收结果 |
+| `dunning_date` | string(date) | 是 | 催收日期 |
+
+**Response 201** — `DunningLogItem`
+
+**错误码**
+
+| 错误码 | 说明 |
+|--------|------|
+| `INVOICE_NOT_FOUND` | 账单不存在 |
+| `INVOICE_ALREADY_PAID` | 账单已全额核销，无需催收 |
+
+---
+
 ## 四-A、水电抄表
 
 ### 4A.1 `GET /api/meter-readings` — 抄表记录列表
@@ -2517,6 +2829,43 @@ Content-Disposition: attachment; filename="invoices_{period}.xlsx"
 | 错误码 | 说明 |
 |--------|------|
 | `METER_READING_ALREADY_INVOICED` | 已生成账单，不可修正 |
+
+---
+
+### 4A.5 `POST /api/meter-readings/preview-allocation` — 水电费分摊预览
+
+**权限**: `meterReading.write`
+
+> 根据给定读数与公摊规则，预览费用分摊结果，不落库。前端用于确认后再生成账单。
+
+**Request Body**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `building_id` | string(uuid) | 是 | 楼栋 ID |
+| `meter_type` | string(enum) | 是 | 表类型：`electricity` / `water` |
+| `period` | string | 是 | 账期标识（如 `2026-04`） |
+| `total_reading` | number | 是 | 总表读数 |
+| `public_area_ratio` | number | 否 | 公区占比（默认按配置） |
+
+**Response 200** — `AllocationPreview`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `total_amount` | number | 总费用（元） |
+| `public_area_amount` | number | 公区分摊（元） |
+| `unit_allocations` | UnitAllocation[] | 各房间分摊明细 |
+
+**`UnitAllocation`**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `unit_id` | string(uuid) | 房间 ID |
+| `unit_name` | string | 房间名称 |
+| `tenant_name` | string? | 租客名称 |
+| `area` | number | 面积（m²） |
+| `ratio` | number | 分摊比例（0~1） |
+| `amount` | number | 分摊金额（元） |
 
 ---
 
@@ -3440,6 +3789,9 @@ Content-Disposition: attachment; filename="kpi_report_{scheme_name}_{period}.xls
 | `category` | string? | 类别 |
 | `contact_name` | string? | 联系人 |
 | `contact_phone_masked` | string? | 联系电话（脱敏） |
+| `rating` | number? | 综合评分（1.0–5.0，无评分时 `null`） |
+| `completed_orders` | integer | 已完成工单数 |
+| `avg_response_hours` | number? | 平均响应时长（小时） |
 | `is_active` | boolean | 是否启用 |
 | `created_at` | string(datetime) | 创建时间 |
 
@@ -3502,6 +3854,42 @@ Content-Disposition: attachment; filename="kpi_report_{scheme_name}_{period}.xls
 | `is_active` | boolean | 否 | 启用/停用 |
 
 **Response 200** — `SupplierDetail`
+
+---
+
+### 5.16 `GET /api/workorders/cost-report` — 工单费用报表
+
+**权限**: `workorders.read`
+
+> 按时间段汇总工单费用，支持按楼栋、类别维度分组。
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `date_from` | string(date) | 否 | 开始日期 |
+| `date_to` | string(date) | 否 | 结束日期 |
+| `building_id` | string(uuid) | 否 | 按楼栋过滤 |
+| `group_by` | string | 否 | 分组维度：`building` / `category` / `supplier`（默认 `category`） |
+
+**Response 200** — `WorkOrderCostReport`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `total_cost` | number | 总费用（元） |
+| `total_orders` | integer | 总工单数 |
+| `avg_cost_per_order` | number | 平均每单费用 |
+| `groups` | CostGroup[] | 分组明细 |
+
+**`CostGroup`**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `group_key` | string | 分组键值（楼栋名/类别名/供应商名） |
+| `group_id` | string(uuid)? | 分组实体 ID |
+| `order_count` | integer | 工单数 |
+| `total_cost` | number | 费用合计（元） |
+| `ratio` | number | 费用占比（0~1） |
 
 ---
 
@@ -4061,6 +4449,220 @@ Content-Disposition: attachment; filename="import_errors_{batch_id}.xlsx"
 
 ---
 
+## 八-A、通知系统
+
+### 8A.1 `GET /api/notifications` — 通知列表
+
+**权限**: 已认证（返回当前用户通知）
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `is_read` | boolean | 否 | 过滤已读/未读 |
+| `type` | string(enum) | 否 | 通知类型过滤 |
+| `severity` | string(enum) | 否 | 严重级别过滤 |
+| `page` | integer | 否 | 页码 |
+| `pageSize` | integer | 否 | 每页条数 |
+
+**Response 200** — `NotificationItem[]`（带 `meta`）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string(uuid) | 通知 ID |
+| `type` | string(enum) | 通知类型：`contract_expiring` / `invoice_overdue` / `workorder_assigned` / `workorder_completed` / `approval_pending` / `system_alert` / `kpi_published` |
+| `severity` | string(enum) | 严重级别：`info` / `warning` / `critical` |
+| `title` | string | 通知标题 |
+| `content` | string | 通知正文 |
+| `is_read` | boolean | 是否已读 |
+| `resource_type` | string? | 关联资源类型（`contract` / `invoice` / `workorder`） |
+| `resource_id` | string(uuid)? | 关联资源 ID |
+| `created_at` | string(datetime) | 创建时间 |
+
+---
+
+### 8A.2 `PATCH /api/notifications/:id/read` — 标记单条已读
+
+**权限**: 已认证
+
+**Response 200**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string(uuid) | 通知 ID |
+| `is_read` | boolean | `true` |
+
+---
+
+### 8A.3 `POST /api/notifications/read-all` — 全部标记已读
+
+**权限**: 已认证
+
+**Response 200**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `updated_count` | integer | 标记已读数量 |
+
+---
+
+### 8A.4 `GET /api/notifications/unread-count` — 未读数量
+
+**权限**: 已认证
+
+**Response 200**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `unread_count` | integer | 未读通知总数 |
+| `by_severity` | object | 按级别统计 `{ "critical": 2, "warning": 5, "info": 10 }` |
+
+---
+
+## 八-B、审批队列
+
+### 8B.1 `GET /api/approvals` — 待审批列表
+
+**权限**: 已认证（返回当前用户待审批项）
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `status` | string(enum) | 否 | `pending` / `approved` / `rejected`（默认 `pending`） |
+| `type` | string(enum) | 否 | 审批类型过滤 |
+| `page` | integer | 否 | 页码 |
+| `pageSize` | integer | 否 | 每页条数 |
+
+**Response 200** — `ApprovalItem[]`（带 `meta`）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string(uuid) | 审批记录 ID |
+| `type` | string(enum) | 审批类型：`contract_termination` / `deposit_refund` / `invoice_adjustment` / `sublease_submission` |
+| `status` | string(enum) | 审批状态：`pending` / `approved` / `rejected` |
+| `title` | string | 审批标题 |
+| `description` | string? | 描述/理由 |
+| `resource_type` | string | 关联资源类型 |
+| `resource_id` | string(uuid) | 关联资源 ID |
+| `submitted_by` | string(uuid) | 提交人 ID |
+| `submitted_by_name` | string | 提交人姓名 |
+| `submitted_at` | string(datetime) | 提交时间 |
+| `reviewed_by` | string(uuid)? | 审批人 ID |
+| `reviewed_at` | string(datetime)? | 审批时间 |
+| `review_comment` | string? | 审批意见 |
+
+---
+
+### 8B.2 `PATCH /api/approvals/:id` — 审批操作
+
+**权限**: 按审批类型动态校验（如合同相关需 `contracts.approve`）
+
+**Request Body**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `action` | string(enum) | 是 | `approve` / `reject` |
+| `comment` | string | 否 | 审批意见 |
+
+**Response 200** — `ApprovalItem`
+
+**错误码**
+
+| 错误码 | 说明 |
+|--------|------|
+| `APPROVAL_NOT_FOUND` | 审批记录不存在 |
+| `APPROVAL_ALREADY_PROCESSED` | 审批已处理 |
+| `APPROVAL_SELF_REVIEW` | 不允许审批自己提交的内容 |
+
+---
+
+## 九、首页看板聚合
+
+### 9.1 `GET /api/dashboard/overview` — 首页概览卡片
+
+**权限**: 已认证（按 JWT 角色裁剪返回字段）
+
+> 不同角色看到不同卡片：  
+> - `super_admin` / `operations_manager`：全部字段  
+> - `leasing_specialist`：资产 + 合同部分  
+> - `finance_staff`：财务 + 收缴率部分  
+> - `maintenance_staff`：工单部分  
+> - 其它角色：仅 `welcome_message`
+
+**Response 200** — `DashboardOverview`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `total_buildings` | integer? | 楼栋数 |
+| `total_units` | integer? | 房间总数 |
+| `total_area` | number? | 总面积（m²） |
+| `occupancy_rate` | number? | 综合出租率（0~1） |
+| `active_contracts` | integer? | 有效合同数 |
+| `expiring_soon_contracts` | integer? | 即将到期合同数（90天内） |
+| `wale` | number? | 全局 WALE（年） |
+| `monthly_revenue` | number? | 本月应收（元） |
+| `monthly_collected` | number? | 本月实收（元） |
+| `collection_rate` | number? | 本月收缴率（0~1） |
+| `overdue_amount` | number? | 逾期总额（元） |
+| `overdue_invoices` | integer? | 逾期账单数 |
+| `open_workorders` | integer? | 待处理工单数 |
+| `avg_resolution_hours` | number? | 平均解决时长（小时） |
+| `noi_current_month` | number? | 本月 NOI |
+| `noi_budget_achievement` | number? | NOI 预算达成率(0~1) |
+| `unread_notifications` | integer? | 未读通知数 |
+| `pending_approvals` | integer? | 待审批数 |
+
+> 值为 `null` 表示该角色无权查看该指标，前端不渲染对应卡片。
+
+---
+
+### 9.2 `GET /api/dashboard/revenue-trend` — 收入趋势
+
+**权限**: `finance.read`
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `months` | integer | 否 | 蓝看月数（默认 12） |
+| `building_id` | string(uuid) | 否 | 按楼栋 |
+| `property_type` | string(enum) | 否 | 按业态 |
+
+**Response 200** — `RevenueTrendPoint[]`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `month` | string | 月份标识（`2026-01`） |
+| `receivable` | number | 应收（元） |
+| `collected` | number | 实收（元） |
+| `collection_rate` | number | 收缴率（0~1） |
+| `overdue` | number | 逾期额（元） |
+
+---
+
+### 9.3 `GET /api/dashboard/occupancy-trend` — 出租率趋势
+
+**权限**: `assets.read`
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `months` | integer | 否 | 回看月数（默认 12） |
+| `building_id` | string(uuid) | 否 | 按楼栋 |
+
+**Response 200** — `OccupancyTrendPoint[]`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `month` | string | 月份标识 |
+| `occupancy_rate` | number | 当月出租率（0~1） |
+| `vacant_units` | integer | 空置房间数 |
+| `vacant_area` | number | 空置面积（m²） |
+
+---
+
 ## 附录 A：DTO 索引
 
 | 序号 | DTO 名称 | 所属章节 | 说明 |
@@ -4139,6 +4741,25 @@ Content-Disposition: attachment; filename="import_errors_{batch_id}.xlsx"
 | 72 | `ImportBatchDetail` / `ImportError` | §7.1 | 导入批次 |
 | 73 | `JobExecutionItem` | §8.1 | 任务执行记录 |
 | 74 | `AuditLogEntry` | §8.5 | 审计日志 |
+| 75 | `TenantContractItem` | §3.22 | 租客关联合同项 |
+| 76 | `TenantWorkOrderItem` | §3.23 | 租客关联工单项 |
+| 77 | `TenantCreditDetail` / `CreditTrendPoint` | §3.24 | 租客信用详情与趋势 |
+| 78 | `ContractChainItem` | §3.25 | 合同续约链 |
+| 79 | `WaleDashboard` / `WaleByType` | §3C.5 | WALE 综合看板 |
+| 80 | `AtRiskContract` | §3C.6 | 到期风险合同 |
+| 81 | `InvoiceItemInline` | §4.4 | 账单费项内联 |
+| 82 | `DepositInlineSummary` | §3.8 | 合同详情押金摘要内联 |
+| 83 | `RenewalChainItem` | §3.8 | 合同详情续约链内联 |
+| 84 | `InvoicePaymentItem` | §4.24 | 账单收款记录 |
+| 85 | `DunningLogItem` | §4.25 / §4.26 | 催收记录 |
+| 86 | `NoiBudgetItem` | §4.21~4.23 | NOI 预算项 |
+| 87 | `AllocationPreview` / `UnitAllocation` | §4A.5 | 水电费分摊预览 |
+| 88 | `WorkOrderCostReport` / `CostGroup` | §5.16 | 工单费用报表 |
+| 89 | `NotificationItem` | §8A.1 | 通知项 |
+| 90 | `ApprovalItem` | §8B.1 | 审批项 |
+| 91 | `DashboardOverview` | §9.1 | 首页概览看板 |
+| 92 | `RevenueTrendPoint` | §9.2 | 收入趋势点 |
+| 93 | `OccupancyTrendPoint` | §9.3 | 出租率趋势点 |
 
 ---
 
@@ -4173,6 +4794,13 @@ Content-Disposition: attachment; filename="import_errors_{batch_id}.xlsx"
 | `snapshot_status` | `draft` / `frozen` / `recalculated` |
 | `appeal_status` | `pending` / `approved` / `rejected` |
 | `kpi_direction` | `positive` / `negative` |
+| `notification_type` | `contract_expiring` / `invoice_overdue` / `workorder_assigned` / `workorder_completed` / `approval_pending` / `system_alert` / `kpi_published` |
+| `notification_severity` | `info` / `warning` / `critical` |
+| `approval_type` | `contract_termination` / `deposit_refund` / `invoice_adjustment` / `sublease_submission` |
+| `approval_status` | `pending` / `approved` / `rejected` |
+| `dunning_method` | `phone` / `sms` / `letter` / `visit` / `legal` |
+| `credit_rating` | `A` / `B` / `C` / `D` |
+| `renewal_intent` | `willing` / `undecided` / `unwilling` |
 
 ---
 
@@ -4231,3 +4859,8 @@ Content-Disposition: attachment; filename="import_errors_{batch_id}.xlsx"
 | `SUBLEASE_NOT_DRAFT` | 400 | delete sublease draft |
 | `BATCH_ALREADY_ROLLED_BACK` | 400 | import rollback |
 | `BATCH_IS_DRY_RUN` | 400 | import rollback |
+| `NOI_BUDGET_NOT_FOUND` | 404 | NOI budget |
+| `INVOICE_ALREADY_PAID` | 400 | dunning |
+| `APPROVAL_NOT_FOUND` | 404 | approvals |
+| `APPROVAL_ALREADY_PROCESSED` | 400 | approvals |
+| `APPROVAL_SELF_REVIEW` | 403 | approvals |
