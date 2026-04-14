@@ -3,7 +3,7 @@
 > **版本**: v1.0  
 > **日期**: 2026-04-04  
 > **适用对象**: 项目负责人 / 开发者 / UI 设计师  
-> **前置文档**: [PRD.md](./PRD.md) · [ARCH.md](./ARCH.md) · [DEV_UI_SYNC_GUIDE.md](./DEV_UI_SYNC_GUIDE.md)
+> **前置文档**: [PRD.md](../PRD.md) · [ARCH.md](../ARCH.md) · [DEV_UI_SYNC_GUIDE.md](./DEV_UI_SYNC_GUIDE.md)
 
 ---
 

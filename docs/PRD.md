@@ -1004,10 +1004,10 @@ $$EGI = PGI - Vacancy\ \&\ Credit\ Loss + Other\ Income$$
 ---
 
 > **延伸阅读**
-> - 需求可行性分析（技术风险 / 需求缺口 / 工期修正 / 分期建议）→ [FEASIBILITY_ANALYSIS.md](./FEASIBILITY_ANALYSIS.md)
-> - 竞品对标与需求增减建议 → [COMPETITIVE_ANALYSIS.md](./COMPETITIVE_ANALYSIS.md)
+> - 需求可行性分析（技术风险 / 需求缺口 / 工期修正 / 分期建议）→ [FEASIBILITY_ANALYSIS.md](./report/FEASIBILITY_ANALYSIS.md)
+> - 竞品对标与需求增减建议 → COMPETITIVE_ANALYSIS.md（待编写）
 > - 技术选型与部署方案 → [ARCH.md](./ARCH.md)
-> - 项目工期与成本估算（团队方案 + 独立开发者方案）→ [PROJECT_PLAN.md](./PROJECT_PLAN.md)
+> - 项目工期与成本估算（团队方案 + 独立开发者方案）→ [PROJECT_PLAN.md](./plan/PROJECT_PLAN.md)
 
 ---
 

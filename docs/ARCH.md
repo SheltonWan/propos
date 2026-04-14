@@ -372,7 +372,7 @@ dependencies:
 
 ## 3. PostgreSQL 数据库 Schema
 
-> **唯一真相源**：完整的数据库 Schema 定义（DDL、枚举、索引、约束）统一维护在 [`docs/backend/data_model.md`](../backend/data_model.md)，本节不重复列出 DDL，仅概要说明架构层面的关键设计决策。
+> **唯一真相源**：完整的数据库 Schema 定义（DDL、枚举、索引、约束）统一维护在 [`docs/backend/data_model.md`](./backend/data_model.md)，本节不重复列出 DDL，仅概要说明架构层面的关键设计决策。
 
 ### 3.1 设计要点概要
 

@@ -288,7 +288,7 @@ const columns = baseColumns.filter(col =>
 
 ## 八、页面级可见性规则（v3.0 新增）
 
-> 详细的页面-角色矩阵请参见 **[PAGE_ROLE_VISIBILITY_MATRIX.md](PAGE_ROLE_VISIBILITY_MATRIX.md)**。
+> 详细的页面-角色矩阵请参见 **[PAGE_ROLE_VISIBILITY_MATRIX.md](../PAGE_ROLE_VISIBILITY_MATRIX.md)**。
 
 本节为摘要索引：
 
