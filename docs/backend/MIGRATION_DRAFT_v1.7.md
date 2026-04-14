@@ -40,6 +40,7 @@
 | 017 | **017_create_kpi_targets_and_appeals.sql** | **kpi_scheme_targets**（方案绑定部门/员工）、**kpi_appeals**（KPI 申诉） |
 | 018 | **018_add_noi_budgets.sql** | **noi_budgets**（NOI 年度预算，v1.8 新增）：按楼栋/业态录入年度 NOI 预算，附加建楼栋和业态复合索引 |
 | 019 | **019_v1.5_model_alignment.sql** | data_model v1.5 对齐：枚举扩展（unit_status、credit_rating）、新增枚举（pricing_model、kpi_scheme_status、kpi_metric_category）、表结构变更（contracts.pricing_model、kpi_schemes.status、kpi_metric_definitions.category、alerts.target_roles）、K11-K14 种子 |
+| 020 | **020_create_notifications_and_approvals.sql** | 新增 6 个 ENUM（notification_type、notification_severity、dunning_method、approval_type、approval_status、renewal_intent）、**notifications** 表、**dunning_logs** 表 |
 
 ---
 
@@ -70,6 +71,17 @@ v1.5 新增：
 | `pricing_model` | `area`, `flat`, `revenue` |
 | `kpi_scheme_status` | `draft`, `active`, `archived` |
 | `kpi_metric_category` | `leasing`, `finance`, `service`, `growth` |
+
+v1.8 新增（通知/审批/催收）：
+
+| ENUM | 值 |
+|------|----|
+| `notification_type` | `contract_expiring`, `invoice_overdue`, `workorder_assigned`, `workorder_completed`, `approval_pending`, `system_alert`, `kpi_published` |
+| `notification_severity` | `info`, `warning`, `critical` |
+| `dunning_method` | `phone`, `sms`, `letter`, `visit`, `legal` |
+| `approval_type` | `contract_termination`, `deposit_refund`, `invoice_adjustment`, `sublease_submission` |
+| `approval_status` | `pending`, `approved`, `rejected` |
+| `renewal_intent` | `willing`, `undecided`, `unwilling` |
 
 ### 2. users 与审计基础设施
 
@@ -166,6 +178,42 @@ v1.5 新增：
 CHECK: `current_reading > previous_reading`
 
 索引：`(unit_id, meter_type, reading_date)`
+
+### 13. 通知系统（v1.8 新增）
+
+**`notifications`** 表：
+
+| 列 | 类型 | 说明 |
+|----|------|------|
+| `id` | UUID PK | |
+| `user_id` | UUID FK → users | 接收人 |
+| `type` | notification_type ENUM | 通知类型 |
+| `severity` | notification_severity ENUM | 严重级别 |
+| `title` | VARCHAR(200) | 通知标题 |
+| `content` | TEXT | 通知正文 |
+| `is_read` | BOOLEAN DEFAULT false | 是否已读 |
+| `resource_type` | VARCHAR(50) | 关联资源类型（nullable） |
+| `resource_id` | UUID | 关联资源 ID（nullable） |
+| `created_at` | TIMESTAMPTZ | 创建时间 |
+
+索引：`(user_id, is_read)` — 未读查询、`(user_id, created_at DESC)` — 时间排序、`(type)` — 按类型统计
+
+### 14. 催收记录（v1.8 新增）
+
+**`dunning_logs`** 表：
+
+| 列 | 类型 | 说明 |
+|----|------|------|
+| `id` | UUID PK | |
+| `invoice_id` | UUID FK → invoices | 关联账单 |
+| `method` | dunning_method ENUM | 催收方式 |
+| `content` | TEXT | 催收内容摘要 |
+| `result` | TEXT | 催收结果（nullable） |
+| `dunning_date` | DATE | 催收日期 |
+| `created_by` | UUID FK → users | 操作人 |
+| `created_at` | TIMESTAMPTZ | 创建时间 |
+
+索引：`(invoice_id)` — 按账单查催收、`(dunning_date)` — 按日期排序
 
 ### 7. 营业额申报（v1.7 新增）
 
@@ -293,6 +341,9 @@ CHECK: `direction IN ('positive', 'negative')`
 | KPI 方案绑定 | 插入 kpi_scheme_targets 验证部门/员工绑定 |
 | KPI 申诉表 | 插入 kpi_appeals 验证状态流转 + 审计日志 |
 | 导入批次表 | 插入 import_batch 验证 dry_run 与 rollback_status 字段 |
+| 通知表 | 插入 notification 验证未读索引与 type/severity 枚举 |
+| 催收记录表 | 插入 dunning_log 验证 invoice_id FK 与 method 枚举 |
+| 通知/催收 ENUM 完整（6 个） | `\dT+` 确认 notification_type、notification_severity、dunning_method、approval_type、approval_status、renewal_intent |
 | 索引齐全 | `pg_indexes` 查询 |
 
 ---
@@ -328,6 +379,15 @@ CHECK: `direction IN ('positive', 'negative')`
 | 新增 kpi_scheme_targets 方案绑定表 | 017（新） |
 | 新增 kpi_appeals 申诉表 | 017（新） |
 | 迁移序列从 14 扩展到 17 步 | 全局 |
+
+### v1.5 对齐 API_CONTRACT v1.8（通知/审批/催收）
+
+| 变更项 | 影响迁移文件 |
+|---------|------------|
+| 新增 6 个 ENUM 类型（notification_type、notification_severity、dunning_method、approval_type、approval_status、renewal_intent） | 020（新） |
+| 新增 `notifications` 表（通知系统） | 020（新） |
+| 新增 `dunning_logs` 表（催收记录） | 020（新） |
+| 迁移序列从 19 扩展到 20 步 | 全局 |
 
 ### v1.2 对齐 data_model v1.3（2026-04-08）
 

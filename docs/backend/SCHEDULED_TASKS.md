@@ -1,8 +1,9 @@
 # 定时任务调度方案
 
-> **文档版本**: v1.0
-> **更新日期**: 2026-04-08
+> **文档版本**: v1.1
+> **更新日期**: 2026-04-13
 > **对应架构**: ARCH v1.4 `backend/lib/jobs/`
+> **对应契约**: API_CONTRACT v1.8
 
 ---
 
@@ -146,6 +147,11 @@ class JobRunner {
 | J5 | `deposit_refund_reminder` | `0 1 * * *` | 每日 01:00 | 合同终止前 7 天提醒财务处理押金退还 |
 | J6 | `credit_rating_recalc` | `0 2 1 * *` | 每月 1 日 02:00 | 重算所有租户信用评级（A/B/C） |
 
+> **说明（v1.1 新增）**:
+> - **催收记录（dunning_logs）** 不由定时任务自动生成，而是通过 `POST /api/dunning-logs` 手动创建（财务人员在 Admin 端发起）。
+> - **审批队列（approvals）** 由业务操作触发创建（如押金退还申请、二房东审核），不走定时调度。
+> - **通知（notifications）** 主要由 J4 alert_engine 和业务事件同步写入，详见下方 J4 逻辑更新。
+
 ### 执行顺序依赖
 
 ```
@@ -190,9 +196,10 @@ class JobRunner {
 1. 构造查询条件（如 lease_expiry_90: end_date - NOW() BETWEEN 89 AND 91 天）
 2. 排除已触发记录（同合同同类型同日不重复，防轰炸）
 3. 写入 alerts 表
-4. 发送通知（in_app + email）
+4. 同步写入 notifications 表（v1.1 新增：将预警转化为用户可见通知，供通知中心展示）
+5. 发送通知（in_app + email）
    - 失败自动重试 ≥3 次
-5. 更新 notified_via 数组
+6. 更新 notified_via 数组
 ```
 
 ### J6 credit_rating_recalc（信用评级重算）

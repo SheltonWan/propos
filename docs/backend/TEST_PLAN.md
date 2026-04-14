@@ -1,8 +1,8 @@
 # PropOS Phase 1 专项测试计划
 
-> **版本**: v1.1
-> **日期**: 2026-04-09
-> **对应文档**: PRD v1.8 / ARCH v1.5 / data_model v1.5 / API_CONTRACT v1.7 / IMPLEMENTATION_CHECKLIST v1.7
+> **版本**: v1.2
+> **日期**: 2026-04-13
+> **对应文档**: PRD v1.8 / ARCH v1.5 / data_model v1.5 / API_CONTRACT v1.8 / IMPLEMENTATION_CHECKLIST v1.7
 > **范围**: Phase 1 全模块（M1~M5 + KPI + 基础底座）
 
 ---
@@ -290,6 +290,12 @@
 | BL-11 | KPI 评分全流程 | 配置方案 → 绑定对象 → 自动取数打分 → 冻结快照 → 员工申诉 → 审核重算 |
 | BL-12 | Excel 批量导入 | 上传单元 Excel → 试导入(dry_run) → 正式导入 → 重复导入被拒 |
 | BL-13 | 押金续签滚转 | 原合同续签 → 押金 transfer → 原合同 refunded + 新合同 collected |
+| BL-14 | 通知全流程（v1.8 新增）| 业务触发 → 写入 notifications → 查询列表（分页/筛选）→ 标记已读 → 全部已读 → 未读数归零 |
+| BL-15 | 审批全流程（v1.8 新增）| 创建审批请求 → 查询待审批列表 → 通过审批 → 验证通知已发 + 业务状态已变更 |
+| BL-16 | 审批拒绝（v1.8 新增）| 创建审批请求 → 拒绝（含 remark）→ 验证 rejection 通知已发 |
+| BL-17 | 审批自审拒绝（v1.8 新增）| 用户自己审批自己提交的申请 → 403 `APPROVAL_SELF_REVIEW` |
+| BL-18 | 催收记录管理（v1.8 新增）| 创建催收记录（关联逾期账单）→ 查询列表（筛选 method/tenant）→ 验证通知已发 |
+| BL-19 | Dashboard 聚合（v1.8 新增）| GET /api/dashboard/overview → 验证返回出租率/NOI/WALE/未读通知数等聚合数据 |
 
 ---
 
@@ -828,6 +834,9 @@ psql -d propos -c "EXPLAIN ANALYZE <query>"
 | 工单 | 3 | 100% |
 | 二房东 | 4 | 100% |
 | 文件 | 6 | 100% |
+| NOI 预算（v1.8 新增） | 1 | 100% |
+| 催收（v1.8 新增） | 1 | 100% |
+| 审批（v1.8 新增） | 3 | 100% |
 
 ---
 

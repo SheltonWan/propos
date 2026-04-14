@@ -1,9 +1,10 @@
 # 实时通知与推送方案
 
-> **文档版本**: v1.1
+> **文档版本**: v1.2
 > **更新日期**: 2026-04-13
 > **对应 PRD**: v1.8 §2.3 智能预警引擎
-> **对应 data_model**: v1.5（alerts 表新增 target_roles user_role[] 字段）
+> **对应 data_model**: v1.5（alerts 表 + notifications 表 v1.8 新增）
+> **对应 API_CONTRACT**: v1.8 §8A（通知系统 API）
 
 ---
 
@@ -17,6 +18,31 @@
 | **应用内 Badge** | macOS / Windows / Web | ✅ | 准实时 | 未读数轮询，角标显示 |
 | **企业微信 Webhook** | — | ❌ Phase 2 | 实时 | 预留接口 |
 | **飞书 Webhook** | — | ❌ Phase 2 | 实时 | 预留接口 |
+
+---
+
+## 一-A、通知系统双表模型（v1.8 新增）
+
+Phase 1 存在两个通知相关表，职责分工如下：
+
+| 表 | 来源 | 职责 | 前端入口 |
+|----|------|------|---------|
+| `alerts` | 定时任务自动生成 | **预警**：到期预警、逾期预警、工单超时等业务规则触发 | Admin: 预警中心 `/settings/alerts` |
+| `notifications` | API 手动/业务事件写入 | **通知**：审批结果、催收提醒、系统公告等操作型通知 | Admin + uni-app: 通知中心 `/notifications` |
+
+`notification_type` 枚举值（对应 data_model v1.5 §九-A）：
+
+| 值 | 含义 | 推送渠道 |
+|----|------|---------|
+| `contract_expiry` | 合同到期提醒 | 系统内 + 邮件 + Push |
+| `invoice_overdue` | 账单逾期通知 | 系统内 + 邮件 + Push |
+| `workorder_update` | 工单状态变更 | 系统内 + Push |
+| `approval_pending` | 审批待处理 | 系统内 + 邮件 + Push |
+| `approval_result` | 审批结果通知 | 系统内 + Push |
+| `dunning_reminder` | 催收提醒 | 系统内 + 邮件 |
+| `system_announcement` | 系统公告 | 系统内 |
+
+**统一未读数**：前端使用 `GET /api/notifications/unread-count`（API_CONTRACT §8A.3）获取通知未读数，与原 `GET /api/alerts/unread` 预警未读数分别展示。
 
 ---
 
@@ -43,8 +69,10 @@
 
 | 参数 | 值 | 说明 |
 |------|---|------|
-| 轮询端点 | `GET /api/alerts/unread` | 返回 `{ data: { count: N } }` |
-| 轮询间隔 | 30 秒 | 在 `ui_constants.ts` 定义 `ALERT_POLL_INTERVAL` |
+| 预警轮询端点 | `GET /api/alerts/unread` | 返回 `{ data: { count: N } }` |
+| 通知轮询端点 | `GET /api/notifications/unread-count`（v1.8 新增） | 返回 `{ data: { count: N } }` |
+| 预警轮询间隔 | 30 秒 | 在 `ui_constants.ts` 定义 `ALERT_POLL_INTERVAL` |
+| 通知轮询间隔 | 60 秒 | 在 `ui_constants.ts` 定义 `NOTIFICATION_POLL_INTERVAL`（v1.8 新增）|
 | 应用前台 | 正常轮询 | 30 秒一次 |
 | 应用后台 | 暂停轮询 | uni-app 通过 `onHide`/`onShow` 生命周期检测；Admin 通过 `visibilitychange` 事件检测 |
 | 未读 > 0 | Badge 显示 | 导航栏铃铛图标 + 数字角标 |
@@ -125,6 +153,7 @@ CREATE TABLE user_device_tokens (
 /// backend/lib/services/notify_service.dart
 class NotifyService {
   final AlertRepository _alertRepo;
+  final NotificationRepository _notificationRepo; // v1.8 新增：通知表写入
   final EmailService _emailService;
   final FcmService? _fcmService; // 可选，未配置 FCM_SERVER_KEY 时为 null
   final PushService? _pushService; // 可选，未配置 UNI_PUSH_APP_ID 时为 null
@@ -145,6 +174,16 @@ class NotifyService {
 
     // 1. 系统内消息（始终写入）
     await _alertRepo.create(alertId: alertId, ...);
+    // v1.8: 同时写入 notifications 表（操作型通知）
+    await _notificationRepo.create(
+      userId: targetUserId,
+      type: notificationType,   // notification_type 枚举
+      severity: severity,       // notification_severity 枚举
+      title: title,
+      content: message,
+      resourceType: resourceType,
+      resourceId: resourceId,
+    );
     notifiedVia.add('in_app');
 
     // 2. 邮件

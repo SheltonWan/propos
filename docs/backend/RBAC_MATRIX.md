@@ -61,6 +61,9 @@
 | `ops.read` | 查看审计日志/任务日志/导入记录 | 公共 |
 | `ops.write` | 手动触发任务/回滚导入 | 公共 |
 | `import.execute` | 执行 Excel 批量导入 | 公共 |
+| `notifications.read` | 查看自己的通知 | 公共 |
+| `approvals.manage` | 审批操作（按类型动态校验） | 公共 |
+| `dashboard.read` | 查看首页看板 | 公共 |
 
 ---
 
@@ -95,6 +98,9 @@
 | `ops.read` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `ops.write` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `import.execute` | ✅ | ✅ | ✅⁴ | ✅⁴ | ❌ | ❌ | ❌ | ❌ |
+| `notifications.read` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `approvals.manage` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `dashboard.read` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 
 **注释**:
 1. `property_inspector` 的 `contracts.read` 限制为仅查看租客基本信息（姓名、房号），不可查看财务金额字段
@@ -313,6 +319,37 @@
 | `GET /api/files/*` | 已登录（按上层资源权限过滤） | 所有已登录用户 |
 | `POST /api/files/upload` | 由上层业务端点权限控制 | — |
 
+### 4.14 通知系统（notifications.read）
+
+| 端点 | 权限 | 可执行角色 |
+|------|------|-----------|
+| `GET /api/notifications` | 已认证（仅自己） | 所有已登录用户 |
+| `PATCH /api/notifications/:id/read` | 已认证（仅自己） | 所有已登录用户 |
+| `POST /api/notifications/read-all` | 已认证（仅自己） | 所有已登录用户 |
+| `GET /api/notifications/unread-count` | 已认证（仅自己） | 所有已登录用户 |
+
+### 4.15 审批队列（approvals.manage）
+
+| 端点 | 权限 | 可执行角色 |
+|------|------|-----------|
+| `GET /api/approvals` | 已认证（仅自己待审批） | SA, OM（全部审批类型）；其他角色仅查看自己提交的 |
+| `PATCH /api/approvals/:id` | 按审批类型动态校验 | SA, OM |
+
+### 4.16 催收管理
+
+| 端点 | 权限 | 可执行角色 |
+|------|------|-----------|
+| `GET /api/dunning-logs` | finance.read | SA, OM, LS³, FS, RV |
+| `POST /api/dunning-logs` | finance.write | SA, FS |
+
+### 4.17 首页看板聚合（dashboard.read）
+
+| 端点 | 权限 | 可执行角色 |
+|------|------|-----------|
+| `GET /api/dashboard/overview` | 已认证（按角色裁剪字段） | SA, OM, LS, FS, MS, PI, RV |
+| `GET /api/dashboard/revenue-trend` | finance.read | SA, OM, FS, RV |
+| `GET /api/dashboard/occupancy-trend` | assets.read | SA, OM, LS, FS, PI, RV |
+
 ---
 
 ## 五、角色缩写对照
@@ -359,6 +396,9 @@
 | `kpi.view` | `/finance/kpi` |
 | `kpi.manage` | `/finance/kpi/schemes`, `/finance/kpi/schemes/*` |
 | `meterReading.write` | `/finance/meter-readings`, `/finance/meter-readings/new` |
+| `notifications.read` | `/notifications`（通知中心） |
+| `approvals.manage` | `/approvals`（审批队列） |
+| `dashboard.read` | `/`（首页看板） |
 
 ### 7.2 前端数据分级与整区域隐藏
 

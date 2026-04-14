@@ -178,3 +178,34 @@ const visibleTypes = APPROVAL_TYPES.filter(t => can(t.permission));
 - 审批统计图表（审批时效、通过率）
 - 审批超时自动提醒（结合预警引擎）
 - 更多审批类型接入（外包物业完工审批、电子签章等）
+
+---
+
+## 八、通用审批 API 对接（v1.8 新增）
+
+> API_CONTRACT v1.7 §8B 已新增通用审批队列端点，可替代各业务模块分散的 pending 查询逻辑。
+
+### 8.1 后端审批 API 端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/approvals | 待审批列表（支持 `status`、`type` 过滤） |
+| PATCH | /api/approvals/:id | 审批操作（`approve` / `reject`，附审批意见） |
+
+### 8.2 审批类型枚举（`approval_type`）
+
+| 值 | 对应业务 | 点击跳转 |
+|----|---------|---------|
+| `contract_termination` | 合同提前终止审批 | `/contracts/:id` |
+| `deposit_refund` | 押金退还确认 | `/finance/deposits/:id` |
+| `invoice_adjustment` | 账单调整审批 | `/finance/invoices/:id` |
+| `sublease_submission` | 子租赁数据提交审核 | `/subleases/:id` |
+
+### 8.3 迁移建议
+
+Phase 1 审批聚合页仍可使用各业务模块 pending 查询（§5.3 中 `APPROVAL_TYPES` 对应各自 API），但建议逐步迁移到通用审批 API：
+
+1. **Store 层**：新增 `useApprovalStore`，调用 `GET /api/approvals` 替代 5 个独立 pending 查询
+2. **审批操作**：卡片内嵌审批按钮时可直接调用 `PATCH /api/approvals/:id`，无需跳转
+3. **错误处理**：新增 3 个错误码 — `APPROVAL_NOT_FOUND`、`APPROVAL_ALREADY_PROCESSED`、`APPROVAL_SELF_REVIEW`
+4. **权限动态校验**：审批操作权限由后端根据 `approval_type` 动态检查，前端仅需传 `action` + `comment`

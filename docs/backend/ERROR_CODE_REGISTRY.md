@@ -151,6 +151,18 @@
 | `INVALID_READING` | 400 | `POST /api/meter-readings` | 本期读数 ≤ 上期读数 |
 | `METER_READING_ALREADY_INVOICED` | 400 | `PATCH /api/meter-readings/:id` | 已生成账单，无法修改 |
 
+### 7.5 NOI 预算
+
+| 错误码 | HTTP | 触发端点 | 说明 |
+|--------|------|---------|------|
+| `NOI_BUDGET_NOT_FOUND` | 404 | `PATCH/DELETE /api/noi/budget/:id` | 预算记录不存在 |
+
+### 7.6 催收
+
+| 错误码 | HTTP | 触发端点 | 说明 |
+|--------|------|---------|------|
+| `INVOICE_ALREADY_PAID` | 400 | `POST /api/dunning-logs` | 账单已全额核销，无需催收 |
+
 ---
 
 ## 八、KPI 模块
@@ -203,7 +215,17 @@
 
 ---
 
-## 十二、Dart 常量定义模板
+## 十二、审批模块
+
+| 错误码 | HTTP | 触发端点 | 说明 |
+|--------|------|---------|------|
+| `APPROVAL_NOT_FOUND` | 404 | `PATCH /api/approvals/:id` | 审批记录不存在 |
+| `APPROVAL_ALREADY_PROCESSED` | 400 | `PATCH /api/approvals/:id` | 审批已处理，不可重复操作 |
+| `APPROVAL_SELF_REVIEW` | 403 | `PATCH /api/approvals/:id` | 不允许审批自己提交的内容 |
+
+---
+
+## 十三、Dart 常量定义模板
 
 ```dart
 /// backend/lib/shared/constants/error_codes.dart
@@ -313,5 +335,16 @@ class ErrorCodes {
   static const fileTypeNotAllowed = 'FILE_TYPE_NOT_ALLOWED';
   static const uploadFailed = 'UPLOAD_FAILED';
   static const tooManyPhotos = 'TOO_MANY_PHOTOS';
+
+  // ── NOI 预算 ──
+  static const noiBudgetNotFound = 'NOI_BUDGET_NOT_FOUND';
+
+  // ── 催收 ──
+  static const invoiceAlreadyPaid = 'INVOICE_ALREADY_PAID';
+
+  // ── 审批 ──
+  static const approvalNotFound = 'APPROVAL_NOT_FOUND';
+  static const approvalAlreadyProcessed = 'APPROVAL_ALREADY_PROCESSED';
+  static const approvalSelfReview = 'APPROVAL_SELF_REVIEW';
 }
 ```

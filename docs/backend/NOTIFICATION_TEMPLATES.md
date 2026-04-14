@@ -1,8 +1,8 @@
 # PropOS 通知模板规格
 
-> **版本**: v1.1  
+> **版本**: v1.2  
 > **日期**: 2026-04-13  
-> **依据**: PRD v1.8（2.3 智能预警引擎）/ data_model v1.5（alert_type 枚举、alerts.target_roles 字段）  
+> **依据**: PRD v1.8（2.3 智能预警引擎）/ data_model v1.5（alert_type 枚举、alerts.target_roles 字段、notifications 表 v1.8 新增）  
 > **用途**: 定义各类预警通知的邮件主题、正文模板与站内消息正文  
 
 ---
@@ -42,6 +42,13 @@
 | `{{recipient_name}}` | string | 收件人姓名 |
 | `{{system_url}}` | string | 系统地址（如 `https://propos.example.com`） |
 | `{{termination_date}}` | date | 合同终止日期 |
+| `{{approval_type}}` | string | 审批类型（合同终止 / 合同续签 / 大额费用 / 二房东审核）（v1.8 新增）|
+| `{{approval_summary}}` | string | 审批摘要（v1.8 新增）|
+| `{{approval_result}}` | string | 审批结果（已通过 / 已拒绝）（v1.8 新增）|
+| `{{approval_remark}}` | string | 审批备注（v1.8 新增）|
+| `{{dunning_method}}` | string | 催收方式（电话 / 短信 / 邮件 / 函件 / 上门）（v1.8 新增）|
+| `{{dunning_date}}` | date | 催收日期（v1.8 新增）|
+| `{{next_follow_up}}` | date | 下次跟进日期（v1.8 新增）|
 
 ---
 
@@ -411,7 +418,112 @@ PropOS 物业管理方（自动发送，请勿直接回复）
 
 ---
 
-## 五、实现要点
+## 五、催收与审批通知模板（v1.8 新增）
+
+> 以下模板写入 `notifications` 表（notification_type 枚举），同步邮件发送。
+
+### 5.1 催收提醒（`dunning_reminder`）
+
+**接收方**: 租客对应的招商专员 + 财务专员  
+**写入**: `notifications` 表（type = `dunning_reminder`, severity = `warning`）
+
+**邮件主题**:
+```
+[PropOS] 催收提醒 — {{tenant_name}} / {{invoice_number}}
+```
+
+**邮件正文**:
+```
+{{recipient_name}}，您好：
+
+租客 {{tenant_name}} 存在逾期账单，已于 {{dunning_date}} 通过{{dunning_method}}方式进行催收：
+
+• 账单编号：{{invoice_number}}
+• 应收金额：¥{{invoice_amount}}
+• 逾期天数：{{overdue_days}} 天
+• 下次跟进：{{next_follow_up}}
+
+请持续关注催收进展。
+
+点击查看账单详情：{{system_url}}/finance/invoices/{{invoice_id}}
+
+——
+PropOS 智慧物业管理平台（自动发送，请勿直接回复）
+```
+
+**站内消息**:
+```
+催收提醒：{{tenant_name}} 账单 {{invoice_number}}（¥{{invoice_amount}}）已逾期 {{overdue_days}} 天，{{dunning_date}} 已通过{{dunning_method}}催收。
+```
+
+### 5.2 审批待处理（`approval_pending`）
+
+**接收方**: 审批人（SA / OM）  
+**写入**: `notifications` 表（type = `approval_pending`, severity = `info`）
+
+**邮件主题**:
+```
+[PropOS] 新审批待处理 — {{approval_type}}
+```
+
+**邮件正文**:
+```
+{{recipient_name}}，您好：
+
+您有一条新的审批申请待处理：
+
+• 审批类型：{{approval_type}}
+• 摘要：{{approval_summary}}
+• 申请时间：{{created_at}}
+
+请尽快登录系统处理。
+
+点击查看审批详情：{{system_url}}/approvals
+
+——
+PropOS 智慧物业管理平台（自动发送，请勿直接回复）
+```
+
+**站内消息**:
+```
+新审批待处理：{{approval_type}} — {{approval_summary}}，请尽快处理。
+```
+
+### 5.3 审批结果通知（`approval_result`）
+
+**接收方**: 审批申请人  
+**写入**: `notifications` 表（type = `approval_result`, severity = 根据结果 `info` 或 `warning`）
+
+**邮件主题**:
+```
+[PropOS] 审批结果通知 — {{approval_type}} {{approval_result}}
+```
+
+**邮件正文**:
+```
+{{recipient_name}}，您好：
+
+您提交的审批申请已处理完毕：
+
+• 审批类型：{{approval_type}}
+• 摘要：{{approval_summary}}
+• 审批结果：{{approval_result}}
+• 备注：{{approval_remark}}
+
+点击查看详情：{{system_url}}/approvals
+
+——
+PropOS 智慧物业管理平台（自动发送，请勿直接回复）
+```
+
+**站内消息**:
+```
+审批{{approval_result}}：{{approval_type}} — {{approval_summary}}。{{approval_remark}}
+```
+
+---
+
+## 六、实现要点
 
 1. **模板存储**: 模板定义在 `backend/lib/shared/constants/notification_templates.dart` 中，作为 Dart 常量管理
 2. **变量渲染**: 使用简单字符串替换（`template.replaceAll('{{var}}', value)`），不引入模板引擎

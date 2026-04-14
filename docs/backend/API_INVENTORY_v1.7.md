@@ -101,6 +101,9 @@
 | GET | /api/tenants/:id | 租客详情（含信用评级与逾期统计） | contracts.read |
 | PATCH | /api/tenants/:id | 更新租客 | contracts.write |
 | POST | /api/tenants/:id/unmask | 二次鉴权后返回租客证件号/手机完整明文（请求体传 `current_password`，成功后写审计日志） | contracts.read |
+| GET | /api/tenants/:id/contracts | 租客关联合同列表 | contracts.read |
+| GET | /api/tenants/:id/workorders | 租客关联工单列表 | contracts.read |
+| GET | /api/tenants/:id/credit | 租客信用评级详情（含趋势） | contracts.read |
 | GET | /api/contracts | 合同分页列表 | contracts.read |
 | POST | /api/contracts | 创建合同（支持多单元通过 `contract_units` 绑定） | contracts.write |
 | GET | /api/contracts/:id | 合同详情（含 `tax_inclusive`、`applicable_tax_rate`、终止信息） | contracts.read |
@@ -111,6 +114,7 @@
 | POST | /api/contracts/:id/terminate | 执行合同提前终止（v1.7 新增） | contracts.write |
 | GET | /api/contracts/:id/escalation-phases | 查询递增阶段 | contracts.read |
 | PUT | /api/contracts/:id/escalation-phases | 覆盖递增阶段配置 | contracts.write |
+| GET | /api/contracts/:id/chain | 合同续约链（原始→续签→再续签） | contracts.read |
 | GET | /api/contracts/wale | 查询 WALE 双口径（收入加权 + 面积加权），支持 `groupBy` | contracts.read |
 | GET | /api/alerts | 预警列表（支持 `contract_id`、`alert_type`、`is_read` 过滤） | alerts.read |
 | GET | /api/alerts/unread | 未读预警数量（桌面端/Web 30 秒轮询使用，返回 `{ data: { count } }`） | alerts.read |
@@ -161,6 +165,8 @@
 | GET | /api/contracts/:id/rent-forecast/export | 导出租金预测 Excel | contracts.read |
 | GET | /api/contracts/wale/trend | WALE 近 12 个月历史趋势（支持 `groupBy=building/property_type`） | contracts.read |
 | GET | /api/contracts/wale/waterfall | 未来到期瀑布图（按年份分布到期面积与租金） | contracts.read |
+| GET | /api/contracts/wale/dashboard | WALE 综合看板（按建筑/业态汇总 WALE + 出租率） | contracts.read |
+| GET | /api/contracts/at-risk | 到期风险合同列表（90天内到期且未续签/未表达续签意愿） | contracts.read |
 
 ### 合同接口备注（v1.7 变更）
 
@@ -198,6 +204,11 @@
 | GET | /api/noi/vacancy-loss | 空置损失测算（基于 `market_rent_reference` 字段） | finance.read |
 | GET | /api/noi/budget | NOI 预算列表 | finance.read |
 | POST | /api/noi/budget | 录入 NOI 预算（用于 K07 NOI 达成率计算） | finance.write |
+| PATCH | /api/noi/budget/:id | 更新 NOI 预算 | finance.write |
+| DELETE | /api/noi/budget/:id | 删除 NOI 预算 | finance.write |
+| GET | /api/invoices/:id/payments | 账单收款记录列表 | finance.read |
+| GET | /api/dunning-logs | 催收记录列表 | finance.read |
+| POST | /api/dunning-logs | 新增催收记录 | finance.write |
 | GET | /api/kpi/metrics | KPI 指标定义库列表（K01~K14，含 `direction`、`category`、`is_enabled`） | kpi.view |
 | PATCH | /api/kpi/metrics/:id | 启用/停用指标（`is_enabled`） | kpi.manage |
 | POST | /api/kpi/metrics/:id/manual-input | 录入手动指标值（K10 租户满意度，需 `period_start`、`period_end`、`value`、`target_user_id`） | kpi.manage |
@@ -247,6 +258,7 @@
 | POST | /api/meter-readings | 录入抄表读数 | meterReading.write |
 | GET | /api/meter-readings/:id | 抄表详情（含费用计算明细） | finance.read |
 | PATCH | /api/meter-readings/:id | 修正抄表记录（限未生成账单前） | meterReading.write |
+| GET | /api/meter-readings/allocation-preview | 水电费分摊预览（按面积分摊公摊费用） | finance.read |
 
 ### 水电抄表接口备注
 
@@ -296,6 +308,7 @@
 | POST | /api/suppliers | 新增供应商 | workorders.write |
 | GET | /api/suppliers/:id | 供应商详情 | workorders.read |
 | PATCH | /api/suppliers/:id | 更新供应商信息 | workorders.write |
+| GET | /api/workorders/cost-report | 工单费用报表（按类型/楼栋/月份汇总） | workorders.read + finance.read |
 
 ---
 
@@ -372,6 +385,69 @@
 
 ---
 
+## 八-A、通知系统（v1.8 新增）
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET | /api/notifications | 当前用户通知列表（支持 `is_read`、`type`、`severity` 过滤） | 已认证 |
+| PATCH | /api/notifications/:id/read | 标记单条通知已读 | 已认证 |
+| POST | /api/notifications/read-all | 全部标记已读 | 已认证 |
+| GET | /api/notifications/unread-count | 未读通知数量（含按 severity 分组） | 已认证 |
+
+### 通知接口备注
+
+1. 通知列表仅返回当前 JWT 用户的通知，Repository 层按 `user_id` 过滤。
+2. `GET /api/notifications/unread-count` 须在 `GET /api/notifications/:id` 之前注册（路由优先级）。
+3. 通知由后端业务事件自动生成（合同到期、账单逾期、工单派单等），不提供前端直接创建接口。
+
+---
+
+## 八-B、审批队列（v1.8 新增）
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET | /api/approvals | 待审批列表（支持 `status`、`type` 过滤） | 已认证 |
+| PATCH | /api/approvals/:id | 审批操作（approve / reject） | 按审批类型动态校验 |
+
+### 审批接口备注
+
+1. 审批类型：`contract_termination`（合同终止）、`deposit_refund`（押金退还）、`invoice_adjustment`（账单调整）、`sublease_submission`（子租赁提交）。
+2. 禁止审批自己提交的内容（`APPROVAL_SELF_REVIEW`）。
+3. 审批完成后自动触发下游业务动作（如审核通过后执行合同终止等）。
+
+---
+
+## 八-C、催收管理（v1.8 新增）
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET | /api/dunning-logs | 催收记录列表（支持 `invoice_id`、`tenant_id`、`method` 过滤） | finance.read |
+| POST | /api/dunning-logs | 新增催收记录 | finance.write |
+
+### 催收接口备注
+
+1. 催收方式枚举：`phone`（电话）/ `sms`（短信）/ `letter`（函件）/ `visit`（上门）/ `legal`（法律途径）。
+2. 仅可对未全额核销的账单创建催收记录（`INVOICE_ALREADY_PAID`）。
+3. 每条催收记录写入审计日志。
+
+---
+
+## 九-A、首页看板聚合（v1.8 新增）
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET | /api/dashboard/overview | 首页概览卡片（按 JWT 角色裁剪返回字段） | 已认证 |
+| GET | /api/dashboard/revenue-trend | 收入趋势（近 12 个月实收 vs 应收） | finance.read |
+| GET | /api/dashboard/occupancy-trend | 出租率趋势（近 12 个月，按业态分组） | assets.read |
+
+### 看板接口备注
+
+1. `GET /api/dashboard/overview` 按角色裁剪字段：SA/OM 全部、LS 资产+合同、FS 财务+收缴率、MS 工单、其它仅 `welcome_message`。
+2. 趋势接口支持 `building_id`、`property_type` 过滤。
+3. 看板数据允许缓存（建议 TTL 5 分钟），不要求实时。
+
+---
+
 ## 九、建议优先冻结的 DTO
 
 > 以下 DTO 已在 [API_CONTRACT_v1.7.md](API_CONTRACT_v1.7.md) 中完成字段级定义（含类型、必填/可选、校验规则），本节仅保留索引清单。
@@ -401,6 +477,16 @@
 23. AlertUnreadResponse
 24. AuditLogEntry
 25. UnmaskRequest（`current_password`）/ UnmaskResponse（`id_number`、`contact_phone`）
+26. TenantContractItem / TenantWorkOrderItem / TenantCreditDetail / CreditTrendPoint
+27. ContractChainItem
+28. WaleDashboard / WaleByType / AtRiskContract
+29. InvoiceItemInline / DepositInlineSummary / RenewalChainItem / InvoicePaymentItem
+30. DunningLogItem
+31. AllocationPreview / UnitAllocation（水电分摊预览）
+32. WorkOrderCostReport / CostGroup
+33. NotificationItem
+34. ApprovalItem
+35. DashboardOverview / RevenueTrendPoint / OccupancyTrendPoint
 
 ---
 
@@ -481,3 +567,27 @@
 | NOI 年度预算管理 | `GET/POST /api/noi/budget`（已存在）：`POST` 请求体新增 `period_month`（NULL=年度预算）支持 |
 | 工单完工费用性质 | `PATCH /api/workorders/:id/complete` 请求体新增 `cost_nature`（`"opex"` / `"capex"`，NULLABLE，仅 repair 类型适用） |
 | 运营支出类目扩展 | `POST /api/expenses` 请求体 `category` 新增 `"professional_service"` 枚举字字段展示 || HTTPS 强制 | 二房东门户强制 TLS 1.2+ |
+
+---
+
+## 十四、v1.8 前端对齐变更摘要（通知/审批/催收/看板）
+
+| 变更项 | 新增端点 |
+|--------|----------|
+| 租客子资源 | `GET /api/tenants/:id/contracts`、`GET /api/tenants/:id/workorders`、`GET /api/tenants/:id/credit` |
+| 合同续约链 | `GET /api/contracts/:id/chain` |
+| WALE 综合看板 + 到期风险 | `GET /api/contracts/wale/dashboard`、`GET /api/contracts/at-risk` |
+| 合同详情增强 | §3.8 新增 `deposit_summary`、`renewal_chain` 内联字段；§3.6 新增 `wale_contribution`、`days_until_expiry` |
+| 账单增强 | §4.1 新增 `days_overdue`；§4.4 新增 `items` 内联 |
+| 账单收款记录 | `GET /api/invoices/:id/payments` |
+| NOI 预算 CRUD 完善 | `PATCH /api/noi/budget/:id`、`DELETE /api/noi/budget/:id` |
+| 催收管理 | `GET/POST /api/dunning-logs` |
+| 水电分摊预览 | `GET /api/meter-readings/allocation-preview` |
+| 工单费用报表 | `GET /api/workorders/cost-report` |
+| 供应商增强 | §5.12 新增 `rating`、`completed_orders`、`avg_response_hours` |
+| 通知系统 | `GET /api/notifications`、`PATCH /api/notifications/:id/read`、`POST /api/notifications/read-all`、`GET /api/notifications/unread-count` |
+| 审批队列 | `GET /api/approvals`、`PATCH /api/approvals/:id` |
+| 首页看板聚合 | `GET /api/dashboard/overview`、`GET /api/dashboard/revenue-trend`、`GET /api/dashboard/occupancy-trend` |
+| 新增 19 个 DTO | #75~#93（详见 API_CONTRACT 附录 A） |
+| 新增 8 个枚举 | notification_type、notification_severity、approval_type、approval_status、dunning_method、credit_rating、renewal_intent 等 |
+| 新增 5 个错误码 | NOI_BUDGET_NOT_FOUND、INVOICE_ALREADY_PAID、APPROVAL_NOT_FOUND、APPROVAL_ALREADY_PROCESSED、APPROVAL_SELF_REVIEW |

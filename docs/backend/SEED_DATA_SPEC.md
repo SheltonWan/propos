@@ -555,6 +555,29 @@ $$= 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = \textbf{94.03 分}$$
 
 ---
 
+## 十九-A、通知种子（notifications）（v1.8 新增）
+
+| notification_id | user_id | type | severity | title | content | resource_type | resource_id | is_read |
+|----------------|---------|------|----------|-------|---------|---------------|-------------|---------|
+| NTF-001 | U-LEASE | contract_expiry | warning | 合同即将到期 | 租客张三（C-APT-01）将于 2026-06-30 到期，剩余 87 天 | contract | C-APT-01 | false |
+| NTF-002 | U-FIN | invoice_overdue | warning | 账单逾期提醒 | 账单 INV-004（¥2,500.00）已逾期 7 天 | invoice | INV-004 | true |
+| NTF-003 | U-ADMIN | approval_pending | info | 新审批待处理 | 合同终止审批 — 租客张三（C-APT-01）申请提前终止 | approval | APR-001 | false |
+| NTF-004 | U-LEASE | approval_result | info | 审批已通过 | 合同续签审批 — C-OFFICE-01 续签申请已通过 | approval | APR-002 | true |
+| NTF-005 | U-FIN | dunning_reminder | warning | 催收提醒 | 租客张三（INV-004，¥2,500.00）已逾期 15 天，8月1日已电话催收 | invoice | INV-004 | false |
+| NTF-006 | null | system_announcement | info | 系统维护公告 | 系统将于 2026-04-20 02:00-04:00 进行例行维护 | null | null | false |
+
+---
+
+## 十九-B、催收记录种子（dunning_logs）（v1.8 新增）
+
+| dunning_id | invoice_id | tenant_id | method | dunning_date | amount | remark | next_follow_up | operator_id |
+|-----------|-----------|----------|--------|-------------|--------|--------|---------------|------------|
+| DUN-001 | INV-004 | T-APT | phone | 2025-08-01 | ¥2,500.00 | 首次电话催收，租户承诺 8月5日前付款 | 2025-08-05 | U-FIN |
+| DUN-002 | INV-004 | T-APT | sms | 2025-08-06 | ¥2,500.00 | 短信催收，租户未回复 | 2025-08-10 | U-FIN |
+| DUN-003 | INV-004 | T-APT | letter | 2025-08-10 | ¥2,500.00 | 发送正式催收函 | 2025-08-20 | U-FIN |
+
+---
+
 ## 二十、管辖范围种子（user_managed_scopes）
 
 > 个人范围覆盖部门默认（个人 > 部门），KPI 数据归集以最终有效范围为准。
@@ -692,4 +715,4 @@ $$= 22.33 + 20.00 + 13.50 + 15.00 + 13.20 + 10.00 = \textbf{94.03 分}$$
 > 3. UUID 简称（如 C-OFFICE-01、KM-K01）在 SQL 中替换为 `gen_random_uuid()` 生成的真实 UUID  
 > 4. 验算结果（WALE、NOI、KPI）可作为单元测试的 expected 值  
 > 5. P0 强依赖（必须先于业务代码写入）：`kpi_metric_definitions`（14条）、`departments`（6条）、`users`（6条）、`buildings`（3条）  
-> 6. 种子执行顺序参考：departments → buildings → floors → users → suppliers → units → tenants → contracts → contract_units → rent_escalation_phases → deposits → deposit_transactions → invoices → invoice_items → payments → payment_allocations → expenses → meter_readings → alerts → renovation_records → turnover_reports → subleases → kpi_metric_definitions → kpi_schemes → kpi_scheme_metrics → kpi_scheme_targets → noi_budgets → user_managed_scopes → kpi_score_snapshots → kpi_score_snapshot_items → kpi_appeals → work_orders
+> 6. 种子执行顺序参考：departments → buildings → floors → users → suppliers → units → tenants → contracts → contract_units → rent_escalation_phases → deposits → deposit_transactions → invoices → invoice_items → payments → payment_allocations → expenses → meter_readings → alerts → notifications → dunning_logs → renovation_records → turnover_reports → subleases → kpi_metric_definitions → kpi_schemes → kpi_scheme_metrics → kpi_scheme_targets → noi_budgets → user_managed_scopes → kpi_score_snapshots → kpi_score_snapshot_items → kpi_appeals → work_orders
