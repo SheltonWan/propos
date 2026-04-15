@@ -208,9 +208,9 @@ routes: [
 | `maintenance_staff` | 首页 / 工单 / 通知 | workorders / notifications |
 | `property_inspector` | 首页 / 资产（只读）/ 合同（只读、金额脱敏）/ 工单（只读）/ 通知 | assets / contracts（只读）/ workorders（只读）/ notifications |
 | `report_viewer` | 首页 / 资产（只读）/ 合同（只读、PII脱敏）/ 财务（只读）/ 通知 | assets / contracts / finance（全只读）/ notifications |
-| `sub_landlord` | 二房东门户（`subleases/`） | 不开放 Admin |
+| `sub_landlord` | 不开放 uni-app；通过独立外部门户 `/portal/login` 进入 | 不开放 Admin |
 
-> 角色在登录后从 JWT Claims 解析写入 Pinia `useAuthStore`；uni-app 守卫读取 store 中的 `role` 字段动态控制 TabBar 可见性；Admin `router.beforeEach` 读取 `localStorage.access_token`，完整角色鉴权委托给后端 RBAC 中间件。
+> 角色在登录后从 JWT Claims 解析写入 Pinia `useAuthStore`；uni-app 守卫读取 store 中的 `role` 字段动态控制 TabBar 可见性；Admin `router.beforeEach` 读取 `localStorage.access_token`，完整角色鉴权委托给后端 RBAC 中间件。`sub_landlord` 使用外部门户独立登录态，不参与 uni-app / Admin 主导航守卫。
 
 ---
 
@@ -1242,14 +1242,30 @@ UnitImportView
         │       │   └── ElTableColumn(label="错误原因")
         │       └── ElButton("下载错误报告 Excel")
         │
-        └── ElStep(title="确认导入")
-            ├── ElText "确认将 635 条数据写入数据库？"
-            ├── ElText "导入批次号: BATCH-2026-04-08-001"
-            ├── ElButton(type="primary" :loading="importing") "确认导入"
-            └── ElProgress(:percentage="importProgress")
+        ├── ElStep(title="确认导入")
+        │   ├── ElText "确认将 635 条数据写入数据库？"
+        │   ├── ElText "导入批次号: BATCH-2026-04-08-001"
+        │   ├── ElButton(type="primary" :loading="importing") "确认导入"
+        │   └── ElProgress(:percentage="importProgress")
+        │
+        └── ElStep(title="治理与回滚")
+          ├── ElCard(header="导入批次管理")
+          │   ├── ElTable(:data="batches")
+          │   │   ├── ElTableColumn(label="批次号")
+          │   │   ├── ElTableColumn(label="数据类型")
+          │   │   ├── ElTableColumn(label="导入时间")
+          │   │   ├── ElTableColumn(label="导入人")
+          │   │   ├── ElTableColumn(label="状态")
+          │   │   └── ElTableColumn(label="操作") [下载错误报告] [按批次回滚]
+          │   └── ElAlert(type="warning") "范围回滚按批次执行，仅对支持批次回滚的数据生效"
+          │
+          └── ElCard(header="批量修正")
+            ├── ElUpload(:auto-upload="false" accept=".xlsx,.xls" :limit="1")
+            ├── ElText "使用修正模板更新已有记录，不新增重复数据"
+            └── ElButton(type="primary" :loading="correcting") "执行批量修正"
 ```
 
----
+  │   ├── ElSelect(v-model="creditRating") "信用评级: 全部/A/B/C/D"
 
 ## 六、租务与合同模块页面
 
@@ -1559,6 +1575,34 @@ EscalationConfigView
             └── ElTableColumn(label="较上期涨幅")
 ```
 
+  ### 6.5.1 租金预测页（Should: S-01）
+
+  **Admin**: `RentForecastView.vue`  
+  **路由**: `/contracts/:contractId/rent-forecast`  
+  **Store**: `useRentForecastStore`  
+  **API**: `GET /api/contracts/:id/rent-forecast`
+
+  #### Admin 组件树：
+
+  ```
+  RentForecastView
+  └── div
+    ├── ElDescriptions(border title="合同摘要")
+    │   ├── 合同编号 | 租户 | 起租日 | 到期日
+    │   └── 当前月租金 | 递增模板 | 预测口径
+    │
+    ├── ElCard(header="全生命周期租金预测")
+    │   └── ElTable(:data="forecastRows")
+    │       ├── ElTableColumn(label="期间")
+    │       ├── ElTableColumn(label="月租金")
+    │       ├── ElTableColumn(label="年化租金")
+    │       └── ElTableColumn(label="较上期涨幅")
+    │
+    └── ElSpace
+      ├── ElButton(icon="Download") "导出 Excel"
+      └── ElButton(type="primary" plain) "返回递增配置"
+  ```
+
 ### 6.6 租客列表页
 
 **Admin**: `TenantListView.vue`  
@@ -1609,13 +1653,16 @@ TenantDetailView
     │   ├── ElDescriptionsItem(label="联系人")
     │   ├── ElDescriptionsItem(label="联系电话") "***1234"
     │   │   └── ElButton(icon="Unlock" link)
+    │   ├── ElDescriptionsItem(label="最近付款日") "2026-04-01"
     │   └── ElDescriptionsItem(label="信用评级") → StatusTag
     │
-    ├── ── 信用评级面板 ── (Should: S-06)
-    │   ElCard(header="信用评级详情")
-    │   ├── ElDescriptions: 当前评级 | 评级日期
+    ├── ── 缴费信用 ──
+    │   ElCard(header="缴费信用")
+    │   ├── ElDescriptions: 当前评级 | 评级日期 | 最近付款日
     │   ├── ElText "过去12个月逾期 0 次"
-    │   └── ECharts(type: line, 评级历史趋势)
+    │   └── ElCollapse
+    │       └── ElCollapseItem(title="评级历史趋势（Should: S-06）")
+    │           └── ECharts(type: line, 评级历史趋势)
     │
     ├── ── 租赁历史 ──
     │   ElCard(header="租赁历史")
@@ -2531,41 +2578,152 @@ uni.scanCode() → 解析 QR 码中的 unit_id
 
 ## 九、二房东门户模块页面
 
-> 二房东门户独立于主导航骨架，使用精简布局，仅二房东角色可访问。
+> 二房东模块分为两个交付面：内部管理视角（Admin / uni-app 辅助查看）与外部门户视角（独立 Web）。外部门户不挂载到 Admin 主导航骨架，使用独立登录入口、独立会话超时和独立改密流程。
 
 ### 9.1 二房东管理列表（内部管理视角）
 
 **Admin**: `SubleasesView.vue`  
 **路由**: `/subleases`  
-**uni-app**: `pages/subleases/index.vue`  
+**uni-app**: `pages/subleases/index.vue`（内部员工辅助查看，不对 `sub_landlord` 开放）  
 **Store**: `useSubleaseListStore`  
-**API**: `GET /api/subleases` + `GET /api/sublease-portal/units`
+**API**: `GET /api/subleases`
 
 #### Admin 组件树：
 
 ```
 SubleasesView
 └── div
-    ├── ElForm(inline)
-    │   ├── ElSelect "审核状态: 全部/待审核/已通过/已退回"
-    │   ├── ElSelect "二房东(主合同)"
-    │   └── ElInput "搜索: 单元编号/终端租客"
-    │
-    └── ProposTable
-        ├── ElTableColumn(label="单元")
-        ├── ElTableColumn(label="二房东(主合同)")
-        ├── ElTableColumn(label="终端租客")
-        ├── ElTableColumn(label="月租金")
-        ├── ElTableColumn(label="入住状态")
-        ├── ElTableColumn(label="审核状态") → StatusTag
-        └── ElTableColumn(label="操作")
-            ├── ElButton(link type="success") "通过"
-            └── ElButton(link type="danger") "退回"
+  ├── div.header-actions
+  │   ├── ElButton(type="primary" icon="Plus") "新建子租赁" → /subleases/new
+  │   └── ElButton(icon="Upload") "批量导入" → /subleases/import
+  │
+  ├── ElForm(inline)
+  │   ├── ElSelect "审核状态: 全部/待审核/已通过/已退回"
+  │   ├── ElSelect "二房东(主合同)"
+  │   └── ElInput "搜索: 单元编号/终端租客"
+  │
+  └── ProposTable
+    ├── ElTableColumn(label="单元")
+    ├── ElTableColumn(label="二房东(主合同)")
+    ├── ElTableColumn(label="终端租客")
+    ├── ElTableColumn(label="月租金")
+    ├── ElTableColumn(label="入住状态")
+    ├── ElTableColumn(label="审核状态") → StatusTag
+    └── ElTableColumn(label="操作")
+      ├── ElButton(link) "查看"
+      ├── ElButton(link type="primary") "编辑"
+      ├── ElButton(link type="success") "通过"
+      └── ElButton(link type="danger") "退回"
 ```
 
-### 9.2 单元填报列表页（二房东视角）
+### 9.2 子租赁详情页（内部管理视角）
 
-**外部 Web 页面**（二房东登录后看到的首页）  
+**Admin**: `SubleaseDetailView.vue`  
+**路由**: `/subleases/:id`  
+**Store**: `useSubleaseDetailStore`  
+**API**: `GET /api/subleases/:id`
+
+#### 组件树：
+
+```
+SubleaseDetailView
+└── div
+  ├── ElDescriptions(border title="基本信息")
+  │   ├── 主合同 | 单元 | 终端租客 | 入住状态 | 审核状态
+  │   └── 联系人 | 联系电话 | 证件号(脱敏)
+  │
+  ├── ElCard(header="租赁信息")
+  │   └── ElDescriptions(border)
+  │       ├── 起租日 | 到期日 | 月租金
+  │       ├── 租金单价 | 入住人数 | 备注
+  │
+  ├── ElCard(header="版本与变更记录")
+  │   └── ElTimeline
+  │       └── ElTimelineItem(v-for="log in logs" :timestamp="log.time")
+  │           {{ log.description }}
+  │
+  └── ElSpace
+    ├── ElButton(type="primary") "编辑" → /subleases/:id/edit
+    ├── ElButton(type="success") "审核通过"
+    └── ElButton(type="danger") "退回"
+```
+
+### 9.3 子租赁录入页（内部管理视角）
+
+**Admin**: `SubleaseFormView.vue`  
+**路由**: `/subleases/new` 或 `/subleases/:id/edit`  
+**Store**: `useSubleaseFormStore`  
+**API**: `POST /api/subleases` / `PATCH /api/subleases/:id`
+
+#### 组件树：
+
+```
+SubleaseFormView
+└── ElForm(:model="form" :rules="rules" label-width="120px")
+  ├── ElDivider "主合同与单元"
+  │   ├── ElFormItem("主合同") → ElSelect(filterable remote)
+  │   ├── ElFormItem("单元") → ElSelect(:disabled="!form.masterContractId")
+  │   └── ElAlert(type="info") "同一单元同一时间仅允许 1 条在租记录"
+  │
+  ├── ElDivider "终端租客信息"
+  │   ├── ElFormItem("名称") → ElInput
+  │   ├── ElFormItem("类型") → ElSelect(企业/个人)
+  │   ├── ElFormItem("联系人") → ElInput
+  │   ├── ElFormItem("联系电话") → ElInput
+  │   └── ElFormItem("证件号") → ElInput
+  │
+  ├── ElDivider "租赁信息"
+  │   ├── ElFormItem("入住状态") → ElSelect(已入住/已签约未入住/已退租/空置)
+  │   ├── ElFormItem("起租日") → ElDatePicker
+  │   ├── ElFormItem("到期日") → ElDatePicker(:disabled-date="afterMainContractEnd")
+  │   ├── ElFormItem("月租金(¥)") → ElInputNumber
+  │   ├── ElText(type="info") "自动计算单价: ¥{{ rent / area }}/m²/月"
+  │   └── ElFormItem("入住人数") // v-if 公寓
+  │
+  ├── ElFormItem("备注") → ElInput(type="textarea")
+  │
+  └── ElSpace
+    ├── ElButton "保存草稿"
+    ├── ElButton(type="primary") "提交审核"
+    └── v-if="canApproveDirectly": ElButton(type="success") "保存并生效"
+```
+
+### 9.4 二房东登录页（外部门户）
+
+**Portal**: `PortalLoginView.vue`  
+**独立路由**: `/portal/login`  
+**Store**: `usePortalAuthStore`  
+**API**: `POST /api/sublease-portal/auth/login`
+
+#### 组件树：
+
+```
+PortalLoginView
+└── div.portal-login
+  ├── div.brand-panel
+  │   ├── Logo
+  │   ├── ElText(tag="h1") "PropOS 二房东平台"
+  │   └── ElText(type="info") "仅可访问自身主合同范围内数据"
+  │
+  └── ElCard
+    └── ElForm(:model="form" :rules="rules")
+      ├── ElFormItem("账号") → ElInput
+      ├── ElFormItem("密码") → ElInput(type="password" show-password)
+      ├── ElText(type="warning") "首次登录需修改密码；连续 5 次失败将锁定 30 分钟"
+      ├── ElAlert(v-if="error" type="error" :title="error")
+      └── ElButton(type="primary" :loading="submitting") "登录"
+```
+
+**交互说明**：
+- 登录成功 → 跳转 `/portal/subleases`
+- `must_change_password == true` → 跳转 `/portal/change-password`（复用 3.2 修改密码表单结构）
+- 连续 5 次失败 → 显示锁定提示与解锁时间
+- 主合同到期或账号冻结 → 禁止登录，仅展示联系管理员指引
+
+### 9.5 单元填报列表页（二房东视角）
+
+**Portal**: `SubLandlordPortalListView.vue`  
+**独立路由**: `/portal/subleases`  
 **Store**: `useSubLandlordUnitListStore`  
 **API**: `GET /api/sublease-portal/units` + `GET /api/sublease-portal/subleases`
 
@@ -2575,27 +2733,33 @@ SubleasesView
 SubLandlordPortalLayout
 ├── Header: Logo + "PropOS 二房东平台" + 退出登录
 └── Main
-    ├── ── 填报进度卡片 ──
-    │   ElCard
-    │   ├── ElText "填报截止日: 本月5日"
-    │   ├── ElProgress(:percentage="filledPercent" :stroke-width="20")
-    │   └── ElText "已填报 45/60 个单元"
-    │
-    ├── ── 筛选 ──
-    │   ElForm(inline)
-    │   ├── ElSelect "填报状态: 全部/已填报/未填报/退回待修改"
-    │   └── ElInput "搜索单元编号"
-    │
-    └── ElTable(:data="units" @row-click="toFill")
-        ├── ElTableColumn(label="单元编号")
-        ├── ElTableColumn(label="面积(m²)")
-        ├── ElTableColumn(label="填报状态") → StatusTag
-        ├── ElTableColumn(label="审核状态") → StatusTag
-        └── ElTableColumn(label="操作") → ElButton(link) "填报"
+  ├── ── 填报进度卡片 ──
+  │   ElCard
+  │   ├── ElText "填报截止日: 本月5日"
+  │   ├── ElProgress(:percentage="filledPercent" :stroke-width="20")
+  │   └── ElText "已填报 45/60 个单元"
+  │
+  ├── ── 顶部操作 ──
+  │   ElSpace
+  │   └── ElButton(type="primary" plain) "批量导入" → /portal/subleases/import
+  │
+  ├── ── 筛选 ──
+  │   ElForm(inline)
+  │   ├── ElSelect "填报状态: 全部/已填报/未填报/退回待修改"
+  │   └── ElInput "搜索单元编号"
+  │
+  └── ElTable(:data="units" @row-click="toFill")
+    ├── ElTableColumn(label="单元编号")
+    ├── ElTableColumn(label="面积(m²)")
+    ├── ElTableColumn(label="填报状态") → StatusTag
+    ├── ElTableColumn(label="审核状态") → StatusTag
+    └── ElTableColumn(label="操作") → ElButton(link) "填报"
 ```
 
-### 9.3 子租赁填报页
+### 9.6 子租赁填报页（二房东视角）
 
+**Portal**: `SubleaseFillingView.vue`  
+**独立路由**: `/portal/subleases/:id/edit`  
 **Store**: `useSubleaseFillingStore`  
 **API**: `POST|PATCH /api/sublease-portal/subleases`
 
@@ -2604,60 +2768,68 @@ SubLandlordPortalLayout
 ```
 SubleaseFillingView
 └── ElForm(:model="form" :rules="rules" label-width="120px")
-    ├── ── 单元信息(只读) ──
-    │   ElDescriptions(border): 单元编号 | 面积 | 主合同到期日
-    │
-    ├── ── 入住状态 ──
-    │   ElFormItem(label="入住状态") → ElSelect(已入住/已签约未入住/已退租/空置)
-    │
-    ├── ── 租客信息 ── (v-if 非空置)
-    │   ElDivider "终端租客信息"
-    │   ├── ElFormItem("名称") → ElInput
-    │   ├── ElFormItem("类型") → ElSelect(企业/个人)
-    │   ├── ElFormItem("联系人") → ElInput
-    │   ├── ElFormItem("联系电话") → ElInput
-    │   └── ElFormItem("证件号") → ElInput (可选)
-    │
-    ├── ── 租赁信息 ──
-    │   ElDivider "租赁信息"
-    │   ├── ElFormItem("起租日") → ElDatePicker
-    │   ├── ElFormItem("到期日") → ElDatePicker(:disabled-date="afterMainContractEnd")
-    │   ├── ElFormItem("月租金(¥)") → ElInputNumber
-    │   ├── ElText(type="info") "自动计算单价: ¥{{ rent / area }}/m²/月"
-    │   └── ElFormItem("入住人数") // v-if 公寓
-    │
-    ├── ElFormItem("备注") → ElInput(type="textarea")
-    │
-    ├── ── 审核退回面板 ── (v-if="form.review_status === 'rejected'")
-    │   ElAlert(type="error" title="审核退回原因" :closable="false")
-    │   └── {{ form.reject_reason }}
-    │
-    └── ElSpace
-        ├── ElButton "暂存草稿" (review_status = draft)
-        └── ElButton(type="primary") "提交审核" (review_status = pending)
-            → ElMessageBox.confirm("提交后数据将进入审核流程")
+  ├── ── 单元信息(只读) ──
+  │   ElDescriptions(border): 单元编号 | 面积 | 主合同到期日
+  │
+  ├── ── 入住状态 ──
+  │   ElFormItem(label="入住状态") → ElSelect(已入住/已签约未入住/已退租/空置)
+  │
+  ├── ── 租客信息 ── (v-if 非空置)
+  │   ElDivider "终端租客信息"
+  │   ├── ElFormItem("名称") → ElInput
+  │   ├── ElFormItem("类型") → ElSelect(企业/个人)
+  │   ├── ElFormItem("联系人") → ElInput
+  │   ├── ElFormItem("联系电话") → ElInput
+  │   └── ElFormItem("证件号") → ElInput (可选)
+  │
+  ├── ── 租赁信息 ──
+  │   ElDivider "租赁信息"
+  │   ├── ElFormItem("起租日") → ElDatePicker
+  │   ├── ElFormItem("到期日") → ElDatePicker(:disabled-date="afterMainContractEnd")
+  │   ├── ElFormItem("月租金(¥)") → ElInputNumber
+  │   ├── ElText(type="info") "自动计算单价: ¥{{ rent / area }}/m²/月"
+  │   └── ElFormItem("入住人数") // v-if 公寓
+  │
+  ├── ElFormItem("备注") → ElInput(type="textarea")
+  │
+  ├── ElCheckbox(v-model="form.declarationAccepted") "我确认填报内容真实、准确并承担责任"
+  │
+  ├── ── 审核退回面板 ── (v-if="form.review_status === 'rejected'")
+  │   ElAlert(type="error" title="审核退回原因" :closable="false")
+  │   └── {{ form.reject_reason }}
+  │
+  └── ElSpace
+    ├── ElButton "暂存草稿" (review_status = draft)
+    └── ElButton(type="primary") "提交审核" (review_status = pending)
+      → ElMessageBox.confirm("提交后数据将进入审核流程")
 ```
 
-### 9.4 批量导入页
+### 9.7 批量导入页
 
+**Admin**: `SubleaseImportView.vue`  
+**Admin 路由**: `/subleases/import`  
+**Portal 路由**: `/portal/subleases/import`  
 **Store**: `useSubleaseImportStore`  
-**API**: `POST /api/sublease-portal/subleases/import`
+**API**: `POST /api/subleases/import`（内部） / `POST /api/sublease-portal/subleases/import`（外部）
 
 #### 组件树：
 
 ```
 SubleaseImportView
 └── div
-    ├── ElButton(icon="Download") "下载导入模板"
-    ├── ElUpload(:auto-upload="false" accept=".xlsx" :limit="1")
-    ├── ElButton(type="primary" :loading="importing") "开始导入"
-    └── ElCard(v-if="result" header="导入结果")
-        ├── ElAlert(:type="result.errors.length ? 'warning' : 'success'")
-        │   "成功: {{ result.success }} 条 | 失败: {{ result.errors.length }} 条"
-        └── ElTable(v-if="result.errors.length" :data="result.errors")
-            ├── ElTableColumn(label="行号")
-            ├── ElTableColumn(label="字段")
-            └── ElTableColumn(label="原因")
+  ├── v-if="isInternal": ElSelect "主合同"
+  ├── ElButton(icon="Download") "下载导入模板"
+  ├── ElUpload(:auto-upload="false" accept=".xlsx" :limit="1")
+  ├── ElText(type="info") "内部导入支持按二房东范围批量修正；外部门户仅可导入自身范围"
+  ├── ElButton(type="primary" :loading="importing") "开始导入"
+  └── ElCard(v-if="result" header="导入结果")
+    ├── ElAlert(:type="result.errors.length ? 'warning' : 'success'")
+    │   "成功: {{ result.success }} 条 | 失败: {{ result.errors.length }} 条"
+    ├── ElButton(v-if="result.errors.length") "下载错误报告 Excel"
+    └── ElTable(v-if="result.errors.length" :data="result.errors")
+      ├── ElTableColumn(label="行号")
+      ├── ElTableColumn(label="字段")
+      └── ElTableColumn(label="原因")
 ```
 
 ---
@@ -3017,27 +3189,51 @@ KpiSchemeFormView
 **Admin**: `AlertCenterView.vue`  
 **路由**: `/settings/alerts`  
 **Store**: `useAlertCenterStore`  
-**API**: `GET /api/alerts`
+**API**: `GET /api/alerts` + `GET /api/alerts/failed-tasks` + `POST /api/alerts/resend`
 
 #### 组件树：
 
 ```
 AlertCenterView
 └── div
-    ├── ElForm(inline)
-    │   ├── ElSelect "类型: 全部/到期预警/逾期预警/押金提醒/填报提醒"
-    │   ├── ElSelect "状态: 全部/未读/已读"
-    │   ├── ElDatePicker(type="daterange")
-    │   ├── ElButton "全部已读"
-    │   └── ElButton "补发预警"
-    │
-    └── ElTable(:data="alerts" @row-click="onAlertClick")
-        ├── ElTableColumn(label="")
-        │   └── ElBadge(is-dot :hidden="alert.is_read")
-        ├── ElTableColumn(label="类型") → ElTag(:type="alertTypeMap[type]")
-        ├── ElTableColumn(label="内容")
-        ├── ElTableColumn(label="关联资源")
-        └── ElTableColumn(label="时间")
+  ├── ElTabs(v-model="activeTab")
+  │   ├── ElTabPane(label="预警记录" name="records")
+  │   │   ├── ElForm(inline)
+  │   │   │   ├── ElSelect "类型: 全部/到期预警/逾期预警/押金提醒/填报提醒"
+  │   │   │   ├── ElSelect "状态: 全部/未读/已读"
+  │   │   │   ├── ElDatePicker(type="daterange")
+  │   │   │   ├── ElButton "全部已读"
+  │   │   │   └── ElButton "补发预警"
+  │   │   │
+  │   │   └── ElTable(:data="alerts" @row-click="onAlertClick")
+  │   │       ├── ElTableColumn(label="")
+  │   │       │   └── ElBadge(is-dot :hidden="alert.is_read")
+  │   │       ├── ElTableColumn(label="类型") → ElTag(:type="alertTypeMap[type]")
+  │   │       ├── ElTableColumn(label="内容")
+  │   │       ├── ElTableColumn(label="关联资源")
+  │   │       └── ElTableColumn(label="时间")
+  │   │
+  │   └── ElTabPane(label="失败任务" name="failed")
+  │       ├── ElForm(inline)
+  │       │   ├── ElSelect "任务类型: 全部/到期预警/逾期预警/押金提醒/填报提醒"
+  │       │   ├── ElSelect "状态: 全部/待重试/已放弃"
+  │       │   └── ElDatePicker(type="daterange")
+  │       │
+  │       └── ElTable(:data="failedTasks")
+  │           ├── ElTableColumn(label="任务类型")
+  │           ├── ElTableColumn(label="关联合同/资源")
+  │           ├── ElTableColumn(label="失败原因")
+  │           ├── ElTableColumn(label="重试次数")
+  │           ├── ElTableColumn(label="最后失败时间")
+  │           └── ElTableColumn(label="操作") [立即重试] [查看详情]
+  │
+  └── ElDialog(title="补发预警" v-model="showResendDialog" width="560px")
+    └── ElForm(:model="resendForm" label-width="100px")
+      ├── ElFormItem("补发范围") → ElRadioGroup(按合同/按日期区间)
+      ├── ElFormItem("合同") → ElSelect(filterable remote)
+      ├── ElFormItem("日期区间") → ElDatePicker(type="daterange")
+      ├── ElFormItem("预警类型") → ElSelect
+      └── ElButton(type="primary") "确认补发"
 ```
 
 ### 12.7 递增模板管理页
@@ -3250,12 +3446,13 @@ AuditLogView
 | A | `success` | `success` | A 优质 |
 | B | `warning` | `warning` | B 一般 |
 | C | `danger` | `danger` | C 风险 |
+| D | `danger` | `danger` | D 严重违约 |
 
 ---
 
 ## 附录 A：页面清单与模块映射
 
-### A.1 uni-app 页面清单（16 个页面）
+### A.1 uni-app 页面清单（17 个页面）
 
 | 页面 | 路径 | 模块 | TabBar |
 |------|------|------|:------:|
@@ -3273,11 +3470,11 @@ AuditLogView
 | 工单管理 | `pages/workorders/index` | 工单 | ✅ Tab 4 |
 | 工单详情 | `pages/workorders/detail` | 工单 | — |
 | 新建工单 | `pages/workorders/new` | 工单 | — |
-| 二房东管理 | `pages/subleases/index` | 二房东 | — |
-| 二房东详情 | `pages/subleases/detail` | 二房东 | — |
+| 二房东管理（内部） | `pages/subleases/index` | 二房东 | — |
+| 二房东详情（内部） | `pages/subleases/detail` | 二房东 | — |
 | 通知中心 | `pages/notifications/index` | 通知 | —（v1.8 新增）|
 
-### A.2 Admin 视图清单（40+ 视图）
+### A.2 Admin 视图清单（49 视图）
 
 | 视图 | 路由 | 模块 | 优先级 |
 |------|------|------|--------|
@@ -3296,6 +3493,7 @@ AuditLogView
 | `ContractTerminateView` | `/contracts/:id/terminate` | 租务 | Must |
 | `ContractRenewView` | `/contracts/:id/renew` | 租务 | Must |
 | `EscalationConfigView` | `/contracts/:id/escalation` | 租务 | Must |
+| `RentForecastView` | `/contracts/:id/rent-forecast` | 租务 | Should |
 | `TenantListView` | `/tenants` | 租务 | Must |
 | `TenantDetailView` | `/tenants/:id` | 租务 | Must |
 | `TenantFormView` | `/tenants/new` | 租务 | Must |
@@ -3316,6 +3514,8 @@ AuditLogView
 | `WorkorderDetailView` | `/workorders/:id` | 工单 | Must |
 | `SubleasesView` | `/subleases` | 二房东 | Must |
 | `SubleaseDetailView` | `/subleases/:id` | 二房东 | Must |
+| `SubleaseFormView` | `/subleases/new` | 二房东 | Must |
+| `SubleaseImportView` | `/subleases/import` | 二房东 | Must |
 | `UserManagementView` | `/settings/users` | 设置 | Must |
 | `UserFormView` | `/settings/users/new` | 设置 | Must |
 | `OrganizationManageView` | `/settings/org` | 设置 | Must |
@@ -3329,7 +3529,17 @@ AuditLogView
 | `ApprovalQueueView` | `/approvals` | 审批 | Must（v1.8 新增）|
 | `DunningListView` | `/finance/dunning` | 财务 | Must（v1.8 新增）|
 
-> **总计**: uni-app **17 个页面** + Admin **47 个视图**，覆盖 Phase 1 全部 Must 需求。
+### A.3 二房东外部门户视图清单（5 个视图）
+
+| 视图 | 路由 | 模块 | 优先级 |
+|------|------|------|--------|
+| `PortalLoginView` | `/portal/login` | 二房东门户 | Must |
+| `PortalChangePasswordView` | `/portal/change-password` | 二房东门户 | Must |
+| `SubLandlordPortalListView` | `/portal/subleases` | 二房东门户 | Must |
+| `SubleaseFillingView` | `/portal/subleases/:id/edit` | 二房东门户 | Must |
+| `SubleaseImportView` | `/portal/subleases/import` | 二房东门户 | Must |
+
+> **总计**: uni-app **17 个页面** + Admin **49 个视图** + 外部门户 **5 个视图**，覆盖 Phase 1 全部 Must 需求。
 
 ---
 
@@ -3355,7 +3565,7 @@ AuditLogView
 | `useSubleaseListStore` | 二房东列表 | `list / meta / loading / error` |
 | `useNotificationStore` | 通知中心 | `list / meta / unreadCount / filters / loading / error`（v1.8 新增）|
 
-### B.2 Admin 独有 Store
+### B.2 管理端 / 门户端专用 Store
 
 | Store | 对应视图 | state 核心字段 |
 |-------|---------|---------------|
@@ -3365,6 +3575,7 @@ AuditLogView
 | `useContractTerminateStore` | 合同终止 | `form / deposit / submitting / error` |
 | `useContractRenewStore` | 合同续签 | `parentContract / form / submitting / error` |
 | `useEscalationConfigStore` | 递增配置 | `phases / forecast / loading / saving / error` |
+| `useRentForecastStore` | 租金预测 | `summary / forecastRows / loading / error` |
 | `useTenantListStore` | 租客列表 | `list / meta / loading / error` |
 | `useTenantDetailStore` | 租客详情 | `tenant / contracts / loading / error` |
 | `useTenantFormStore` | 租客新建/编辑 | `form / submitting / error` |
@@ -3375,8 +3586,10 @@ AuditLogView
 | `useTurnoverReportStore` | 营业额申报 | `list / meta / loading / error` |
 | `useExpenseListStore` | 费用列表 | `list / meta / loading / error` |
 | `useExpenseFormStore` | 费用录入 | `form / submitting / error` |
-| `useUnitImportStore` | 批量导入 | `step / result / validating / importing / error` |
+| `useUnitImportStore` | 批量导入 | `step / result / batches / validating / importing / correcting / rollingBack / error` |
 | `useWorkOrderFormStore` | 工单提报 | `form / buildings / floors / units / submitting / error` |
+| `useSubleaseDetailStore` | 子租赁详情 | `item / logs / loading / error` |
+| `useSubleaseFormStore` | 子租赁录入/编辑 | `form / submitting / approving / error` |
 | `useUserManagementStore` | 用户管理 | `list / meta / loading / error` |
 | `useUserFormStore` | 用户新建/编辑 | `form / departments / submitting / error` |
 | `useOrganizationStore` | 组织架构 | `tree / selectedDept / scopes / loading / error` |
@@ -3384,11 +3597,12 @@ AuditLogView
 | `useKpiSchemeDetailStore` | KPI 方案详情 | `scheme / metrics / targets / loading / error` |
 | `useKpiAppealStore` | KPI 申诉 | `appeals / form / submitting / loading / error` |
 | `useEscalationTemplateStore` | 递增模板 | `list / meta / loading / error` |
-| `useAlertCenterStore` | 预警中心 | `list / meta / filters / loading / error` |
+| `useAlertCenterStore` | 预警中心 | `list / failedTasks / meta / filters / resendForm / showResendDialog / loading / error` |
 | `useAuditLogStore` | 审计日志 | `list / meta / filters / loading / error` |
-| `useSubLandlordUnitListStore` | 二房东单元列表 | `units / progress / loading / error` |
-| `useSubleaseFillingStore` | 子租赁填报 | `form / unit / submitting / error` |
-| `useSubleaseImportStore` | 批量导入 | `result / importing / error` |
+| `useSubLandlordUnitListStore` | 二房东门户单元列表 | `units / progress / filters / loading / error` |
+| `useSubleaseFillingStore` | 二房东门户子租赁填报 | `form / unit / submitting / error` |
+| `useSubleaseImportStore` | 二房东批量导入 | `mode / result / importing / error` |
+| `usePortalAuthStore` | 二房东门户登录/改密 | `user / token / mustChangePassword / loading / error` |
 | `useApprovalStore` | 审批队列 | `list / meta / pendingCount / filters / loading / error`（v1.8 新增）|
 | `useDunningStore` | 催收管理 | `list / meta / form / showNewDialog / submitting / loading / error`（v1.8 新增）|
 
@@ -3400,14 +3614,18 @@ AuditLogView
 
 | 变更项 | 说明 |
 |--------|------|
+| §五 Excel 批量导入 | 补齐批量修正、按批次回滚与导入批次管理入口 |
+| §九 二房东门户 | 补齐内部录入页、外部门户登录页、共享导入路由与内部/外部双视角说明 |
+| §十二 预警中心 | 增加失败任务列表与手工补发弹窗 |
+| §十四 信用评级映射 | 补齐 D 等级与租客详情缴费信用展示 |
 | §十 通知与审批模块 | 新增通知中心（双端）+ 审批队列（Admin）页面规格 |
 | §十一 催收管理 | 新增催收记录列表 + 新建催收对话框页面规格 |
 | §四 Dashboard 首页 | API 补充 `GET /api/notifications/unread-count`、`GET /api/dashboard/overview` |
 | 全局导航 §1.3 | 侧边栏新增"通知中心"、"审批队列"、"催收管理"菜单项；顶部栏新增通知铃铛 |
 | 路由表 §1.3 | 新增 3 条路由：`/notifications`、`/approvals`、`/finance/dunning` |
 | uni-app 导航 §1.2 | 新增 `pages/notifications/index` 子页面（非 TabBar） |
-| 附录 A | uni-app 页面 16→17；Admin 视图 44→47 |
-| 附录 B | 通用 Store +1（useNotificationStore）；Admin Store +2（useApprovalStore、useDunningStore）|
+| 附录 A | uni-app 页面 16→17；Admin 44→49；新增 Portal 5 视图 |
+| 附录 B | 通用 Store +1（useNotificationStore）；管理端 / 门户端专用 Store 补齐二房东与预警中心状态设计 |
 | 章节编号 | 原§十~§十二 → §十二~§十四（为新增模块腾位） |
 
 ---
