@@ -1,26 +1,26 @@
 {
-    "name" : "PropOS",
-    "appid" : "__UNI__PROPOS001",
-    "description" : "物业运营管理系统移动端",
-    "versionName" : "0.1.0",
-    "versionCode" : "1",
+    "name" : "",
+    "appid" : "",
+    "description" : "",
+    "versionName" : "1.0.0",
+    "versionCode" : "100",
     "transformPx" : false,
-    /* 5+App特有相关 */
     "app-plus" : {
         "usingComponents" : true,
         "nvueStyleCompiler" : "uni-app",
         "compilerVersion" : 3,
+        "safearea" : {
+            "background" : "#f5f5f7",
+            "backgroundDark" : "#1c1c1e"
+        },
         "splashscreen" : {
             "alwaysShowBeforeRender" : true,
             "waiting" : true,
             "autoclose" : true,
             "delay" : 0
         },
-        /* 模块配置 */
         "modules" : {},
-        /* 应用发布信息 */
         "distribute" : {
-            /* android打包配置 */
             "android" : {
                 "permissions" : [
                     "<uses-permission android:name=\"android.permission.CHANGE_NETWORK_STATE\"/>",
@@ -40,15 +40,11 @@
                     "<uses-permission android:name=\"android.permission.WRITE_SETTINGS\"/>"
                 ]
             },
-            /* ios打包配置 */
             "ios" : {},
-            /* SDK配置 */
             "sdkConfigs" : {}
         }
     },
-    /* 快应用特有相关 */
     "quickapp" : {},
-    /* 小程序特有相关 */
     "mp-weixin" : {
         "appid" : "",
         "setting" : {

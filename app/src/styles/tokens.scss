@@ -1,0 +1,53 @@
+// ─── 颜色 ─────────────────────────────────────────────────────────────────
+$color-primary: var(--color-primary);
+$color-primary-foreground: var(--color-primary-foreground);
+$color-surface-light: var(--color-surface-light);
+$color-background: var(--color-background);
+$color-foreground: var(--color-foreground);
+$color-background-dark: var(--color-background-dark);
+$color-foreground-dark: var(--color-foreground-dark);
+$color-muted: var(--color-muted);
+$color-muted-foreground: var(--color-muted-foreground);
+$color-muted-dark: var(--color-muted-dark);
+$color-muted-foreground-dark: var(--color-muted-foreground-dark);
+$color-border: var(--color-border);
+$color-border-dark: var(--color-border-dark);
+$color-mask: var(--color-mask);
+$color-disabled-mask: var(--color-disabled-mask);
+$color-skeleton-base: var(--color-skeleton-base);
+$color-skeleton-highlight: var(--color-skeleton-highlight);
+$color-success: var(--color-success);
+$color-warning: var(--color-warning);
+$color-destructive: var(--color-destructive);
+$color-info: var(--color-info);
+
+$color-primary-soft: var(--color-primary-soft);
+$color-primary-focus-ring: var(--color-primary-focus-ring);
+$color-primary-disabled: var(--color-primary-disabled);
+$color-muted-soft: var(--color-muted-soft);
+$color-muted-strong: var(--color-muted-strong);
+$color-muted-foreground-soft: var(--color-muted-foreground-soft);
+$color-destructive-soft: var(--color-destructive-soft);
+$color-destructive-border-soft: var(--color-destructive-border-soft);
+$color-surface-overlay: var(--color-surface-overlay);
+$color-handle: var(--color-handle);
+
+// ─── 间距 ─────────────────────────────────────────────────────────────────
+$space-page-x: 40rpx;
+$space-page-y: 24rpx;
+$space-card: 32rpx;
+$space-gap-sm: 16rpx;
+$space-gap-md: 24rpx;
+$space-gap-lg: 32rpx;
+
+// ─── 圆角 ─────────────────────────────────────────────────────────────────
+$radius-control: 24rpx;
+$radius-card: 40rpx;
+$radius-sheet: 48rpx;
+
+// ─── 阴影 ─────────────────────────────────────────────────────────────────
+$shadow-card: 0 8rpx 24rpx rgba(0, 0, 0, 0.06);
+$shadow-float: 0 16rpx 48rpx rgba(0, 0, 0, 0.12);
+
+// ─── 透明度 ───────────────────────────────────────────────────────────────
+$opacity-disabled: 0.48;

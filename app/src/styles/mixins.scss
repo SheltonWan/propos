@@ -1,0 +1,45 @@
+@import './tokens.scss';
+
+@mixin page-x {
+  padding-left: $space-page-x;
+  padding-right: $space-page-x;
+}
+
+@mixin card-base {
+  background: $color-background;
+  border: 1px solid $color-border;
+  border-radius: $radius-card;
+  box-shadow: $shadow-card;
+}
+
+@mixin title-lg {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: $color-foreground;
+}
+
+@mixin title-md {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: $color-foreground;
+}
+
+@mixin text-caption {
+  font-size: 24rpx;
+  color: $color-muted-foreground;
+}
+
+@mixin state-disabled {
+  opacity: $opacity-disabled;
+  pointer-events: none;
+}
+
+@mixin state-skeleton {
+  background: linear-gradient(
+    90deg,
+    $color-skeleton-base 0%,
+    $color-skeleton-highlight 50%,
+    $color-skeleton-base 100%
+  );
+  background-size: 200% 100%;
+}

@@ -1,21 +1,18 @@
-/**
- * UI 展示常量
- * 对应 frontend ui_constants.dart
- */
-
-// ── 分页 ─────────────────────────────────────────────────
 export const DEFAULT_PAGE_SIZE = 20
 export const MAX_PAGE_SIZE = 100
 
-// ── 布局（rpx，uni-app 跨端适配单位） ────────────────────
-/** 内容区最大宽度（H5 / PC 浏览器生效） */
-export const CONTENT_MAX_WIDTH_PX = 1200
-/** 卡片最大宽度 */
-export const CARD_MAX_WIDTH_PX = 480
+export const TABBAR_HEIGHT_RPX = 116
+export const TABBAR_ICON_SURFACE_WIDTH_RPX = 76
+export const TABBAR_ICON_SURFACE_HEIGHT_RPX = 52
+export const TABBAR_ICON_SIZE_RPX = 42
+export const TABBAR_LABEL_SIZE_RPX = 20
+export const TABBAR_INDICATOR_WIDTH_RPX = 16
+export const TABBAR_INDICATOR_HEIGHT_RPX = 6
 
-// ── 动画 ─────────────────────────────────────────────────
-export const ANIM_DURATION_MS = 200
+export const MOTION_DURATION_PRESS_MS = 120
+export const MOTION_DURATION_STANDARD_MS = 180
+export const MOTION_DURATION_ENTER_MS = 320
+export const MOTION_DURATION_STAGGER_MS = 60
+export const MOTION_EASING_STANDARD = 'cubic-bezier(0.22, 1, 0.36, 1)'
 
-// ── 轮询间隔（ms） ──────────────────────────────────────
-/** 未读告警轮询间隔（PC 端 / H5 替代推送） */
-export const ALERT_POLL_INTERVAL_MS = 30_000
+export const TOAST_DURATION_MS = 2000

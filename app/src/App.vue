@@ -1,61 +1,81 @@
 <script setup lang="ts">
-import { onLaunch } from '@dcloudio/uni-app'
-import { useAuthStore } from '@/stores/auth'
+import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
+import { useThemeStore } from '@/stores/theme'
 
-// ── 路由守卫：全局拦截未登录跳转 ────────────────────────
-// uni-app 中路由守卫通过 addInterceptor 实现（无 vue-router）
-const PUBLIC_PAGES = ['/pages/auth/login']
+const PUBLIC_PAGES = ['/pages/auth/login', '/pages/auth/change-password']
+const themeStore = useThemeStore()
 
-function isPublicPage(url: string): boolean {
-  return PUBLIC_PAGES.some((p) => url.startsWith(p))
-}
-
-function guardNavigate(args: { url: string }, next: () => void) {
-  if (isPublicPage(args.url)) {
-    next()
+function hideNativeTabBar() {
+  if (typeof uni.hideTabBar !== 'function') {
     return
   }
-  const token = uni.getStorageSync('access_token') as string | undefined
-  if (!token) {
-    uni.reLaunch({ url: '/pages/auth/login' })
-    return
+
+  try {
+    uni.hideTabBar({ animation: false })
+  } catch {
+    // 当前页面不是 tab 页时静默跳过
   }
-  next()
 }
 
-// 拦截所有导航 API
-;(['navigateTo', 'redirectTo', 'reLaunch', 'switchTab'] as const).forEach((method) => {
-  uni.addInterceptor(method, {
+onLaunch(() => {
+  themeStore.initializeTheme()
+  hideNativeTabBar()
+
+  // plus ready 后再刷一次原生背景（覆盖启动阶段 plus 未就绪的情况）
+  // #ifdef APP-PLUS
+  const onPlusReady = () => {
+    themeStore.applyRuntimeTheme()
+  }
+  if (typeof plus !== 'undefined') {
+    onPlusReady()
+  } else if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    document.addEventListener('plusready', onPlusReady, { once: true })
+  } else {
+    setTimeout(onPlusReady, 150)
+  }
+  // #endif
+
+  // 路由拦截：未登录时跳转登录页
+  uni.addInterceptor('navigateTo', {
     invoke(args: { url: string }) {
-      let navigated = false
-      guardNavigate(args, () => {
-        navigated = true
-      })
-      // 返回 false 阻止原始跳转（由守卫内部处理）
-      return navigated
+      const token = uni.getStorageSync('access_token')
+      const path = args.url.split('?')[0]
+      if (!token && !PUBLIC_PAGES.includes(path)) {
+        uni.reLaunch({ url: '/pages/auth/login' })
+        return false
+      }
+    },
+  })
+
+  uni.addInterceptor('switchTab', {
+    invoke(args: { url: string }) {
+      const token = uni.getStorageSync('access_token')
+      if (!token) {
+        uni.reLaunch({ url: '/pages/auth/login' })
+        return false
+      }
+    },
+    complete() {
+      hideNativeTabBar()
     },
   })
 })
 
-onLaunch(async () => {
-  const token = uni.getStorageSync('access_token') as string | undefined
-  if (token) {
-    // 应用启动时静默拉取用户信息
-    const authStore = useAuthStore()
-    await authStore.fetchMe()
-  }
+onShow(() => {
+  themeStore.applyRuntimeTheme()
+  hideNativeTabBar()
+})
+
+onHide(() => {
+  // App 切入后台
 })
 </script>
 
 <style>
-/* 全局样式：CSS 自定义属性语义色 Token */
-/* 与 docs/frontend/PAGE_SPEC_v1.7.md 状态色约定对齐 */
 page {
-  --color-success: #52c41a;   /* leased / paid — 已租 / 已核销 */
-  --color-warning: #faad14;   /* expiring_soon / warning — 即将到期 / 预警 */
-  --color-danger: #ff4d4f;    /* vacant / overdue / error — 空置 / 逾期 / 错误 */
-  --color-neutral: #8c8c8c;   /* non_leasable — 非可租区域 */
-  --color-primary: #1677ff;   /* 主色 */
+  font-family: var(--theme-font-family-body);
+  font-size: 28rpx;
+  color: var(--color-foreground);
+  background: var(--color-surface-light, #f5f5f7);
 }
 </style>
-

@@ -1,9 +1,36 @@
 <template>
-  <view class="placeholder-page">
-    <text class="title">assets/unit-detail</text>
-    <text class="tip">待实现</text>
-  </view>
+  <page-meta
+    :background-text-style="pageMetaTextStyle"
+    :background-color="pageMetaBackgroundColor"
+    :background-color-top="pageMetaBackgroundColor"
+    :background-color-bottom="pageMetaBackgroundColor"
+    :root-background-color="pageMetaRootBackgroundColor"
+    :page-style="pageMetaPageStyle"
+  />
+  <AppShell>
+    <template #header>
+      <PageHeader title="房源详情" :back="true" />
+    </template>
+
+    <view class="unit-detail">
+      <text class="unit-detail__placeholder">房源详情占位</text>
+    </view>
+  </AppShell>
 </template>
+
 <script setup lang="ts">
-// assets/unit-detail — 待实现
+import AppShell from '@/components/base/AppShell.vue'
+import PageHeader from '@/components/base/PageHeader.vue'
+import { usePageThemeMeta } from '@/composables/usePageThemeMeta'
+
+const { pageMetaBackgroundColor, pageMetaRootBackgroundColor, pageMetaPageStyle, pageMetaTextStyle } = usePageThemeMeta()
 </script>
+
+<style lang="scss" scoped>
+.unit-detail__placeholder {
+  @include text-caption;
+  text-align: center;
+  display: block;
+  margin-top: 200rpx;
+}
+</style>

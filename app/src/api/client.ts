@@ -1,22 +1,44 @@
-/**
- * HTTP 客户端封装
- * 基于 luch-request，支持所有 uni-app 平台（iOS / Android / HarmonyOS / 微信 / H5）
- *
- * 职责：
- *  1. 统一注入 Authorization: Bearer <token>
- *  2. 解析后端信封格式，成功时返回 data 字段
- *  3. 错误时统一抛出 ApiError（业务码 + message），不透传原始响应
- *  4. 401 时自动尝试 Token 刷新一次，仍失败则跳转登录页
- */
-
 import Request from 'luch-request'
-import type { HttpRequestConfig, HttpData, HttpMethod } from 'luch-request'
+import type { HttpData, HttpError, HttpRequestConfig, HttpResponse } from 'luch-request'
 import { ApiError } from '@/types/api'
-import type { ApiResponse, ApiListResponse, ApiErrorBody } from '@/types/api'
-import { API_AUTH_REFRESH } from '@/constants/api_paths'
+import type { ApiErrorResponse, ApiResponse } from '@/types/api'
+import { AUTH_REFRESH } from '@/constants/api_paths'
+import type { MockMethod } from './mock/types'
+import { matchMock } from './mock/index'
 
-// 后端基础地址：开发时通过 vite env 注入，生产通过 manifest.json 的 h5.devServer.proxy 代理
-const BASE_URL: string = (import.meta.env.VITE_API_BASE_URL as string) ?? ''
+const BASE_URL = import.meta.env.VITE_API_BASE_URL as string || ''
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
+
+type RetryRequestConfig = HttpRequestConfig & {
+  custom?: HttpRequestConfig['custom'] & {
+    __retried?: boolean
+  }
+}
+
+type PatchRequestConfig = Omit<HttpRequestConfig, 'method' | 'data'> & {
+  method: 'PATCH'
+  data?: HttpData
+}
+
+function asHttpData(data?: unknown): HttpData | undefined {
+  if (data === undefined) {
+    return undefined
+  }
+
+  return data as HttpData
+}
+
+function requestWithPatch<T>(config: PatchRequestConfig) {
+  return http.request<ApiResponse<T>>(config as unknown as HttpRequestConfig)
+}
+
+// ─── Mock（USE_MOCK=false 时不执行任何 mock 逻辑）────────────────────────────
+async function tryMock<T>(method: MockMethod, url: string, body?: unknown): Promise<{ hit: true; data: T } | { hit: false }> {
+  if (!USE_MOCK) return { hit: false }
+  const result = await matchMock<T>(method, url, body)
+  if (result !== null) return { hit: true, data: result }
+  return { hit: false }
+}
 
 const http = new Request({
   baseURL: BASE_URL,
@@ -26,108 +48,150 @@ const http = new Request({
   },
 })
 
-// ── 请求拦截：注入 JWT ─────────────────────────────────
-http.interceptors.request.use((config: HttpRequestConfig) => {
-  const token = uni.getStorageSync('access_token') as string | undefined
-  if (token) {
-    config.header = {
-      ...config.header,
-      Authorization: `Bearer ${token}`,
-    }
-  }
-  return config
-})
+// ─── Token 管理 ────────────────────────────────────────────────────────────
+function getAccessToken(): string | null {
+  return uni.getStorageSync('access_token') || null
+}
 
-// ── 响应拦截：信封解析 + 错误统一转换 ──────────────────
+function getRefreshToken(): string | null {
+  return uni.getStorageSync('refresh_token') || null
+}
+
+function setTokens(access: string, refresh: string): void {
+  uni.setStorageSync('access_token', access)
+  uni.setStorageSync('refresh_token', refresh)
+}
+
+function clearTokens(): void {
+  uni.removeStorageSync('access_token')
+  uni.removeStorageSync('refresh_token')
+}
+
+// ─── 请求拦截器 ─────────────────────────────────────────────────────────────
+http.interceptors.request.use(
+  (config: HttpRequestConfig) => {
+    const token = getAccessToken()
+    if (token) {
+      config.header = { ...config.header, Authorization: `Bearer ${token}` }
+    }
+    return config
+  },
+  (error: unknown) => Promise.reject(error),
+)
+
+// ─── 刷新锁 ─────────────────────────────────────────────────────────────────
 let isRefreshing = false
 let refreshSubscribers: Array<(token: string) => void> = []
 
+function onRefreshed(cb: (token: string) => void) {
+  refreshSubscribers.push(cb)
+}
+
+function notifySubscribers(token: string) {
+  refreshSubscribers.forEach((cb) => cb(token))
+  refreshSubscribers = []
+}
+
+// ─── 响应拦截器 ─────────────────────────────────────────────────────────────
 http.interceptors.response.use(
-  (response) => {
-    // luch-request 已将 HTTP 200 系列的响应传到此处
-    // 直接返回原始 response（在 get/post 等封装里再解封装 data）
+  (response: HttpResponse) => {
+    const data = response.data as Record<string, unknown>
+    if (data && typeof data === 'object' && 'error' in data) {
+      const err = data.error as { code: string; message: string }
+      throw new ApiError(err.code, err.message, response.statusCode)
+    }
     return response
   },
-  async (error) => {
-    const statusCode: number = error.statusCode ?? 0
-    const body = error.data as ApiErrorBody | undefined
+  async (error: HttpError<ApiErrorResponse>) => {
+    const status = error.statusCode
+    const errBody = error.data
+    const requestConfig = error.config as RetryRequestConfig
 
-    // 401 → 自动刷新 Token
-    if (statusCode === 401 && !isRefreshing) {
-      const refreshToken = uni.getStorageSync('refresh_token') as string | undefined
-      if (refreshToken) {
-        isRefreshing = true
-        try {
-          const res = await http.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
-            API_AUTH_REFRESH,
-            { refreshToken },
-          )
-          const tokens = res.data.data
-          uni.setStorageSync('access_token', tokens.accessToken)
-          uni.setStorageSync('refresh_token', tokens.refreshToken)
-          refreshSubscribers.forEach((cb) => cb(tokens.accessToken))
-          refreshSubscribers = []
-          isRefreshing = false
-          // 原请求重试由调用方处理（简化：直接告知 token 已刷新）
-          throw new ApiError('TOKEN_REFRESHED', '已刷新 Token，请重试', 401)
-        } catch {
-          isRefreshing = false
-          refreshSubscribers = []
-          _redirectToLogin()
-          throw new ApiError('UNAUTHORIZED', '登录已过期，请重新登录', 401)
+    // 401 → 尝试 refresh
+    if (status === 401) {
+      const refresh = getRefreshToken()
+      if (refresh && !requestConfig.custom?.__retried) {
+        if (!isRefreshing) {
+          isRefreshing = true
+          try {
+            const res = await http.post<ApiResponse<{ access_token: string; refresh_token: string }>>(AUTH_REFRESH, {
+              refresh_token: refresh,
+            })
+            const { access_token, refresh_token } = res.data.data
+            setTokens(access_token, refresh_token)
+            isRefreshing = false
+            notifySubscribers(access_token)
+          } catch {
+            isRefreshing = false
+            refreshSubscribers = []
+            clearTokens()
+            uni.reLaunch({ url: '/pages/auth/login' })
+            throw new ApiError('TOKEN_EXPIRED', '登录已过期，请重新登录', 401)
+          }
         }
-      } else {
-        _redirectToLogin()
-        throw new ApiError('UNAUTHORIZED', '请先登录', 401)
+        // 排队等待 refresh 完成
+        return new Promise<HttpResponse>((resolve) => {
+          onRefreshed((token) => {
+            const retryConfig: RetryRequestConfig = {
+              ...requestConfig,
+              header: { ...requestConfig.header, Authorization: `Bearer ${token}` },
+              custom: { ...requestConfig.custom, __retried: true },
+            }
+            resolve(http.request(retryConfig))
+          })
+        })
       }
+      clearTokens()
+      uni.reLaunch({ url: '/pages/auth/login' })
+      throw new ApiError('UNAUTHORIZED', '请先登录', 401)
     }
 
-    // 其他错误：从信封提取 code + message
-    const code = body?.error?.code ?? `HTTP_${statusCode}`
-    const message = body?.error?.message ?? '服务异常，请稍后再试'
-    throw new ApiError(code, message, statusCode)
+    if (errBody?.error) {
+      throw new ApiError(errBody.error.code, errBody.error.message, status || 500)
+    }
+    throw new ApiError('NETWORK_ERROR', '网络异常，请检查网络连接', status || 0)
   },
 )
 
-function _redirectToLogin() {
-  uni.removeStorageSync('access_token')
-  uni.removeStorageSync('refresh_token')
-  uni.reLaunch({ url: '/pages/auth/login' })
-}
-
-// ── 封装方法（解封装 data 字段）─────────────────────────
-
-/** 获取单对象 */
+// ─── 公共方法（含 mock 拦截：匹配则返回 mock 数据，未匹配则 fallthrough 真实 HTTP）──
 export async function apiGet<T>(url: string, params?: Record<string, unknown>): Promise<T> {
+  const mock = await tryMock<T>('GET', url, params)
+  if (mock.hit) return mock.data
   const res = await http.get<ApiResponse<T>>(url, { params })
   return res.data.data
 }
 
-/** 获取列表（含分页 meta） */
-export async function apiGetList<T>(
-  url: string,
-  params?: Record<string, unknown>,
-): Promise<ApiListResponse<T>> {
-  const res = await http.get<ApiListResponse<T>>(url, { params })
-  return res.data
-}
-
-/** POST 创建 */
-export async function apiPost<T>(url: string, data?: HttpData): Promise<T> {
-  const res = await http.post<ApiResponse<T>>(url, data)
+export async function apiPost<T>(url: string, data?: unknown): Promise<T> {
+  const mock = await tryMock<T>('POST', url, data)
+  if (mock.hit) return mock.data
+  const res = await http.post<ApiResponse<T>>(url, asHttpData(data))
   return res.data.data
 }
 
-/** PATCH 局部更新 */
-export async function apiPatch<T>(url: string, data?: HttpData): Promise<T> {
-  // luch-request 3.1.1 HttpMethod 类型定义缺失 PATCH，运行时实际支持，此处做类型断言
-  const res = await http.request<ApiResponse<T>>({ url, method: 'PATCH' as unknown as HttpMethod, data })
+export async function apiPut<T>(url: string, data?: unknown): Promise<T> {
+  const mock = await tryMock<T>('PUT', url, data)
+  if (mock.hit) return mock.data
+  const res = await http.put<ApiResponse<T>>(url, asHttpData(data))
   return res.data.data
 }
 
-/** DELETE */
-export async function apiDelete(url: string): Promise<void> {
-  await http.delete(url)
+export async function apiPatch<T>(url: string, data?: unknown): Promise<T> {
+  const mock = await tryMock<T>('PATCH', url, data)
+  if (mock.hit) return mock.data
+  const patchConfig: PatchRequestConfig = {
+    url,
+    method: 'PATCH',
+    data: asHttpData(data),
+  }
+  const res = await requestWithPatch<T>(patchConfig)
+  return res.data.data
 }
 
-export default http
+export async function apiDelete<T = void>(url: string): Promise<T> {
+  const mock = await tryMock<T>('DELETE', url)
+  if (mock.hit) return mock.data
+  const res = await http.delete<ApiResponse<T>>(url)
+  return res.data.data
+}
+
+export { setTokens, clearTokens }

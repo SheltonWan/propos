@@ -1,121 +1,189 @@
 {
+  "easycom": {
+    "autoscan": true,
+    "custom": {
+      "^wd-(.*)": "wot-design-uni/components/wd-$1/wd-$1.vue"
+    }
+  },
   "pages": [
     {
-      "path": "pages/auth/login",
-      "style": { "navigationBarTitleText": "登录", "navigationStyle": "custom" }
-    },
-    {
       "path": "pages/dashboard/index",
-      "style": { "navigationBarTitleText": "总览" }
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "首页",
+        "app-plus": {
+          "animationType": "none",
+          "animationDuration": 0
+        }
+      }
     },
     {
       "path": "pages/assets/index",
-      "style": { "navigationBarTitleText": "资产总览" }
-    },
-    {
-      "path": "pages/assets/building-detail",
-      "style": { "navigationBarTitleText": "楼栋详情" }
-    },
-    {
-      "path": "pages/assets/floor-plan",
-      "style": { "navigationBarTitleText": "楼层热区图" }
-    },
-    {
-      "path": "pages/assets/unit-detail",
-      "style": { "navigationBarTitleText": "房源详情" }
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "资产",
+        "app-plus": {
+          "animationType": "none",
+          "animationDuration": 0
+        }
+      }
     },
     {
       "path": "pages/contracts/index",
-      "style": { "navigationBarTitleText": "合同管理" }
-    },
-    {
-      "path": "pages/contracts/detail",
-      "style": { "navigationBarTitleText": "合同详情" }
-    },
-    {
-      "path": "pages/finance/index",
-      "style": { "navigationBarTitleText": "财务总览" }
-    },
-    {
-      "path": "pages/finance/invoices",
-      "style": { "navigationBarTitleText": "发票账单" }
-    },
-    {
-      "path": "pages/finance/kpi",
-      "style": { "navigationBarTitleText": "KPI 考核" }
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "合同",
+        "app-plus": {
+          "animationType": "none",
+          "animationDuration": 0
+        }
+      }
     },
     {
       "path": "pages/workorders/index",
-      "style": { "navigationBarTitleText": "工单管理" }
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "工单",
+        "app-plus": {
+          "animationType": "none",
+          "animationDuration": 0
+        }
+      }
+    },
+    {
+      "path": "pages/finance/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "财务",
+        "app-plus": {
+          "animationType": "none",
+          "animationDuration": 0
+        }
+      }
+    },
+    {
+      "path": "pages/auth/login",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/auth/change-password",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "修改密码"
+      }
+    },
+    {
+      "path": "pages/assets/floor-plan",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "楼层平面图"
+      }
+    },
+    {
+      "path": "pages/assets/unit-detail",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "房源详情"
+      }
+    },
+    {
+      "path": "pages/contracts/detail",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "合同详情"
+      }
     },
     {
       "path": "pages/workorders/detail",
-      "style": { "navigationBarTitleText": "工单详情" }
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "工单详情"
+      }
     },
     {
-      "path": "pages/workorders/new",
-      "style": { "navigationBarTitleText": "新建工单" }
+      "path": "pages/workorders/form",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "工单表单"
+      }
     },
     {
-      "path": "pages/subleases/index",
-      "style": { "navigationBarTitleText": "二房东管理" }
+      "path": "pages/finance/invoices",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "账单列表"
+      }
     },
     {
-      "path": "pages/subleases/detail",
-      "style": { "navigationBarTitleText": "二房东详情" }
+      "path": "pages/finance/invoice-detail",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "账单详情"
+      }
+    },
+    {
+      "path": "pages/finance/kpi",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "KPI 仪表盘"
+      }
+    },
+    {
+      "path": "pages/dashboard/noi-detail",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "NOI 分析"
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "个人中心"
+      }
+    },
+    {
+      "path": "pages/notifications/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "通知中心"
+      }
     }
   ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f5f5f7"
+  },
   "tabBar": {
-    "color": "#8c8c8c",
-    "selectedColor": "#1677ff",
+    "color": "#ffffff",
+    "selectedColor": "#ffffff",
+    "borderStyle": "white",
     "backgroundColor": "#ffffff",
-    "borderStyle": "black",
     "list": [
       {
         "pagePath": "pages/dashboard/index",
-        "text": "首页",
-        "iconPath": "static/tabbar/dashboard.png",
-        "selectedIconPath": "static/tabbar/dashboard-active.png"
+        "text": "首页"
       },
       {
         "pagePath": "pages/assets/index",
-        "text": "资产",
-        "iconPath": "static/tabbar/assets.png",
-        "selectedIconPath": "static/tabbar/assets-active.png"
+        "text": "资产"
       },
       {
         "pagePath": "pages/contracts/index",
-        "text": "合同",
-        "iconPath": "static/tabbar/contracts.png",
-        "selectedIconPath": "static/tabbar/contracts-active.png"
+        "text": "合同"
       },
       {
         "pagePath": "pages/workorders/index",
-        "text": "工单",
-        "iconPath": "static/tabbar/workorders.png",
-        "selectedIconPath": "static/tabbar/workorders-active.png"
+        "text": "工单"
       },
       {
         "pagePath": "pages/finance/index",
-        "text": "财务",
-        "iconPath": "static/tabbar/finance.png",
-        "selectedIconPath": "static/tabbar/finance-active.png"
+        "text": "财务"
       }
-    ]
-  },
-  "globalStyle": {
-    "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "PropOS",
-    "navigationBarBackgroundColor": "#ffffff",
-    "backgroundColor": "#f5f5f5",
-    "navigationStyle": "default"
-  },
-  "condition": {
-    "current": 0,
-    "list": [
-      { "name": "登录页", "path": "pages/auth/login" },
-      { "name": "总览", "path": "pages/dashboard/index" },
-      { "name": "工单新建", "path": "pages/workorders/new" }
     ]
   }
 }

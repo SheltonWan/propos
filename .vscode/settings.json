@@ -1,5 +1,5 @@
 {
-  "js/ts.tsdk.path": "./app/node_modules/typescript/lib",
+  "typescript.tsdk": "./app/node_modules/typescript/lib",
   "github.copilot.chat.codeGeneration.useInstructionFiles": true,
   "github.copilot.nextEditSuggestions.enabled": true,
   "github.copilot.chat.experimental.temporalContext.enabled": true,

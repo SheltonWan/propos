@@ -2,17 +2,20 @@
     "version" : "1.0",
     "configurations" : [
         {
-            "customPlaygroundType" : "device",
             "playground" : "standard",
             "type" : "uni-app:app-ios_simulator"
         },
         {
+            "bundleId" : "com.ephnic.propos",
+            "certificateFile" : "/Users/sheltonwan/Downloads/ephnic证书.p12",
+            "certificateProfileFile" : "/Users/sheltonwan/Downloads/propos_dev.mobileprovision",
             "playground" : "standard",
-            "type" : "uni-app:app-android"
+            "runSignStatus" : 0,
+            "type" : "uni-app:app-ios"
         },
         {
             "playground" : "standard",
-            "type" : "uni-app:app-ios"
+            "type" : "uni-app:app-android"
         }
     ]
 }

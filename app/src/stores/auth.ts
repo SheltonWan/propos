@@ -1,38 +1,32 @@
-/**
- * 认证 Store
- * 状态格式约定：{ loading, error, data } 平对象
- * 不使用 Either/Result，catch 后写入 error 字段
- */
-
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { authApi } from '@/api/modules/auth'
-import type { UserProfile, LoginPayload } from '@/api/modules/auth'
+import type { CurrentUser, LoginResponse } from '@/types/auth'
 import { ApiError } from '@/types/api'
+import { login as apiLogin, fetchMe as apiFetchMe, logout as apiLogout, setTokens, clearTokens } from '@/api/modules/auth'
 
 export const useAuthStore = defineStore('auth', () => {
-  // ── State ──────────────────────────────────────────────
-  const profile = ref<UserProfile | null>(null)
+  // ─── State ─────────────────────────────────────────────────────────────
+  const user = ref<CurrentUser | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // ── Getters ────────────────────────────────────────────
-  const isLoggedIn = computed(
-    () => !!uni.getStorageSync('access_token') && !!profile.value,
-  )
-  const role = computed(() => profile.value?.role ?? null)
+  // ─── Getters ───────────────────────────────────────────────────────────
+  const isLoggedIn = computed(() => !!user.value)
+  const role = computed(() => user.value?.role ?? null)
+  const permissions = computed(() => user.value?.permissions ?? [])
 
-  // ── Actions ────────────────────────────────────────────
-  async function login(payload: LoginPayload) {
+  // ─── Actions ───────────────────────────────────────────────────────────
+  async function login(email: string, password: string) {
     loading.value = true
     error.value = null
     try {
-      const tokens = await authApi.login(payload)
-      uni.setStorageSync('access_token', tokens.accessToken)
-      uni.setStorageSync('refresh_token', tokens.refreshToken)
-      await fetchMe()
+      const res: LoginResponse = await apiLogin(email, password)
+      setTokens(res.access_token, res.refresh_token)
+      // 立即获取完整用户信息（含 permissions）
+      user.value = await apiFetchMe()
     } catch (e) {
-      error.value = e instanceof ApiError ? e.message : '登录失败'
+      error.value = e instanceof ApiError ? e.message : '登录失败，请重试'
+      throw e
     } finally {
       loading.value = false
     }
@@ -42,28 +36,41 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
     try {
-      profile.value = await authApi.me()
+      user.value = await apiFetchMe()
     } catch (e) {
       error.value = e instanceof ApiError ? e.message : '获取用户信息失败'
+      user.value = null
     } finally {
       loading.value = false
     }
   }
 
   async function logout() {
-    loading.value = true
     try {
-      await authApi.logout()
+      await apiLogout()
     } catch {
-      // 忽略注销接口错误，本地清除即可
+      // 静默处理
     } finally {
-      profile.value = null
-      uni.removeStorageSync('access_token')
-      uni.removeStorageSync('refresh_token')
-      loading.value = false
+      user.value = null
+      clearTokens()
       uni.reLaunch({ url: '/pages/auth/login' })
     }
   }
 
-  return { profile, loading, error, isLoggedIn, role, login, fetchMe, logout }
+  function hasPermission(perm: string): boolean {
+    return permissions.value.includes(perm as never)
+  }
+
+  return {
+    user,
+    loading,
+    error,
+    isLoggedIn,
+    role,
+    permissions,
+    login,
+    fetchMe,
+    logout,
+    hasPermission,
+  }
 })

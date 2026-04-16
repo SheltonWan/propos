@@ -1,21 +1,47 @@
 <template>
-  <view class="placeholder-page">
-    <text class="icon">📊</text>
-    <text class="title">总览仪表盘</text>
-    <text class="subtitle">NOI · WALE · KPI · 出租率</text>
-    <text class="tip">待实现</text>
-  </view>
+  <page-meta
+    :background-text-style="pageMetaTextStyle"
+    :background-color="pageMetaBackgroundColor"
+    :background-color-top="pageMetaBackgroundColor"
+    :background-color-bottom="pageMetaBackgroundColor"
+    :root-background-color="pageMetaRootBackgroundColor"
+    :page-style="pageMetaPageStyle"
+  />
+  <AppShell with-tabbar>
+    <template #header>
+      <PageHeader title="首页" :sticky="true" :back="false" :animated="false" />
+    </template>
+
+    <view class="dashboard">
+      <AppCard class="dashboard__placeholder-card" :animated="false">
+        <text class="dashboard__placeholder">首页内容占位</text>
+      </AppCard>
+    </view>
+  </AppShell>
 </template>
 
 <script setup lang="ts">
-// dashboard/index — M3 NOI 仪表盘
-// 待实现：连接 useFinanceStore 展示 NOI/WALE/KPI/出租率四核心指标
+import AppCard from '@/components/base/AppCard.vue'
+import AppShell from '@/components/base/AppShell.vue'
+import PageHeader from '@/components/base/PageHeader.vue'
+import { usePageThemeMeta } from '@/composables/usePageThemeMeta'
+
+const { pageMetaBackgroundColor, pageMetaRootBackgroundColor, pageMetaPageStyle, pageMetaTextStyle } = usePageThemeMeta()
 </script>
 
-<style scoped>
-.placeholder-page { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; gap: 16rpx; color: #8c8c8c; }
-.icon { font-size: 80rpx; }
-.title { font-size: 40rpx; font-weight: 600; color: #262626; }
-.subtitle { font-size: 24rpx; }
-.tip { font-size: 22rpx; color: #bfbfbf; border: 2rpx dashed #d9d9d9; padding: 8rpx 24rpx; border-radius: 8rpx; margin-top: 16rpx; }
+<style lang="scss" scoped>
+.dashboard {
+  padding-top: $space-page-y;
+}
+
+.dashboard__placeholder-card {
+  margin-top: $space-gap-md;
+}
+
+.dashboard__placeholder {
+  @include text-caption;
+  text-align: center;
+  display: block;
+  margin: 120rpx 0;
+}
 </style>

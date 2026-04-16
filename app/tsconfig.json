@@ -1,29 +1,29 @@
 {
   "compilerOptions": {
-    "sourceMap": true,
-    "noEmit": true,
+    "target": "ESNext",
     "module": "ESNext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "jsx": "preserve",
-    "jsxImportSource": "vue",
-    "noImplicitThis": true,
+    "moduleResolution": "Bundler",
     "strict": true,
+    "jsx": "preserve",
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "baseUrl": ".",
     "paths": {
+      "@/uni_modules/*": [
+        "./uni_modules/*"
+      ],
       "@/*": ["./src/*"]
     },
     "lib": [
-      "ES2020",
-      "DOM",
-      "DOM.Iterable"
+      "ESNext",
+      "DOM"
     ],
-    "verbatimModuleSyntax": true,
-    "target": "ESNext",
-    "useDefineForClassFields": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "types": ["@dcloudio/types"]
+    "types": [
+      "@dcloudio/types"
+    ],
+    "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"]
 }
