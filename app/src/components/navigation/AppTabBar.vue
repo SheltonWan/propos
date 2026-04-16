@@ -18,7 +18,6 @@
           <image class="app-tabbar__icon" :src="item.iconSrc" mode="aspectFit" />
         </view>
         <text class="app-tabbar__label">{{ item.text }}</text>
-        <view class="app-tabbar__indicator" />
       </view>
     </view>
 
@@ -27,14 +26,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref, shallowRef, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
 import {
   APP_TABBAR_ITEMS,
+  type AppTabBarItem,
   getTabBarIconSrc,
   type AppTabBarItemId,
 } from '@/constants/tabbar'
+import { consumeIntendedTabPath, setIntendedTabPath } from '@/utils/navigationIntent'
 
 import { useThemeStore } from '@/stores/theme'
 
@@ -43,6 +44,12 @@ const { activeTheme } = storeToRefs(themeStore)
 
 const currentPath = ref(APP_TABBAR_ITEMS[0].pagePath)
 const pressedItemId = ref<AppTabBarItemId | null>(null)
+const tabItems = shallowRef<Array<AppTabBarItem & { active: boolean; iconSrc: string }>>([])
+const activePillStyle = shallowRef<Record<string, string>>({})
+const tabbarStyle = shallowRef<Record<string, string>>({})
+const tabbarPanelStyle = shallowRef<Record<string, string>>({})
+const tabbarSafeBottomStyle = shallowRef<Record<string, string>>({})
+const tabbarClassNames = shallowRef<Record<string, boolean>>({})
 
 function hideNativeTabBar() {
   if (typeof uni.hideTabBar !== 'function') {
@@ -70,7 +77,7 @@ function resolveCurrentPagePath() {
   return normalizePagePath(currentPage?.route)
 }
 
-currentPath.value = resolveCurrentPagePath()
+currentPath.value = consumeIntendedTabPath() ?? resolveCurrentPagePath()
 hideNativeTabBar()
 
 function syncCurrentPath() {
@@ -78,10 +85,9 @@ function syncCurrentPath() {
   hideNativeTabBar()
 }
 
-const tabItems = computed(() => {
+function updateTabBarPresentation() {
   const vars = activeTheme.value.vars
-
-  return APP_TABBAR_ITEMS.map((item) => {
+  const nextTabItems = APP_TABBAR_ITEMS.map((item) => {
     const active = item.pagePath === currentPath.value
 
     return {
@@ -95,34 +101,29 @@ const tabItems = computed(() => {
       }),
     }
   })
-})
 
-const activeIndex = computed(() => {
-  const index = tabItems.value.findIndex((item) => item.active)
-  return index >= 0 ? index : 0
-})
+  const activeIndex = nextTabItems.findIndex((item) => item.active)
+  const resolvedActiveIndex = activeIndex >= 0 ? activeIndex : 0
 
-const activePillStyle = computed(() => ({
-  transform: `translateX(${activeIndex.value * 100}%)`,
-}))
-
-const tabbarStyle = computed(() => ({
-  ...activeTheme.value.vars,
-  background: activeTheme.value.vars['--color-surface-light'],
-}))
-
-const tabbarPanelStyle = computed(() => ({
-  background: activeTheme.value.vars['--color-surface-light'],
-  borderTopColor: activeTheme.value.vars['--color-border'],
-}))
-
-const tabbarSafeBottomStyle = computed(() => ({
-  background: activeTheme.value.vars['--color-surface-light'],
-}))
-
-const tabbarClassNames = computed(() => ({
-  'app-tabbar--dark': activeTheme.value.id === 'dark',
-}))
+  tabItems.value = nextTabItems
+  activePillStyle.value = {
+    transform: `translateX(${resolvedActiveIndex * 100}%)`,
+  }
+  tabbarStyle.value = {
+    ...vars,
+    background: vars['--color-surface-light'],
+  }
+  tabbarPanelStyle.value = {
+    background: vars['--color-surface-light'],
+    borderTopColor: vars['--color-border'],
+  }
+  tabbarSafeBottomStyle.value = {
+    background: vars['--color-surface-light'],
+  }
+  tabbarClassNames.value = {
+    'app-tabbar--dark': activeTheme.value.id === 'dark',
+  }
+}
 
 function handlePressStart(itemId: AppTabBarItemId) {
   pressedItemId.value = itemId
@@ -139,9 +140,12 @@ function switchTo(pagePath: string) {
   }
 
   handlePressEnd()
-  hideNativeTabBar()
+  setIntendedTabPath(pagePath)
+  currentPath.value = pagePath // 乐观更新，避免首次切换闪烁
   uni.switchTab({ url: pagePath })
 }
+
+watch([currentPath, () => activeTheme.value.id], updateTabBarPresentation, { immediate: true })
 
 onMounted(syncCurrentPath)
 onShow(syncCurrentPath)
@@ -220,15 +224,6 @@ onShow(syncCurrentPath)
   letter-spacing: 0.4rpx;
 }
 
-.app-tabbar__indicator {
-  width: 16rpx;
-  height: 6rpx;
-  border-radius: 999rpx;
-  background: transparent;
-  transform: scaleX(0.6);
-  opacity: 0;
-}
-
 .app-tabbar__item.is-pressed {
   transform: scale(0.96);
 
@@ -258,11 +253,6 @@ onShow(syncCurrentPath)
     transform: translateY(-1rpx);
   }
 
-  .app-tabbar__indicator {
-    background: $color-primary;
-    transform: scaleX(1);
-    opacity: 1;
-  }
 }
 
 .app-tabbar__safe-bottom {

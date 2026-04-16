@@ -57,6 +57,7 @@ onLaunch(() => {
     },
     complete() {
       hideNativeTabBar()
+      themeStore.applyRuntimeTheme()
     },
   })
 })

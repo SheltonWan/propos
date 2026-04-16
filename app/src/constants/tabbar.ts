@@ -132,7 +132,15 @@ const TABBAR_ICON_RENDERERS: Record<AppTabBarItemId, (palette: IconPalette) => s
   finance: renderFinanceIcon,
 }
 
+const iconSrcCache = new Map<string, string>()
+
 export function getTabBarIconSrc(itemId: AppTabBarItemId, palette: IconPalette) {
-  const renderer = TABBAR_ICON_RENDERERS[itemId]
-  return createSvgDataUri(renderer(palette))
+  const cacheKey = `${itemId}|${palette.active}|${palette.activeColor}|${palette.inactiveColor}|${palette.surfaceColor}`
+  const cached = iconSrcCache.get(cacheKey)
+  if (cached !== undefined) {
+    return cached
+  }
+  const result = createSvgDataUri(TABBAR_ICON_RENDERERS[itemId](palette))
+  iconSrcCache.set(cacheKey, result)
+  return result
 }
