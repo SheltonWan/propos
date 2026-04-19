@@ -1,0 +1,65 @@
+name: propos_app
+description: PropOS - Property Operating System Mobile App
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_bloc: ^9.1.1
+  bloc: ^9.2.0
+
+  # Immutable Data Classes
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.11.0
+
+  # Routing
+  go_router: ^17.2.1
+
+  # HTTP
+  dio: ^5.4.0
+
+  # Dependency Injection
+  get_it: ^9.2.1
+
+  # Internationalization & Formatting
+  intl: ^0.20.2
+
+  # Environment Config
+  flutter_dotenv: ^6.0.0
+
+  # Secure Storage (JWT tokens)
+  flutter_secure_storage: ^10.0.0
+
+  # Time abstraction
+  clock: ^1.1.1
+
+  # Material Icons
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # Code Generation
+  build_runner: ^2.4.0
+  freezed: ^3.2.5
+  json_serializable: ^6.8.0
+
+  # Testing
+  bloc_test: ^10.0.0
+  mocktail: ^1.0.0
+
+flutter:
+  generate: true
+  uses-material-design: true
+
+  assets:
+    - .env.dev
+    - .env.prod

@@ -1,0 +1,7 @@
+{
+  "@@locale": "zh",
+  "appTitle": "PropOS",
+  "@appTitle": {
+    "description": "应用标题"
+  }
+}
