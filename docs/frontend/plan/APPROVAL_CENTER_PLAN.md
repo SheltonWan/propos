@@ -2,7 +2,7 @@
 
 > **文档版本**: v1.0
 > **创建日期**: 2026-04-13
-> **所属模块**: frontend（uni-app / React 移动端原型）
+> **所属模块**: frontend（Flutter 移动端 / React 移动端原型）
 > **Phase**: Phase 1
 
 ---

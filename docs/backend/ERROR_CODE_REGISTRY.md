@@ -12,7 +12,7 @@
 - 前端按 `code` 字段做业务判断，**不解析 `message`**
 - 后端新增错误码时**必须**同步更新本表
 - 后端常量定义：`backend/lib/shared/constants/error_codes.dart`
-- uni-app 常量定义：`app/src/constants/error_codes.ts`
+- Flutter 常量定义：`flutter_app/lib/core/constants/error_codes.dart`
 - Admin 常量定义：`admin/src/constants/error_codes.ts`
 
 ---

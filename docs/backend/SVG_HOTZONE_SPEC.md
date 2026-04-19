@@ -11,7 +11,7 @@
 楼层 SVG 文件由 CAD（DWG → DXF → SVG）自动转换后，需要人工标注"热区"以实现：
 1. 点击单元色块查看详情 / 弹出快捷操作
 2. 状态色块着色（已租 / 空置 / 非可租等）
-3. uni-app 移动端 / Admin PC 端交互渲染
+3. Flutter 移动端 / Admin PC 端交互渲染
 
 本文档定义 SVG 文件内单元热区的标记规范和配套 JSON 映射文件格式。
 
@@ -144,7 +144,7 @@ floors/{building_id}/{floor_id}.json     ← 映射文件
 
 ## 四、前端渲染流程
 
-### 4.1 uni-app 移动端（iOS / Android / HarmonyOS Next）
+### 4.1 Flutter 移动端（iOS / Android / HarmonyOS Next）
 
 ```
 1. 通过 WebView 或 canvas 加载 SVG 文件

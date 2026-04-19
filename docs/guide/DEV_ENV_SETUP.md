@@ -25,7 +25,7 @@
 
 ## 1. 概述
 
-PropOS 后端使用 **Dart + Shelf**，移动端 / 小程序使用 **uni-app 4.x（Vue 3 + TypeScript）**，PC 后台使用 **Vue 3 + Element Plus + Vite**，数据库使用 **PostgreSQL 15+**。
+PropOS 后端使用 **Dart + Shelf**，移动端使用 **Flutter（Dart）**，PC 后台使用 **Vue 3 + Element Plus + Vite**，数据库使用 **PostgreSQL 15+**。
 
 文档转换流水线依赖 Python + macOS Pages.app；CAD 图纸导入（M1 模块）还需要 ODA File Converter + ezdxf。所有工具安装完成后，运行以下命令验证：
 
@@ -122,16 +122,16 @@ npm --version
 ### 3.2 前端项目依赖安装
 
 ```bash
-# uni-app 端
-cd /Users/wanxt/app/propos/app
-npm install
+# Flutter 端
+cd /Users/wanxt/app/propos/flutter_app
+flutter pub get
 
 # admin 端
 cd /Users/wanxt/app/propos/admin
 npm install
 ```
 
-> 两个前端项目各自维护独立的 `package.json` 和 `node_modules`。
+> Flutter 端使用 `pubspec.yaml` 管理依赖，admin 端使用 `package.json` 管理依赖。
 
 ---
 
@@ -389,12 +389,12 @@ dart create -t server-shelf . --force
 dart pub get
 ```
 
-### 9.2 前端（uni-app + admin）
+### 9.2 前端（Flutter + admin）
 
 ```bash
-# uni-app 端
-cd /Users/wanxt/app/propos/app
-npm install
+# Flutter 端
+cd /Users/wanxt/app/propos/flutter_app
+flutter pub get
 
 # admin 端
 cd /Users/wanxt/app/propos/admin
@@ -449,13 +449,13 @@ bash scripts/check_env.sh
 
 ▸ 8. 项目目录结构
   ✓  backend/  — 后端 Dart 项目
-  ✓  app/  — uni-app 前端项目
+  ✓  flutter_app/  — Flutter 移动端项目
   ✓  admin/  — PC 后台 Vue 3 项目
   ✓  docs/  — 项目文档
   ✓  scripts/  — 工具脚本
   ✓  pdfdocs/  — PDF 文档输出
   ✓  backend/pubspec.yaml  — Dart 项目已初始化
-  ✓  app/package.json  — uni-app 项目已初始化
+  ✓  flutter_app/pubspec.yaml  — Flutter 项目已初始化
   ✓  admin/package.json  — admin 项目已初始化
 
 ✅ 环境完全就绪，可开始开发！

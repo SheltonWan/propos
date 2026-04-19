@@ -15,10 +15,10 @@ Step 2: 后端 Model 类      → backend/lib/modules/<name>/models/
 Step 3: 后端 Repository    → backend/lib/modules/<name>/repositories/
 Step 4: 后端 Service       → backend/lib/modules/<name>/services/
 Step 5: 后端 Controller    → backend/lib/modules/<name>/controllers/
-Step 6: Flutter domain 层  → frontend/lib/features/<name>/domain/
-Step 7: Flutter data 层    → frontend/lib/features/<name>/data/
-Step 8: Flutter BLoC 层    → frontend/lib/features/<name>/presentation/bloc/
-Step 9: Flutter Pages/Widgets → frontend/lib/features/<name>/presentation/pages/ + widgets/
+Step 6: Flutter domain 层  → flutter_app/lib/features/<name>/domain/
+Step 7: Flutter data 层    → flutter_app/lib/features/<name>/data/
+Step 8: Flutter BLoC 层    → flutter_app/lib/features/<name>/presentation/bloc/
+Step 9: Flutter Pages/Widgets → flutter_app/lib/features/<name>/presentation/pages/ + widgets/
 ```
 
 ## 开始前必须读取的文档
@@ -30,7 +30,7 @@ Step 9: Flutter Pages/Widgets → frontend/lib/features/<name>/presentation/page
 - @file:docs/backend/RBAC_MATRIX.md
 - @file:docs/backend/ERROR_CODE_REGISTRY.md
 - @file:docs/backend/SEED_DATA_SPEC.md
-- @file:docs/frontend/PAGE_SPEC_v1.7.md
+- @file:docs/frontend/PAGE_SPEC_FLUTTER_v1.9.md
 - @file:.github/copilot-instructions.md
 
 ## 每一步完成标准
@@ -45,7 +45,7 @@ Step 9: Flutter Pages/Widgets → frontend/lib/features/<name>/presentation/page
 | Step 4 Service | `AppException` 模式、四类审计日志（如适用）、调用计算 package |
 | Step 5 Controller | 纯转发逻辑、RBAC 中间件标注、标准信封响应 |
 | Step 6 Flutter domain | 纯 Dart、无 Flutter SDK、只有接口签名 |
-| Step 7 Flutter data | `ApiClient` + `ApiPaths` 常量、`ApiException` 包装、Mock 实现 3 种状态 |
+| Step 7 Flutter data | `ApiClient` + `ApiPaths` 常量、`ApiException` 包装 |
 | Step 8 BLoC | 只 import domain、freezed 四态、Clock 注入、配套单元测试 |
 | Step 9 UI | `colorScheme` token、`.when()` 渲染、无业务逻辑 |
 

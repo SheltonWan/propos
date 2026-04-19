@@ -69,9 +69,9 @@
 | GitHub Copilot | AI 代码补全 | ✅ |
 | GitHub Copilot Chat | AI 对话（Agent/Plan/Ask） | ✅ |
 | Dart | 后端语言支持 | ✅ |
+| Flutter | Flutter SDK 集成、热重载、Widget 检查 | ✅ |
 | Vue - Official (Volar) | Vue 3 + TypeScript 支持 | ✅ |
-| uni-create-view | uni-app 页面快捷创建 | 推荐 |
-| ESLint | 前端代码规范 | ✅ |
+| ESLint | Admin 前端代码规范 | ✅ |
 | Figma for VS Code | 在 VSCode 侧栏预览 Figma 设计稿 | 推荐 |
 
 ### 2.2 VSCode 配置
@@ -96,7 +96,7 @@
 |--------|------|
 | Figma 账号 | 免费版即可（Dev Mode 需付费，但可用 14 天试用） |
 | 项目文件结构 | 按模块建页面：`M1-Assets` / `M2-Contracts` / `M3-Finance` / `M4-Workorders` / `M5-Sublease` |
-| 组件库 | 使用 Element Plus Figma Kit（PC 端）+ 自建移动端组件库（对齐 wot-design-uni） |
+| 组件库 | 使用 Element Plus Figma Kit（PC 端）+ Material 3 Design Kit（移动端） |
 | 插件推荐 | `Tokens Studio`（Design Token 管理）、`Iconify`（图标）、`Content Reel`（填充数据） |
 
 ### 2.4 Copilot 模型选择
@@ -119,7 +119,7 @@ PropOS 采用**「骨架先行，设计并行」**策略（详见 `DEV_UI_SYNC_G
 Day 0~2   骨架生成          │ VSCode + Copilot 生成页面骨架 + MockData
 Day 3     对齐日            │ 截图/录屏 → 设计师在 Figma 中理解数据密度
 Day 4~10  双线并行          │ 开发完善逻辑 ↔ 设计师在 Figma 出高保真稿
-Day 11~14 视觉接入          │ Figma Design Token → CSS 变量 → 视觉对齐
+Day 11~14 视觉接入          │ Figma Design Token → Material 3 ThemeData / Element Plus 主题 → 视觉对齐
 ```
 
 ### 3.2 Phase A：骨架生成（Day 0~2）
@@ -150,7 +150,7 @@ Day 11~14 视觉接入          │ Figma Design Token → CSS 变量 → 视觉
 | 操作流程录屏 | MP4 | 开发者录制核心流程 |
 | 状态色彩语义 | 表格 | `DEV_UI_SYNC_GUIDE.md` §5.2 |
 | 数据边界速查 | 表格 | `DEV_UI_SYNC_GUIDE.md` §5.3 |
-| 组件 Props 签名 | TypeScript 接口 | 开发者在骨架阶段确定 |
+| 组件 Props 签名 | Dart 接口 / TypeScript 接口 | 开发者在骨架阶段确定 |
 
 #### 设计师在 Figma 中的工作
 
@@ -181,7 +181,7 @@ Day 11~14 视觉接入          │ Figma Design Token → CSS 变量 → 视觉
 3. 在 Copilot Chat 中提交 Token 表，让 AI 生成 CSS 变量
 
 ```
-将以下 Design Token 写入 admin/src/styles/variables.scss 和 app/src/uni.scss：
+将以下 Design Token 写入 admin/src/styles/variables.scss 和 flutter_app/lib/core/theme/app_theme.dart：
 
 颜色 Token：
 | --color-primary       | #1976D2 | 主品牌色 |
@@ -200,7 +200,7 @@ Day 11~14 视觉接入          │ Figma Design Token → CSS 变量 → 视觉
 
 **Copilot 会生成**：
 - `admin/src/styles/variables.scss` — Element Plus 主题覆盖
-- `app/src/uni.scss` — uni-app CSS 变量
+- `flutter_app/lib/core/theme/app_theme.dart` — Flutter Material 3 ThemeData + ThemeExtension
 
 ### 方法 2：Figma Dev Mode + CSS 复制（推荐 ⭐⭐）
 
@@ -285,11 +285,11 @@ gap: 16px;
 ```
 @PAGE_SPEC_v1.8.md
 
-根据 PAGE_SPEC 中"[页面名称]"的描述，生成 [admin/app] 端页面。
+根据 PAGE_SPEC 中"[页面名称]"的描述，生成 [admin/flutter_app] 端页面。
 
 Figma 设计参数：
 - 布局：[描述 Figma 中的布局结构]
-- 状态色：使用 CSS 变量 --color-success / --color-warning / --color-danger
+- 状态色：Flutter 使用 Theme.of(context).colorScheme.* / Admin 使用 CSS 变量 --color-success / --color-warning / --color-danger
 - 间距：页面 24px，卡片 16px，列表项 12px
 - 字体：标题 --font-headline-large，正文 --font-body-medium
 
@@ -303,7 +303,7 @@ Figma 设计参数：
 
 [粘贴 Figma Dev Mode 的 CSS 属性]
 
-保持业务逻辑不变，只修改 <style scoped> 部分。
+保持业务逻辑不变，只修改样式部分（Flutter: Widget 属性；Admin: `<style scoped>`）。
 不要更改组件结构和 Props。
 ```
 
@@ -315,9 +315,9 @@ Figma 设计参数：
 [粘贴 Token 表格]
 
 需要修改的文件：
-1. app/src/uni.scss — CSS 自定义属性
+1. flutter_app/lib/core/theme/app_theme.dart — Material 3 ThemeData + ThemeExtension
 2. admin/src/styles/variables.scss — Element Plus 主题变量
-3. 所有使用硬编码色值的组件（搜索 style="color:" 替换为 CSS 变量）
+3. 所有使用硬编码色值的组件（Flutter: 搜索 `Colors.` / `Color(0xFF`；Admin: 搜索 `style="color:"` 替换为 CSS 变量）
 ```
 
 ### 5.4 Copilot 定制化体系（已内置）
@@ -371,7 +371,7 @@ Step 2  Copilot Agent：生成 Dart sealed class + 计算引擎 + 单元测试
                 ↓
 Step 3  Copilot Agent：生成后端四层（Repository → Service → Controller）
                 ↓
-Step 4  Copilot Agent：使用 /uniapp-page 生成移动端页面骨架
+Step 4  Copilot Agent：使用 /flutter-page 生成移动端页面骨架
                 ↓
 Step 5  Copilot Agent：使用 /admin-view 生成 PC 端页面骨架
                 ↓
@@ -379,7 +379,7 @@ Step 6  截图/录屏 → 发给设计师 → 设计师在 Figma 出稿
                 ↓
 Step 7  Figma Dev Mode → 复制 CSS → Copilot Plan 对齐样式
                 ↓
-Step 8  设计师提交 Design Token → Copilot Agent 批量更新 CSS 变量
+Step 8  设计师提交 Design Token → Copilot Agent 批量更新 ThemeData / CSS 变量
                 ↓
 Step 9  真机验收 → 交付
 ```
@@ -404,7 +404,7 @@ Step 9  真机验收 → 交付
 |------|------|
 | **组件命名与代码对齐** | Figma 中组件命名用 PascalCase（如 `ContractCard`），与 Vue 组件名一致，方便沟通 |
 | **Auto Layout 对应 Flex** | Figma 的 Auto Layout 直接对应 CSS Flexbox，属性名几乎一一映射 |
-| **使用 Variants 标注状态** | 用 Figma Variants 表达组件不同状态（如 `state=leased/vacant`），对应 Vue 的 props |
+| 使用 Variants 标注状态 | 用 Figma Variants 表达组件不同状态（如 `state=leased/vacant`），对应 Flutter Widget props 或 Vue props |
 | **导出切图用 2x** | 图标和装饰图导出 SVG 或 2x PNG，在 VSCode 中直接使用 |
 | **Tokens Studio 导出 JSON** | 可直接导出为 JSON 格式，Copilot 可解析并生成对应 CSS 变量文件 |
 
@@ -424,7 +424,7 @@ Step 9  真机验收 → 交付
 |------|------|---------|
 | Copilot 生成的样式与 Figma 不一致 | AI 无法精确读图 | 不依赖截图推断数值，用 Figma Dev Mode 复制精确 CSS |
 | 组件结构与设计稿有出入 | 信息不对称 | 先确认组件 Props 接口，再出 Figma 稿 |
-| Design Token 更新后部分页面未生效 | 仍有硬编码色值 | `grep -r "color:" --include="*.vue"` 排查并替换 |
+| Design Token 更新后部分页面未生效 | 仍有硬编码色值 | Flutter: 检查是否有 `Colors.xxx` / `Color(0xFF...)`；Admin: `grep -r "color:" --include="*.vue"` 排查并替换 |
 | Figma 中文字体与实际渲染不同 | 系统字体差异 | Figma 和代码统一使用 `system-ui, -apple-system` 字体栈 |
 | Element Plus 组件样式覆盖失败 | CSS 优先级不够 | 使用 `:deep()` 穿透 + CSS 变量覆盖，避免 `!important` |
 
@@ -432,8 +432,8 @@ Step 9  真机验收 → 交付
 
 | 禁止 | 原因 |
 |------|------|
-| ❌ 在组件中硬编码 `style="color: #388E3C"` | 必须使用 CSS 变量 `var(--color-success)` |
-| ❌ 设计师直接修改 Vue 源码 | 破坏代码分层约定 |
+| ❤ 在组件中硬编码色值 | Flutter 禁止 `Colors.green` / `Color(0xFF...)`，必须用 `Theme.of(context).colorScheme.*`；Admin 禁止 `style="color: #388E3C"`，必须用 CSS 变量 |
+| ❤ 设计师直接修改源代码 | 破坏代码分层约定 |
 | ❌ 开发者绕过 Figma 自行"美化" | 产生设计漂移，难以维护 |
 | ❌ 用 Figma 预览验收替代真机测试 | Figma 不模拟真实屏幕密度和字体渲染 |
 | ❌ 更改状态色彩语义（如把空置改成蓝色） | 🟢已租/🟡即将到期/🔴空置/⚪非可租是业务约束 |
@@ -446,7 +446,7 @@ Step 9  真机验收 → 交付
 ### A. Figma → Code 速查
 
 ```
-需要全局主题  → Design Token JSON/表格 → Copilot 生成 CSS 变量   [方法1]
+需要全局主题  → Design Token JSON/表格 → Copilot 生成 ThemeData / CSS 变量 [方法1]
 需要精调组件  → Figma Dev Mode 复制 CSS → Copilot Plan 模式应用  [方法2]
 需要新建组件  → Figma 截图 + 文字描述   → Copilot Agent 模式生成 [方法3]
 ```
@@ -464,7 +464,7 @@ Step 9  真机验收 → 交付
 
 ```
 /backend-module    → 后端完整模块（4 层）
-/uniapp-page       → uni-app 页面（类型 + API + Store + 页面）
+/flutter-page       → Flutter 页面（实体 + API + BLoC/Cubit + 页面）
 /admin-view        → admin 页面（类型 + API + Store + 视图）
 /security-and-test → 安全审查 + 测试计划
 ```

@@ -113,12 +113,12 @@ steps:
 
 ```yaml
 steps:
-  - name: npm run lint (app)
-    run: cd app && npm ci && npm run lint
+  - name: flutter analyze (flutter_app)
+    run: cd flutter_app && flutter pub get && flutter analyze
   - name: npm run lint (admin)
     run: cd admin && npm ci && npm run lint
-  - name: vue-tsc type check (app)
-    run: cd app && npx vue-tsc --noEmit
+  - name: flutter test (flutter_app)
+    run: cd flutter_app && flutter test
   - name: vue-tsc type check (admin)
     run: cd admin && npx vue-tsc --noEmit
 ```
@@ -253,28 +253,33 @@ steps:
 
 ## 六、Stage 3：前端构建与测试
 
-**目标**：uni-app 端 + admin 端 Lint / 单元测试 / 构建，8 分钟内完成。
+**目标**：Flutter 端 + admin 端 Lint / 单元测试 / 构建，8 分钟内完成。
 
 ### 6.1 构建步骤
 
 ```yaml
 steps:
+  - uses: subosito/flutter-action@v2
+    with:
+      flutter-version: "3.x"
+      channel: stable
+
   - uses: actions/setup-node@v4
     with:
       node-version: "20"
 
-  # uni-app 端
-  - name: Install app dependencies
-    run: cd app && npm ci
+  # Flutter 端
+  - name: Install Flutter dependencies
+    run: cd flutter_app && flutter pub get
 
-  - name: App lint
-    run: cd app && npm run lint
+  - name: Flutter analyze
+    run: cd flutter_app && flutter analyze
 
-  - name: App unit tests
-    run: cd app && npm run test -- --reporter=github --coverage
+  - name: Flutter unit tests
+    run: cd flutter_app && flutter test --coverage
 
-  - name: App build (H5)
-    run: cd app && npm run build:h5
+  - name: Flutter build (Web)
+    run: cd flutter_app && flutter build web --release
 
   # Admin 端
   - name: Install admin dependencies
@@ -293,11 +298,11 @@ steps:
 ### 6.2 构建制品
 
 ```yaml
-  - name: Upload app H5 artifact
+  - name: Upload Flutter web artifact
     uses: actions/upload-artifact@v4
     with:
-      name: app-h5-${{ github.sha }}
-      path: app/dist/build/h5/
+      name: flutter-web-${{ github.sha }}
+      path: flutter_app/build/web/
       retention-days: 30
 
   - name: Upload admin artifact
@@ -667,9 +672,9 @@ jobs:
           dart format --set-exit-if-changed packages/rent_escalation_engine/
           dart format --set-exit-if-changed packages/kpi_scorer/
 
-      # 前端 Lint（app）
-      - name: App lint
-        run: cd app && npm ci && npm run lint
+      # 前端 Lint（flutter_app）
+      - name: Flutter analyze
+        run: cd flutter_app && flutter pub get && flutter analyze
 
       # 前端 Lint（admin）
       - name: Admin lint
@@ -679,7 +684,7 @@ jobs:
       - name: Architecture constraints
         run: |
           echo "--- Checking stores do not use fetch/axios directly ---"
-          ! grep -rn "fetch(\|axios\." app/src/stores/ admin/src/stores/ 2>/dev/null || \
+          ! grep -rn "fetch(\|axios\." flutter_app/lib/ admin/src/stores/ 2>/dev/null || \
             (echo "FAIL: store imports fetch/axios directly" && exit 1)
 
           echo "--- Checking no ORM ---"
@@ -815,20 +820,20 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: |
-            app/node_modules
+            flutter_app/.dart_tool
             admin/node_modules
-          key: npm-${{ hashFiles('app/package-lock.json', 'admin/package-lock.json') }}
-          restore-keys: npm-
+          key: deps-${{ hashFiles('flutter_app/pubspec.lock', 'admin/package-lock.json') }}
+          restore-keys: deps-
 
-      # uni-app 端
-      - name: Install app dependencies
-        run: cd app && npm ci
+      # Flutter 端
+      - name: Install Flutter dependencies
+        run: cd flutter_app && flutter pub get
 
-      - name: App unit tests with coverage
-        run: cd app && npm run test -- --reporter=github --coverage
+      - name: Flutter unit tests with coverage
+        run: cd flutter_app && flutter test --coverage
 
-      - name: Build app (H5)
-        run: cd app && npm run build:h5
+      - name: Build Flutter (Web)
+        run: cd flutter_app && flutter build web --release
 
       # Admin 端
       - name: Install admin dependencies
@@ -840,11 +845,11 @@ jobs:
       - name: Build admin
         run: cd admin && npm run build
 
-      - name: Upload app H5 build
+      - name: Upload Flutter web build
         uses: actions/upload-artifact@v4
         with:
-          name: app-h5-${{ github.sha }}
-          path: app/dist/build/h5/
+          name: flutter-web-${{ github.sha }}
+          path: flutter_app/build/web/
           retention-days: 30
 
       - name: Upload admin build
@@ -859,17 +864,17 @@ jobs:
         with:
           name: frontend-coverage
           path: |
-            app/coverage/
+            flutter_app/coverage/
             admin/coverage/
 
-      - name: Build app H5
-        run: cd app && npm run build:h5
+      - name: Build Flutter web
+        run: cd flutter_app && flutter build web --release
 
-      - name: Upload app H5 build
+      - name: Upload Flutter web build
         uses: actions/upload-artifact@v4
         with:
-          name: app-h5-${{ github.sha }}
-          path: app/dist/build/h5/
+          name: flutter-web-${{ github.sha }}
+          path: flutter_app/build/web/
           retention-days: 30
 
       - name: Upload admin build
@@ -884,7 +889,7 @@ jobs:
         with:
           name: frontend-coverage
           path: |
-            app/coverage/
+            flutter_app/coverage/
             admin/coverage/
 
   # ────────────────────────────────────────────
@@ -1074,7 +1079,7 @@ jobs:
       # 全量前端测试
       - name: Full frontend test suite
         run: |
-          cd app && npm ci && npm run test
+          cd flutter_app && flutter pub get && flutter test
           cd ../admin && npm ci && npm run test
 ```
 

@@ -61,7 +61,7 @@ Layer 4: agents/*.agent.md              ── 多步编排 Agent（Agent 选择
 `copilot-instructions.md` 对本 workspace 内所有 Copilot 对话**始终生效**，无需引用，覆盖内容：
 
 - 项目架构约束（RBAC、行级隔离、加密、审计日志）
-- 技术栈定义（Dart/Shelf、uni-app 4.x + Vue 3 + Element Plus、PostgreSQL 15+）
+- 技术栈定义（Dart/Shelf、Flutter + Material 3、Vue 3 + Element Plus、PostgreSQL 15+）
 - 核心领域模型与 API 信封格式（`{"data":..., "meta":...}`）
 - 代码规范、常量管理规则、Markdown → PDF 工作流
 - 文件复杂度超限拆分策略（各层触发阈值与拆分方式）
@@ -75,7 +75,7 @@ Layer 4: agents/*.agent.md              ── 多步编排 Agent（Agent 选择
 | `backend-repository.instructions.md` | `backend/lib/**/repositories/**` | 参数化 SQL、行级隔离、加密字段处理、LIMIT/OFFSET 分页 |
 | `backend-controller.instructions.md` | `backend/lib/**/controllers/**` | 信封响应格式、RBAC 标注、无业务逻辑、无 try/catch |
 | `backend-service.instructions.md` | `backend/lib/**/services/**` | AppException 模式、四类审计日志、Clock 注入 |
-| `uniapp.instructions.md` | `app/src/**` | Pinia Store(单向数据流)、api_paths 常量、CSS 变量主题色、wot-design-uni 组件 |
+| `flutter.instructions.md` | `flutter_app/lib/**` | BLoC/Cubit 四态状态管理、api_paths 常量、Material 3 主题色、go_router 路由、get_it 依赖注入 |
 | `vue-admin.instructions.md` | `admin/src/**` | Pinia Store、Element Plus type 属性、Axios client、Vue Router 4 导航 |
 | `database-migration.instructions.md` | `backend/lib/**/migrations/**` | TIMESTAMPTZ、snake_case、加密注释、安全迁移原则 |
 | `dart-package.instructions.md` | `backend/packages/**` | 零外部依赖、money 类型规则、单元测试必须覆盖 |
@@ -88,7 +88,7 @@ Layer 4: agents/*.agent.md              ── 多步编排 Agent（Agent 选择
 | 命令 | 用途 |
 |------|------|
 | `/backend-module` | 生成后端完整模块（Model → Repository → Service → Controller） |
-| `/uniapp-page` | 生成 uni-app 页面（TypeScript 类型 + API 函数 + Pinia Store + Vue 页面） |
+| `/flutter-page` | 生成 Flutter 页面（实体 + Repository + BLoC/Cubit + Page Widget） |
 | `/admin-view` | 生成 admin 页面（TypeScript 类型 + API 函数 + Pinia Store + Vue 视图） |
 | `/pure-dart-package` | 生成纯 Dart 计算 package（`rent_escalation_engine` / `kpi_scorer`） |
 | `/security-and-test` | 安全审查 + 测试计划生成（引用 RBAC_MATRIX + security-checklist） |
@@ -134,7 +134,7 @@ Layer 4: agents/*.agent.md              ── 多步编排 Agent（Agent 选择
    基于 @PRD.md，为 PropOS 设计完整的系统架构方案，包含：
    1. 后端 Dart 服务的目录结构（分层架构）
    2. PostgreSQL 数据库 Schema（所有 Phase 1 核心表，含三业态扩展字段设计）
-   3. uni-app 移动端和 admin PC 端的页面路由结构
+   3. Flutter 移动端和 admin PC 端的页面路由结构
    4. RBAC 权限矩阵的代码级实现方案
    5. 二房东数据行级隔离的 Repository 层实现方案
    输出为 Markdown 技术架构文档，保存到 docs/ARCH.md
@@ -196,14 +196,14 @@ Layer 4: agents/*.agent.md              ── 多步编排 Agent（Agent 选择
 - 账单自动生成是调度任务，让 AI 生成 Dart 的 Cron Job 骨架（每月定时触发）
 - KPI 打分引擎与 WALE 引擎同构，复用相同设计模式
 
-**工单模块 AI 策略**（uni-app 移动端）：
+**工单模块 AI 策略**（Flutter 移动端）：
 ```
-生成一个 uni-app 工单报修页面（Vue 3 + TypeScript），要求：
+生成一个 Flutter 工单报修页面（Dart + BLoC），要求：
 - 支持三级联动选择器：楼栋 → 楼层 → 单元（从后端 API 异步加载）
-- 照片上传：最多 5 张，使用 uni.chooseImage + 压缩处理（> 1MB 自动压缩至 800KB）
-- 紧急程度选择：wot-design-uni wd-radio-group 单选，三个选项
-- 工单状态用 Pinia Store 管理，loading / error / item 等标准字段
-- 提交后跳转至工单列表页并高亮新建工单
+- 照片上传：最多 5 张，使用 image_picker + 压缩处理（> 1MB 自动压缩至 800KB）
+- 紧急程度选择：Material 3 SegmentedButton 单选，三个选项
+- 工单状态用 BLoC/Cubit 管理，@freezed 四态（initial / loading / loaded / error）
+- 提交后通过 context.go() 跳转至工单列表页并高亮新建工单
 ```
 
 ### 3.5 阶段 4：M5 二房东穿透（第 17-20 周）
@@ -342,7 +342,7 @@ in_progress → (挂起) → on_hold → in_progress
 - 记录审计日志（操作人、时间、状态变更）
 - 返回 Either<WorkOrderError, WorkOrder>
 
-同时生成对应的 Pinia Store（useWorkOrderStore）用于前端状态管理。
+同时生成对应的 Admin Pinia Store（useWorkOrderStore）用于 PC 端状态管理。
 ```
 
 ### M5：二房东权限隔离

@@ -48,7 +48,7 @@
 
 | 指标 | 结果 |
 |------|------|
-| 线框正式范围 | Admin 49 + uni-app 21 + Portal 5 = **75 个正式视图/页面** |
+| 线框正式范围 | Admin 49 + Flutter 21 + Portal 5 = **75 个正式视图/页面** |
 | 原型页面文件 | **48** 个 |
 | 原型已注册路由 | **47** 条 |
 | 未注册页面文件 | **1** 个：Showcase |
@@ -61,7 +61,7 @@
 原型项目并不是“完全没做”，相反，它已经覆盖了大量正式功能页面；真正的问题在于：
 
 1. **壳层架构错位**：原型把几乎所有页面都放进了手机壳布局中，和线框中的 Admin PC 主框架不一致。
-2. **三端边界混用**：Admin、uni-app、Portal 没有在原型中拆开，多个页面被压成了同一套路由或同一套布局。
+2. **三端边界混用**：Admin、Flutter、Portal 没有在原型中拆开，多个页面被压成了同一套路由或同一套布局。
 3. **仍保留旧方案页面**：Legacy 页和个人中心、穿透分析等旧内容仍在原型中作为正式路由存在。
 4. **Portal 与少数新增正式页未补齐**：二房东外部门户、预警中心、催收双端页、子租赁录入/导入等正式页面仍未落到原型路由层。
 5. **新增移动分析/待办页尚未收口**：NOI、WALE、审批已具备可复用内容，但仍沿用旧的单端单壳表达，未按 v1.8 新口径拆成“移动查看页 + PC 工作台”。
@@ -69,7 +69,7 @@
 ### 2.2 可以直接下的判断
 
 - 如果目标是“让原型设计项目与 PAGE_WIREFRAMES v1.8 正式口径一致”，**不能只补缺页**，必须同时做一次信息架构收敛。
-- 当前更接近“单端原型集合”，而不是“Admin PC + uni-app + Portal 三端正式原型”。
+- 当前更接近“单端原型集合”，而不是“Admin PC + Flutter + Portal 三端正式原型”。
 
 ---
 
@@ -89,7 +89,7 @@
 
 ### 3.2 底部 TabBar 被用作全局主导航
 
-[BottomTabBar.tsx](frontend/src/app/components/BottomTabBar.tsx) 只定义了 5 个移动端 Tab：首页、资产、合同、工单、财务。它适合 uni-app 首页壳，但不适合 Admin 端。
+[BottomTabBar.tsx](frontend/src/app/components/BottomTabBar.tsx) 只定义了 5 个移动端 Tab：首页、资产、合同、工单、财务。它适合 Flutter 移动端首页壳，但不适合 Admin 端。
 
 **影响**：
 
@@ -109,7 +109,7 @@
 
 - Admin 顶部应区分“预警铃铛”与“通知铃铛”
 - 不再以“个人中心”作为正式主入口页面
-- Admin 首页和 uni-app 首页应分端表达，而不是复用同一视觉容器
+- Admin 首页和 Flutter 移动端首页应分端表达，而不是复用同一视觉容器
 
 ### 3.4 双端分析与待办页还没真正拆层
 
@@ -135,11 +135,11 @@ PAGE_SPEC v1.8 现已把 4 个新增移动页纳入正式范围：
 | 线框正式页 | 正式路由/路径 | 原型对应 | 判定 |
 |------|------|------|------|
 | 登录页 — Admin | `/login` | `Login` | 需修改：存在，但仍为手机壳登录态，未体现 Admin PC 视觉口径 |
-| 登录页 — uni-app | `pages/auth/login` | `Login` | 需修改：与 Admin 登录共用一页，未区分端别 |
+| 登录页 — Flutter | `pages/auth/login` | `Login` | 需修改：与 Admin 登录共用一页，未区分端别 |
 | 首页 — Admin | `/dashboard` | `Home` at `/` | 需修改：路由不一致，且首页仍为移动壳布局 |
-| 首页 — uni-app | `pages/dashboard/index` | `Home` at `/` | 需修改：与 Admin 首页复用同一路由 |
-| NOI 分析/明细页（uni-app + Admin） | `pages/dashboard/noi-detail` / `/dashboard/noi-detail` | `NOIDashboard` | 需修改：内容可复用，但尚未拆成移动分析视图与 Admin 工作台两种表达 |
-| WALE 分析/明细页（uni-app + Admin） | `pages/dashboard/wale-detail` / `/dashboard/wale-detail` | `WALEDashboard` at `/wale` | 需修改：路由不一致，且尚未拆成移动分析视图与 Admin 工作台 |
+| 首页 — Flutter | `pages/dashboard/index` | `Home` at `/` | 需修改：与 Admin 首页复用同一路由 |
+| NOI 分析/明细页（Flutter + Admin） | `pages/dashboard/noi-detail` / `/dashboard/noi-detail` | `NOIDashboard` | 需修改：内容可复用，但尚未拆成移动分析视图与 Admin 工作台两种表达 |
+| WALE 分析/明细页（Flutter + Admin） | `pages/dashboard/wale-detail` / `/dashboard/wale-detail` | `WALEDashboard` at `/wale` | 需修改：路由不一致，且尚未拆成移动分析视图与 Admin 工作台 |
 | KPI 考核看板 | `/finance/kpi` / `pages/finance/kpi` | `KPIDashboard` | 需修改：内容可复用，但 Admin/uni 未拆开 |
 | 资产概览页 | `/assets` / `pages/assets/index` | `Assets` | 需修改：同页承担双端角色 |
 | 楼栋详情页 | `/assets/buildings/:id` | `BuildingFloors` at `/assets/:buildingId` | 需修改：路由命名不一致 |
@@ -180,8 +180,8 @@ PAGE_SPEC v1.8 现已把 4 个新增移动页纳入正式范围：
 | 递增模板管理 | `/settings/escalation/templates` | `EscalationTemplates` at `/contracts/escalation-templates` | 需修改：模块归属不对 |
 | 审计日志 | `/settings/audit-logs` | `AuditLog` | 需修改：内容可复用，但需回归 PC Admin 壳层 |
 | 预警中心 | `/settings/alerts` | 无 | 缺失 |
-| 审批队列（Admin + uni-app） | `/approvals` / `pages/approvals/index` | `Approvals` | 需修改：内容可复用，但应拆成移动待办页与 Admin 工作台两种正式表达 |
-| 催收管理（Admin + uni-app） | `/finance/dunning` / `pages/finance/dunning` | 无 | 缺失：正式双端页均未落地 |
+| 审批队列（Admin + Flutter） | `/approvals` / `pages/approvals/index` | `Approvals` | 需修改：内容可复用，但应拆成移动待办页与 Admin 工作台两种正式表达 |
+| 催收管理（Admin + Flutter） | `/finance/dunning` / `pages/finance/dunning` | 无 | 缺失：正式双端页均未落地 |
 
 ---
 
@@ -193,8 +193,8 @@ PAGE_SPEC v1.8 现已把 4 个新增移动页纳入正式范围：
 
 | 原型页面 | 当前路由 | 对齐目标 | 问题 |
 |------|------|------|------|
-| Login | `/login` | Admin 登录 + uni-app 登录 | 共用一套手机壳登录页，未区分两端 |
-| Home | `/` | `/dashboard` + `pages/dashboard/index` | Admin 与 uni-app 首页混页；顶部仍是单铃铛 + 个人中心入口 |
+| Login | `/login` | Admin 登录 + Flutter 登录 | 共用一套手机壳登录页，未区分两端 |
+| Home | `/` | `/dashboard` + `pages/dashboard/index` | Admin 与 Flutter 首页混页；顶部仍是单铃铛 + 个人中心入口 |
 
 ### 5.2 Dashboard 与双端分析路由组
 
@@ -272,7 +272,7 @@ PAGE_SPEC v1.8 现已把 4 个新增移动页纳入正式范围：
 | 二房东外部门户填报页 | `/portal/subleases/:id/edit` | 正式 8.6 |
 | 子租赁批量导入页 | `/subleases/import`、`/portal/subleases/import` | 正式 8.7，当前内部和门户入口都未落地 |
 | 预警中心 | `/settings/alerts` | 正式 9.9 |
-| 催收管理（Admin + uni-app） | `/finance/dunning`、`pages/finance/dunning` | 正式 9.12 / 9.13，当前双端都未落地 |
+| 催收管理（Admin + Flutter） | `/finance/dunning`、`pages/finance/dunning` | 正式 9.12 / 9.13，当前双端都未落地 |
 
 ### 6.1 缺失页优先级
 

@@ -297,7 +297,7 @@ export const useUnitStore = defineStore('unit', () => {
 - [ ] Pinia Store 使用 `defineStore(id, setup)` 风格，state 含 `list / item / loading / error / meta`
 - [ ] Store 通过 `api/client` 调用后端，未直接使用 `fetch` / `axios`
 - [ ] Page / Component 只访问 Store 的 state / action，不内联 HTTP 请求
-- [ ] 所有颜色通过 CSS 变量（uni-app）或 Element Plus `type` 属性（admin）取值，无硬编码
+- [ ] 所有颜色通过 `Theme.of(context).colorScheme.*`（Flutter）或 Element Plus `type` 属性 / CSS 变量（admin）取值，无硬编码
 - [ ] 状态色使用语义映射（`success` / `warning` / `danger` / `info`）
 - [ ] 常量已归入对应的常量文件，无魔法数字
 
