@@ -13,7 +13,9 @@
     </template>
 
     <view class="profile">
-      <text class="profile__placeholder">个人中心占位</text>
+      <text class="profile__placeholder">
+        个人中心占位
+      </text>
     </view>
   </AppShell>
 </template>

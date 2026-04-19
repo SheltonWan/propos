@@ -1,9 +1,9 @@
-import Request from 'luch-request'
 import type { HttpData, HttpError, HttpRequestConfig, HttpResponse } from 'luch-request'
-import { ApiError } from '@/types/api'
-import type { ApiErrorResponse, ApiResponse } from '@/types/api'
-import { AUTH_REFRESH } from '@/constants/api_paths'
 import type { MockMethod } from './mock/types'
+import type { ApiErrorResponse, ApiResponse } from '@/types/api'
+import Request from 'luch-request'
+import { AUTH_REFRESH } from '@/constants/api_paths'
+import { ApiError } from '@/types/api'
 import { matchMock } from './mock/index'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL as string || ''
@@ -28,15 +28,13 @@ function asHttpData(data?: unknown): HttpData | undefined {
   return data as HttpData
 }
 
-function requestWithPatch<T>(config: PatchRequestConfig) {
-  return http.request<ApiResponse<T>>(config as unknown as HttpRequestConfig)
-}
-
 // ─── Mock（USE_MOCK=false 时不执行任何 mock 逻辑）────────────────────────────
-async function tryMock<T>(method: MockMethod, url: string, body?: unknown): Promise<{ hit: true; data: T } | { hit: false }> {
-  if (!USE_MOCK) return { hit: false }
+async function tryMock<T>(method: MockMethod, url: string, body?: unknown): Promise<{ hit: true, data: T } | { hit: false }> {
+  if (!USE_MOCK)
+    return { hit: false }
   const result = await matchMock<T>(method, url, body)
-  if (result !== null) return { hit: true, data: result }
+  if (result !== null)
+    return { hit: true, data: result }
   return { hit: false }
 }
 
@@ -47,6 +45,10 @@ const http = new Request({
     'Content-Type': 'application/json',
   },
 })
+
+function requestWithPatch<T>(config: PatchRequestConfig) {
+  return http.request<ApiResponse<T>>(config as unknown as HttpRequestConfig)
+}
 
 // ─── Token 管理 ────────────────────────────────────────────────────────────
 function getAccessToken(): string | null {
@@ -88,7 +90,7 @@ function onRefreshed(cb: (token: string) => void) {
 }
 
 function notifySubscribers(token: string) {
-  refreshSubscribers.forEach((cb) => cb(token))
+  refreshSubscribers.forEach(cb => cb(token))
   refreshSubscribers = []
 }
 
@@ -97,7 +99,7 @@ http.interceptors.response.use(
   (response: HttpResponse) => {
     const data = response.data as Record<string, unknown>
     if (data && typeof data === 'object' && 'error' in data) {
-      const err = data.error as { code: string; message: string }
+      const err = data.error as { code: string, message: string }
       throw new ApiError(err.code, err.message, response.statusCode)
     }
     return response
@@ -114,14 +116,15 @@ http.interceptors.response.use(
         if (!isRefreshing) {
           isRefreshing = true
           try {
-            const res = await http.post<ApiResponse<{ access_token: string; refresh_token: string }>>(AUTH_REFRESH, {
+            const res = await http.post<ApiResponse<{ access_token: string, refresh_token: string }>>(AUTH_REFRESH, {
               refresh_token: refresh,
             })
             const { access_token, refresh_token } = res.data.data
             setTokens(access_token, refresh_token)
             isRefreshing = false
             notifySubscribers(access_token)
-          } catch {
+          }
+          catch {
             isRefreshing = false
             refreshSubscribers = []
             clearTokens()
@@ -141,8 +144,6 @@ http.interceptors.response.use(
           })
         })
       }
-      clearTokens()
-      uni.reLaunch({ url: '/pages/auth/login' })
       throw new ApiError('UNAUTHORIZED', '请先登录', 401)
     }
 
@@ -156,28 +157,32 @@ http.interceptors.response.use(
 // ─── 公共方法（含 mock 拦截：匹配则返回 mock 数据，未匹配则 fallthrough 真实 HTTP）──
 export async function apiGet<T>(url: string, params?: Record<string, unknown>): Promise<T> {
   const mock = await tryMock<T>('GET', url, params)
-  if (mock.hit) return mock.data
+  if (mock.hit)
+    return mock.data
   const res = await http.get<ApiResponse<T>>(url, { params })
   return res.data.data
 }
 
 export async function apiPost<T>(url: string, data?: unknown): Promise<T> {
   const mock = await tryMock<T>('POST', url, data)
-  if (mock.hit) return mock.data
+  if (mock.hit)
+    return mock.data
   const res = await http.post<ApiResponse<T>>(url, asHttpData(data))
   return res.data.data
 }
 
 export async function apiPut<T>(url: string, data?: unknown): Promise<T> {
   const mock = await tryMock<T>('PUT', url, data)
-  if (mock.hit) return mock.data
+  if (mock.hit)
+    return mock.data
   const res = await http.put<ApiResponse<T>>(url, asHttpData(data))
   return res.data.data
 }
 
 export async function apiPatch<T>(url: string, data?: unknown): Promise<T> {
   const mock = await tryMock<T>('PATCH', url, data)
-  if (mock.hit) return mock.data
+  if (mock.hit)
+    return mock.data
   const patchConfig: PatchRequestConfig = {
     url,
     method: 'PATCH',
@@ -189,9 +194,10 @@ export async function apiPatch<T>(url: string, data?: unknown): Promise<T> {
 
 export async function apiDelete<T = void>(url: string): Promise<T> {
   const mock = await tryMock<T>('DELETE', url)
-  if (mock.hit) return mock.data
+  if (mock.hit)
+    return mock.data
   const res = await http.delete<ApiResponse<T>>(url)
   return res.data.data
 }
 
-export { setTokens, clearTokens }
+export { clearTokens, setTokens }

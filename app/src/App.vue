@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
+import { onHide, onLaunch, onShow } from '@dcloudio/uni-app'
+import { isPublicPage } from '@/constants/routes'
 import { useThemeStore } from '@/stores/theme'
 
-const PUBLIC_PAGES = ['/pages/auth/login', '/pages/auth/change-password']
 const themeStore = useThemeStore()
 
 function hideNativeTabBar() {
@@ -12,7 +12,8 @@ function hideNativeTabBar() {
 
   try {
     uni.hideTabBar({ animation: false })
-  } catch {
+  }
+  catch {
     // 当前页面不是 tab 页时静默跳过
   }
 }
@@ -28,43 +29,53 @@ onLaunch(() => {
   }
   if (typeof plus !== 'undefined') {
     onPlusReady()
-  } else if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  }
+  else if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
     document.addEventListener('plusready', onPlusReady, { once: true })
-  } else {
+  }
+  else {
     setTimeout(onPlusReady, 150)
   }
   // #endif
 
   // 路由拦截：未登录时跳转登录页
-  uni.addInterceptor('navigateTo', {
-    invoke(args: { url: string }) {
-      const token = uni.getStorageSync('access_token')
-      const path = args.url.split('?')[0]
-      if (!token && !PUBLIC_PAGES.includes(path)) {
-        uni.reLaunch({ url: '/pages/auth/login' })
-        return false
-      }
-    },
-  })
-
-  uni.addInterceptor('switchTab', {
-    invoke(args: { url: string }) {
-      const token = uni.getStorageSync('access_token')
-      if (!token) {
-        uni.reLaunch({ url: '/pages/auth/login' })
-        return false
-      }
-    },
-    complete() {
-      hideNativeTabBar()
-      themeStore.applyRuntimeTheme()
-    },
-  })
+  const navigationApis = ['navigateTo', 'redirectTo', 'reLaunch', 'switchTab'] as const
+  for (const api of navigationApis) {
+    uni.addInterceptor(api, {
+      invoke(args: { url: string }) {
+        const token = uni.getStorageSync('access_token')
+        const path = args.url.split('?')[0]
+        if (!token && !isPublicPage(path)) {
+          uni.reLaunch({ url: '/pages/auth/login' })
+          return false
+        }
+      },
+      ...(api === 'switchTab'
+        ? {
+            complete() {
+              hideNativeTabBar()
+              themeStore.applyRuntimeTheme()
+            },
+          }
+        : {}),
+    })
+  }
 })
 
 onShow(() => {
   themeStore.applyRuntimeTheme()
   hideNativeTabBar()
+
+  // navigateBack 守卫：返回到受保护页面时检查 Token
+  const token = uni.getStorageSync('access_token')
+  if (!token) {
+    const pages = getCurrentPages()
+    const currentPage = pages[pages.length - 1]
+    const path = currentPage ? `/${currentPage.route}` : ''
+    if (path && !isPublicPage(path)) {
+      uni.reLaunch({ url: '/pages/auth/login' })
+    }
+  }
 })
 
 onHide(() => {

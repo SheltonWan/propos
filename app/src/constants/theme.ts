@@ -1,7 +1,7 @@
 export const THEME_STORAGE_KEY = 'propos_theme_id'
 
-export const BODY_FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-export const DISPLAY_FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+export const BODY_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, \'SF Pro Text\', \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif'
+export const DISPLAY_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, \'SF Pro Display\', \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif'
 
 export type ThemeId = 'apple' | 'emerald' | 'violet' | 'rose' | 'amber' | 'dark'
 
@@ -42,7 +42,7 @@ const SKELETON_HIGHLIGHT_COLOR = 'rgba(255, 255, 255, 0.72)'
 function hexToRgbString(hex: string): string {
   const normalized = hex.replace('#', '')
   const fullHex = normalized.length === 3
-    ? normalized.split('').map((char) => `${char}${char}`).join('')
+    ? normalized.split('').map(char => `${char}${char}`).join('')
     : normalized
 
   const red = Number.parseInt(fullHex.slice(0, 2), 16)
@@ -238,9 +238,9 @@ export const THEME_PRESETS: ThemePreset[] = [
 ]
 
 export function isThemeId(value: string): value is ThemeId {
-  return THEME_PRESETS.some((preset) => preset.id === value)
+  return THEME_PRESETS.some(preset => preset.id === value)
 }
 
 export function getThemePreset(themeId: ThemeId): ThemePreset {
-  return THEME_PRESETS.find((preset) => preset.id === themeId) ?? THEME_PRESETS[0]
+  return THEME_PRESETS.find(preset => preset.id === themeId) ?? THEME_PRESETS[0]
 }

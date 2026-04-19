@@ -13,7 +13,9 @@
     </template>
 
     <view class="invoices">
-      <text class="invoices__placeholder">账单列表占位</text>
+      <text class="invoices__placeholder">
+        账单列表占位
+      </text>
     </view>
   </AppShell>
 </template>

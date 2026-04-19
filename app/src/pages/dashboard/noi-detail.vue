@@ -13,7 +13,9 @@
     </template>
 
     <view class="noi-detail">
-      <text class="noi-detail__placeholder">NOI 分析详情占位</text>
+      <text class="noi-detail__placeholder">
+        NOI 分析详情占位
+      </text>
     </view>
   </AppShell>
 </template>

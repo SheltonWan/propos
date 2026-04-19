@@ -19,55 +19,62 @@ const RULES = [
   {
     id: 'hex-color-literal',
     description: '禁止在页面或业务组件中直接写十六进制颜色，请改用主题 token 或 CSS 变量。',
-    test: (line) => /(^|["'(\s:,=])#[0-9a-fA-F]{3,8}\b/.test(line),
+    test: line => /(^|["'(\s:,=])#[0-9a-f]{3,8}\b/i.test(line),
   },
   {
     id: 'rgba-color-literal',
     description: '禁止在页面或业务组件中直接写 rgba/rgb 数值颜色，请改用主题 token。',
-    test: (line) => /rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(?:\s*,\s*(?:\d*\.?\d+|\d+%))?\s*\)/i.test(line),
+    test: line => /rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(?:\s*,\s*(?:\d+(?:\.\d+)?|\.\d+|\d+%))?\s*\)/i.test(line),
   },
   {
     id: 'font-family-literal',
     description: '禁止在页面或业务组件中直接写 font-family，请改用 var(--theme-font-family-*)。',
-    test: (line) => line.includes('font-family:') && !line.includes('var(--theme-font-family-'),
+    test: line => line.includes('font-family:') && !line.includes('var(--theme-font-family-'),
   },
   {
     id: 'inline-style-literal',
     description: '禁止在模板内通过 style 字面量写颜色或字体，请落到 class/token。',
-    test: (line) => /\bstyle\s*=\s*["'][^"']*(?:font-family\s*:|#[0-9a-fA-F]{3,8}\b|rgba?\()/i.test(line),
+    test: line => /\bstyle\s*=\s*["'][^"']*(?:font-family\s*:|#[0-9a-f]{3,8}\b|rgba?\()/i.test(line),
   },
   {
     id: 'bound-inline-style-literal',
     description: '禁止在 :style 中直接写颜色或字体字面量，请落到 class/token。',
-    test: (line) => /:\s*style\s*=\s*["'][^"']*(?:fontFamily\s*:|font-family\s*:|#[0-9a-fA-F]{3,8}\b|rgba?\()/i.test(line),
+    test: line => /:\s*style\s*=\s*["'][^"']*(?:fontFamily\s*:|font-family\s*:|#[0-9a-f]{3,8}\b|rgba?\()/i.test(line),
   },
   {
     id: 'component-color-prop-literal',
     description: '禁止组件 color 属性直接写字面量颜色，请传主题变量或 class。',
-    test: (line) => /\bcolor\s*=\s*["'](?!var\(--|currentColor|inherit|transparent)[^"']+["']/.test(line),
+    test: line => /\bcolor\s*=\s*["'](?!var\(--|currentColor|inherit|transparent)[^"']+["']/.test(line),
   },
   {
     id: 'bound-color-prop-literal',
     description: '禁止 :color 绑定字符串字面量颜色，请传主题变量或 class。',
-    test: (line) => /:\s*color\s*=\s*["'][^"']*(?:#[0-9a-fA-F]{3,8}\b|rgba?\(|['"][^'"]+['"])/i.test(line),
+    test: line => /:\s*color\s*=\s*["'][^"']*(?:#[0-9a-f]{3,8}\b|rgba?\(|['"][^'"]+['"])/i.test(line),
   },
   {
     id: 'font-family-object-literal',
     description: '禁止在对象样式中直接写 fontFamily，请改用主题变量。',
-    test: (line) => /fontFamily\s*:\s*["'](?!var\(--theme-font-family-)[^"']+["']/.test(line),
+    test: line => /fontFamily\s*:\s*["'](?!var\(--theme-font-family-)[^"']+["']/.test(line),
   },
 ]
 
 function shouldSkipLine(line) {
   const trimmed = line.trim()
 
-  if (!trimmed) return true
-  if (line.includes(IGNORE_MARKER)) return true
-  if (trimmed.startsWith('//')) return true
-  if (trimmed.startsWith('/*')) return true
-  if (trimmed.startsWith('*')) return true
-  if (trimmed.startsWith('<!--')) return true
-  if (trimmed.startsWith('#endif') || trimmed.startsWith('#ifdef') || trimmed.startsWith('#ifndef')) return true
+  if (!trimmed)
+    return true
+  if (line.includes(IGNORE_MARKER))
+    return true
+  if (trimmed.startsWith('//'))
+    return true
+  if (trimmed.startsWith('/*'))
+    return true
+  if (trimmed.startsWith('*'))
+    return true
+  if (trimmed.startsWith('<!--'))
+    return true
+  if (trimmed.startsWith('#endif') || trimmed.startsWith('#ifdef') || trimmed.startsWith('#ifndef'))
+    return true
 
   return false
 }

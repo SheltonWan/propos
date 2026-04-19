@@ -13,7 +13,9 @@
     </template>
 
     <view class="workorder-form">
-      <text class="workorder-form__placeholder">工单表单占位</text>
+      <text class="workorder-form__placeholder">
+        工单表单占位
+      </text>
     </view>
   </AppShell>
 </template>

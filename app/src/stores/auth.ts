@@ -1,8 +1,8 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
 import type { CurrentUser, LoginResponse } from '@/types/auth'
+import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
+import { fetchMe as apiFetchMe, login as apiLogin, logout as apiLogout, clearTokens, setTokens } from '@/api/modules/auth'
 import { ApiError } from '@/types/api'
-import { login as apiLogin, fetchMe as apiFetchMe, logout as apiLogout, setTokens, clearTokens } from '@/api/modules/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   // ─── State ─────────────────────────────────────────────────────────────
@@ -24,10 +24,12 @@ export const useAuthStore = defineStore('auth', () => {
       setTokens(res.access_token, res.refresh_token)
       // 立即获取完整用户信息（含 permissions）
       user.value = await apiFetchMe()
-    } catch (e) {
+    }
+    catch (e) {
       error.value = e instanceof ApiError ? e.message : '登录失败，请重试'
       throw e
-    } finally {
+    }
+    finally {
       loading.value = false
     }
   }
@@ -37,10 +39,12 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
     try {
       user.value = await apiFetchMe()
-    } catch (e) {
+    }
+    catch (e) {
       error.value = e instanceof ApiError ? e.message : '获取用户信息失败'
       user.value = null
-    } finally {
+    }
+    finally {
       loading.value = false
     }
   }
@@ -48,13 +52,22 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     try {
       await apiLogout()
-    } catch {
+    }
+    catch {
       // 静默处理
-    } finally {
+    }
+    finally {
       user.value = null
       clearTokens()
       uni.reLaunch({ url: '/pages/auth/login' })
     }
+  }
+
+  /** 统一处理认证错误（401/token 过期），由 API 层抛出后在页面调用 */
+  function handleAuthError() {
+    user.value = null
+    clearTokens()
+    uni.reLaunch({ url: '/pages/auth/login' })
   }
 
   function hasPermission(perm: string): boolean {
@@ -72,5 +85,6 @@ export const useAuthStore = defineStore('auth', () => {
     fetchMe,
     logout,
     hasPermission,
+    handleAuthError,
   }
 })

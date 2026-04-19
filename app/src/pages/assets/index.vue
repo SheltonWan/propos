@@ -14,7 +14,9 @@
 
     <view class="assets">
       <AppCard class="assets__placeholder-card" :animated="false">
-        <text class="assets__placeholder">资产列表占位</text>
+        <text class="assets__placeholder">
+          资产列表占位
+        </text>
       </AppCard>
     </view>
   </AppShell>

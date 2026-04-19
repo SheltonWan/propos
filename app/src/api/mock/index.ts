@@ -1,5 +1,5 @@
-import { ApiError } from '@/types/api'
 import type { MockHandler, MockMethod } from './types'
+import { ApiError } from '@/types/api'
 import { authMocks } from './auth'
 
 // ─── 注册表：所有模块的 mock handlers 汇总于此 ────────────────────────────
@@ -9,7 +9,7 @@ const handlers: MockHandler[] = [
 ]
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
@@ -22,11 +22,13 @@ export async function matchMock<T = unknown>(
   url: string,
   body?: unknown,
 ): Promise<T | null> {
-  const matched = handlers.find((h) => h.method === method && h.url === url)
-  if (!matched) return null
+  const matched = handlers.find(h => h.method === method && h.url === url)
+  if (!matched)
+    return null
 
   const result = matched.handler(url, body)
-  if (result.delay > 0) await sleep(result.delay)
+  if (result.delay > 0)
+    await sleep(result.delay)
 
   if (result.error) {
     throw new ApiError(result.error.code, result.error.message, result.error.status)

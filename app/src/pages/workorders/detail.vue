@@ -13,7 +13,9 @@
     </template>
 
     <view class="workorder-detail">
-      <text class="workorder-detail__placeholder">工单详情占位</text>
+      <text class="workorder-detail__placeholder">
+        工单详情占位
+      </text>
     </view>
   </AppShell>
 </template>

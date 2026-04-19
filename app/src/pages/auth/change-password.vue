@@ -13,7 +13,9 @@
     </template>
 
     <view class="change-password">
-      <text class="change-password__placeholder">修改密码表单占位</text>
+      <text class="change-password__placeholder">
+        修改密码表单占位
+      </text>
     </view>
   </AppShell>
 </template>

@@ -13,7 +13,9 @@
     </template>
 
     <view class="unit-detail">
-      <text class="unit-detail__placeholder">房源详情占位</text>
+      <text class="unit-detail__placeholder">
+        房源详情占位
+      </text>
     </view>
   </AppShell>
 </template>

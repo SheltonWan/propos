@@ -32,15 +32,23 @@
 
     <view v-else-if="state === 'empty'" class="app-card__state app-card__state--empty">
       <slot name="empty">
-        <text class="app-card__state-title">暂无数据</text>
-        <text class="app-card__state-desc">当前卡片没有可展示内容。</text>
+        <text class="app-card__state-title">
+          暂无数据
+        </text>
+        <text class="app-card__state-desc">
+          当前卡片没有可展示内容。
+        </text>
       </slot>
     </view>
 
     <view v-else class="app-card__state app-card__state--error">
       <slot name="error">
-        <text class="app-card__state-title">加载失败</text>
-        <text class="app-card__state-desc">请稍后重试。</text>
+        <text class="app-card__state-title">
+          加载失败
+        </text>
+        <text class="app-card__state-desc">
+          请稍后重试。
+        </text>
       </slot>
     </view>
   </view>
@@ -101,7 +109,8 @@ const cardMotionStyle = computed(() => ({
 }))
 
 function handleClick() {
-  if (props.clickable && props.state === 'default' && !props.disabled) emit('click')
+  if (props.clickable && props.state === 'default' && !props.disabled)
+    emit('click')
 }
 
 onMounted(() => {

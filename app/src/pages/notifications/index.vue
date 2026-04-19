@@ -13,7 +13,9 @@
     </template>
 
     <view class="notifications">
-      <text class="notifications__placeholder">通知中心占位</text>
+      <text class="notifications__placeholder">
+        通知中心占位
+      </text>
     </view>
   </AppShell>
 </template>

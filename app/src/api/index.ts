@@ -1,2 +1,6 @@
-export { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './client'
+export { apiDelete, apiGet, apiPatch, apiPost, apiPut } from './client'
+export * from './modules/assets'
 export * from './modules/auth'
+export * from './modules/contracts'
+export * from './modules/finance'
+export * from './modules/workorders'

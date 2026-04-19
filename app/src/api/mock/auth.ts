@@ -1,11 +1,11 @@
-import type { CurrentUser, LoginResponse } from '@/types/auth'
 import type { MockHandler } from './types'
+import type { CurrentUser, LoginResponse } from '@/types/auth'
 import {
-  AUTH_LOGIN,
-  AUTH_ME,
-  AUTH_LOGOUT,
-  AUTH_REFRESH,
   AUTH_CHANGE_PASSWORD,
+  AUTH_LOGIN,
+  AUTH_LOGOUT,
+  AUTH_ME,
+  AUTH_REFRESH,
 } from '@/constants/api_paths'
 
 const MOCK_USER: CurrentUser = {
@@ -35,8 +35,8 @@ const MOCK_USER: CurrentUser = {
 }
 
 const MOCK_LOGIN_RESPONSE: LoginResponse = {
-  access_token: 'mock_access_token_' + Date.now(),
-  refresh_token: 'mock_refresh_token_' + Date.now(),
+  access_token: `mock_access_token_${Date.now()}`,
+  refresh_token: `mock_refresh_token_${Date.now()}`,
   expires_in: 86400,
   user: {
     id: MOCK_USER.id,
@@ -53,7 +53,7 @@ export const authMocks: MockHandler[] = [
     method: 'POST',
     url: AUTH_LOGIN,
     handler: (_url, body) => {
-      const { password } = (body ?? {}) as { email?: string; password?: string }
+      const { password } = (body ?? {}) as { email?: string, password?: string }
       if (password === '123456' || password === 'Propos123') {
         return { delay: 800, data: MOCK_LOGIN_RESPONSE }
       }
@@ -79,8 +79,8 @@ export const authMocks: MockHandler[] = [
     handler: () => ({
       delay: 300,
       data: {
-        access_token: 'mock_access_refreshed_' + Date.now(),
-        refresh_token: 'mock_refresh_refreshed_' + Date.now(),
+        access_token: `mock_access_refreshed_${Date.now()}`,
+        refresh_token: `mock_refresh_refreshed_${Date.now()}`,
         expires_in: 86400,
       },
     }),

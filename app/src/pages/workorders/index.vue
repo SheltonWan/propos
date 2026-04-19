@@ -14,7 +14,9 @@
 
     <view class="workorders">
       <AppCard class="workorders__placeholder-card" :animated="false">
-        <text class="workorders__placeholder">工单列表占位</text>
+        <text class="workorders__placeholder">
+          工单列表占位
+        </text>
       </AppCard>
     </view>
   </AppShell>

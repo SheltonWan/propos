@@ -7,7 +7,9 @@
 
       <view v-if="title || $slots.title" class="bottom-sheet__header">
         <slot name="title">
-          <text class="bottom-sheet__title">{{ title }}</text>
+          <text class="bottom-sheet__title">
+            {{ title }}
+          </text>
         </slot>
       </view>
 
@@ -23,15 +25,23 @@
 
         <view v-else-if="state === 'empty'" class="bottom-sheet__state bottom-sheet__state--empty">
           <slot name="empty">
-            <text class="bottom-sheet__state-title">暂无内容</text>
-            <text class="bottom-sheet__state-desc">当前抽屉没有可展示项。</text>
+            <text class="bottom-sheet__state-title">
+              暂无内容
+            </text>
+            <text class="bottom-sheet__state-desc">
+              当前抽屉没有可展示项。
+            </text>
           </slot>
         </view>
 
         <view v-else class="bottom-sheet__state bottom-sheet__state--error">
           <slot name="error">
-            <text class="bottom-sheet__state-title">加载失败</text>
-            <text class="bottom-sheet__state-desc">请关闭后重试。</text>
+            <text class="bottom-sheet__state-title">
+              加载失败
+            </text>
+            <text class="bottom-sheet__state-desc">
+              请关闭后重试。
+            </text>
           </slot>
         </view>
       </scroll-view>
@@ -85,7 +95,8 @@ function closeSheet() {
 }
 
 function handleMask() {
-  if (props.closeOnMask) closeSheet()
+  if (props.closeOnMask)
+    closeSheet()
 }
 </script>
 

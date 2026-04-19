@@ -13,7 +13,9 @@
     </template>
 
     <view class="floor-plan">
-      <text class="floor-plan__placeholder">楼层平面图占位</text>
+      <text class="floor-plan__placeholder">
+        楼层平面图占位
+      </text>
     </view>
   </AppShell>
 </template>

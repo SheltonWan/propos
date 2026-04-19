@@ -13,7 +13,9 @@
     </template>
 
     <view class="kpi">
-      <text class="kpi__placeholder">KPI 仪表盘占位</text>
+      <text class="kpi__placeholder">
+        KPI 仪表盘占位
+      </text>
     </view>
   </AppShell>
 </template>

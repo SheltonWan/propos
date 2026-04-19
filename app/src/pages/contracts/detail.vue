@@ -13,7 +13,9 @@
     </template>
 
     <view class="contract-detail">
-      <text class="contract-detail__placeholder">合同详情占位</text>
+      <text class="contract-detail__placeholder">
+        合同详情占位
+      </text>
     </view>
   </AppShell>
 </template>

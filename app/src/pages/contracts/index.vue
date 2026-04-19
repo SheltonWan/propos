@@ -14,7 +14,9 @@
 
     <view class="contracts">
       <AppCard class="contracts__placeholder-card" :animated="false">
-        <text class="contracts__placeholder">合同列表占位</text>
+        <text class="contracts__placeholder">
+          合同列表占位
+        </text>
       </AppCard>
     </view>
   </AppShell>

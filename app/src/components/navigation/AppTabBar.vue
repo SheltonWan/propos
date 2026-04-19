@@ -17,7 +17,9 @@
         <view class="app-tabbar__icon-surface">
           <image class="app-tabbar__icon" :src="item.iconSrc" mode="aspectFit" />
         </view>
-        <text class="app-tabbar__label">{{ item.text }}</text>
+        <text class="app-tabbar__label">
+          {{ item.text }}
+        </text>
       </view>
     </view>
 
@@ -26,25 +28,26 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, shallowRef, watch } from 'vue'
+import type { AppTabBarItem, AppTabBarItemId } from '@/constants/tabbar'
 import { onShow } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
+import { onMounted, ref, shallowRef, watch } from 'vue'
 import {
   APP_TABBAR_ITEMS,
-  type AppTabBarItem,
-  getTabBarIconSrc,
-  type AppTabBarItemId,
-} from '@/constants/tabbar'
-import { consumeIntendedTabPath, setIntendedTabPath } from '@/utils/navigationIntent'
 
+  getTabBarIconSrc,
+
+} from '@/constants/tabbar'
 import { useThemeStore } from '@/stores/theme'
+
+import { consumeIntendedTabPath, setIntendedTabPath } from '@/utils/navigationIntent'
 
 const themeStore = useThemeStore()
 const { activeTheme } = storeToRefs(themeStore)
 
 const currentPath = ref(APP_TABBAR_ITEMS[0].pagePath)
 const pressedItemId = ref<AppTabBarItemId | null>(null)
-const tabItems = shallowRef<Array<AppTabBarItem & { active: boolean; iconSrc: string }>>([])
+const tabItems = shallowRef<Array<AppTabBarItem & { active: boolean, iconSrc: string }>>([])
 const activePillStyle = shallowRef<Record<string, string>>({})
 const tabbarStyle = shallowRef<Record<string, string>>({})
 const tabbarPanelStyle = shallowRef<Record<string, string>>({})
@@ -58,7 +61,8 @@ function hideNativeTabBar() {
 
   try {
     uni.hideTabBar({ animation: false })
-  } catch {
+  }
+  catch {
     // 原生 tabBar 仅用于声明 tab 页路由，这里统一隐藏
   }
 }
@@ -102,7 +106,7 @@ function updateTabBarPresentation() {
     }
   })
 
-  const activeIndex = nextTabItems.findIndex((item) => item.active)
+  const activeIndex = nextTabItems.findIndex(item => item.active)
   const resolvedActiveIndex = activeIndex >= 0 ? activeIndex : 0
 
   tabItems.value = nextTabItems

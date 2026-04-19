@@ -14,7 +14,9 @@
 
     <view class="finance">
       <AppCard class="finance__placeholder-card" :animated="false">
-        <text class="finance__placeholder">财务概览占位</text>
+        <text class="finance__placeholder">
+          财务概览占位
+        </text>
       </AppCard>
     </view>
   </AppShell>

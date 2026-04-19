@@ -13,7 +13,9 @@
     </template>
 
     <view class="invoice-detail">
-      <text class="invoice-detail__placeholder">账单详情占位</text>
+      <text class="invoice-detail__placeholder">
+        账单详情占位
+      </text>
     </view>
   </AppShell>
 </template>

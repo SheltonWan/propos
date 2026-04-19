@@ -14,7 +14,9 @@
 
     <view class="dashboard">
       <AppCard class="dashboard__placeholder-card" :animated="false">
-        <text class="dashboard__placeholder">首页内容占位</text>
+        <text class="dashboard__placeholder">
+          首页内容占位
+        </text>
       </AppCard>
     </view>
   </AppShell>

@@ -9,17 +9,25 @@
         :hover-stay-time="80"
         @tap="handleBack"
       >
-        <text class="page-header__back-icon">‹</text>
+        <text class="page-header__back-icon">
+          ‹
+        </text>
       </view>
 
       <view class="page-header__center">
         <view v-if="state === 'loading'" class="page-header__title-skeleton" />
         <template v-else>
           <slot name="title">
-            <text class="page-header__title">{{ title }}</text>
+            <text class="page-header__title">
+              {{ title }}
+            </text>
           </slot>
-          <text v-if="subtitle" class="page-header__subtitle">{{ subtitle }}</text>
-          <text v-else-if="state === 'empty'" class="page-header__subtitle">当前内容为空</text>
+          <text v-if="subtitle" class="page-header__subtitle">
+            {{ subtitle }}
+          </text>
+          <text v-else-if="state === 'empty'" class="page-header__subtitle">
+            当前内容为空
+          </text>
         </template>
       </view>
 
@@ -30,7 +38,9 @@
 
     <view v-if="state === 'error'" class="page-header__status page-header__status--error">
       <slot name="status">
-        <text class="page-header__status-text">当前内容加载失败，可下拉或点击重试。</text>
+        <text class="page-header__status-text">
+          当前内容加载失败，可下拉或点击重试。
+        </text>
       </slot>
     </view>
 

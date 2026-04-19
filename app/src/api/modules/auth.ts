@@ -1,6 +1,6 @@
-import { apiPost, apiGet, setTokens, clearTokens } from '../client'
-import type { LoginResponse, TokenResponse, CurrentUser } from '@/types/auth'
-import { AUTH_LOGIN, AUTH_ME, AUTH_LOGOUT, AUTH_CHANGE_PASSWORD } from '@/constants/api_paths'
+import type { CurrentUser, LoginResponse } from '@/types/auth'
+import { AUTH_CHANGE_PASSWORD, AUTH_LOGIN, AUTH_LOGOUT, AUTH_ME } from '@/constants/api_paths'
+import { apiGet, apiPost, clearTokens, setTokens } from '../client'
 
 export function login(email: string, password: string): Promise<LoginResponse> {
   return apiPost<LoginResponse>(AUTH_LOGIN, { email, password })
@@ -11,7 +11,7 @@ export function fetchMe(): Promise<CurrentUser> {
 }
 
 export function logout(): Promise<void> {
-  return apiPost<void>(AUTH_LOGOUT).finally(() => clearTokens())
+  return apiPost<void>(AUTH_LOGOUT)
 }
 
 export function changePassword(oldPassword: string, newPassword: string): Promise<void> {
@@ -21,4 +21,4 @@ export function changePassword(oldPassword: string, newPassword: string): Promis
   })
 }
 
-export { setTokens, clearTokens }
+export { clearTokens, setTokens }

@@ -30,15 +30,23 @@
 
           <view v-else-if="state === 'empty'" class="app-shell__state-wrap app-shell__state-wrap--empty">
             <slot name="empty">
-              <text class="app-shell__state-title">暂无内容</text>
-              <text class="app-shell__state-desc">当前页面没有可展示的数据。</text>
+              <text class="app-shell__state-title">
+                暂无内容
+              </text>
+              <text class="app-shell__state-desc">
+                当前页面没有可展示的数据。
+              </text>
             </slot>
           </view>
 
           <view v-else class="app-shell__state-wrap app-shell__state-wrap--error">
             <slot name="error">
-              <text class="app-shell__state-title">加载失败</text>
-              <text class="app-shell__state-desc">请稍后重试或检查网络状态。</text>
+              <text class="app-shell__state-title">
+                加载失败
+              </text>
+              <text class="app-shell__state-desc">
+                请稍后重试或检查网络状态。
+              </text>
             </slot>
           </view>
         </view>
@@ -72,11 +80,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { useThemeStore } from '@/stores/theme'
-import { useSafeArea } from '@/composables/useSafeArea'
+import { computed, watch } from 'vue'
 import AppTabBar from '@/components/navigation/AppTabBar.vue'
+import { useSafeArea } from '@/composables/useSafeArea'
+import { useThemeStore } from '@/stores/theme'
 
 const props = withDefaults(defineProps<{
   variant?: 'light' | 'dark'
@@ -114,7 +122,8 @@ const shellStyle = computed(() => themeStyle.value)
  * 原因：App-plus WebView 中内联 CSS 自定义属性继承不可靠。
  */
 const resolvedBackground = computed(() => {
-  if (props.backgroundStyle) return props.backgroundStyle
+  if (props.backgroundStyle)
+    return props.backgroundStyle
   const vars = themeStore.activeTheme.vars
   return props.variant === 'dark'
     ? (vars['--color-background-dark'] || '#1c1c1e')

@@ -1,5 +1,6 @@
-import { computed, unref, type ComputedRef, type Ref } from 'vue'
+import type { ComputedRef, Ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import { computed, unref } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 
 type PageBackgroundStyleSource = string | Ref<string | undefined> | ComputedRef<string | undefined> | undefined

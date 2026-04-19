@@ -23,15 +23,21 @@
             <view class="login__icon-box">
               <image class="login__icon-svg" src="/static/icons/logo-building.svg" mode="aspectFit" />
             </view>
-            <text class="login__title">PropOS</text>
-            <text class="login__tagline">物业运营管理平台</text>
+            <text class="login__title">
+              PropOS
+            </text>
+            <text class="login__tagline">
+              物业运营管理平台
+            </text>
           </view>
 
           <!-- Form -->
           <view class="login__form">
             <!-- Email -->
             <view class="login__field">
-              <text class="login__label">邮箱</text>
+              <text class="login__label">
+                邮箱
+              </text>
               <view class="login__input-wrap">
                 <wd-icon name="mail" size="36rpx" custom-class="login__input-icon" />
                 <input
@@ -41,13 +47,15 @@
                   placeholder-class="login__placeholder"
                   class="login__input"
                   :disabled="loading"
-                />
+                >
               </view>
             </view>
 
             <!-- Password -->
             <view class="login__field">
-              <text class="login__label">密码</text>
+              <text class="login__label">
+                密码
+              </text>
               <view class="login__input-wrap">
                 <wd-icon name="lock-on" size="36rpx" custom-class="login__input-icon" />
                 <input
@@ -60,7 +68,7 @@
                   :disabled="loading"
                   confirm-type="done"
                   @confirm="handleLogin"
-                />
+                >
                 <view class="login__eye-btn" @tap="showPwd = !showPwd">
                   <wd-icon :name="showPwd ? 'view' : 'eye-close'" size="36rpx" custom-class="login__input-icon" />
                 </view>
@@ -69,7 +77,9 @@
 
             <!-- Forgot password -->
             <view class="login__forgot">
-              <text class="login__forgot-text">忘记密码？</text>
+              <text class="login__forgot-text">
+                忘记密码？
+              </text>
             </view>
 
             <!-- Submit -->
@@ -89,7 +99,9 @@
             <!-- Error alert -->
             <view v-if="errorMsg" class="login__error">
               <wd-icon name="warning" size="32rpx" custom-class="login__error-icon" />
-              <text class="login__error-text">{{ errorMsg }}</text>
+              <text class="login__error-text">
+                {{ errorMsg }}
+              </text>
             </view>
           </view>
         </view>
@@ -99,7 +111,9 @@
         <!-- Footer hint -->
         <view class="login__hint">
           <text>演示模式：任意邮箱 + 密码</text>
-          <text class="login__hint-code">123456</text>
+          <text class="login__hint-code">
+            123456
+          </text>
           <text>登录</text>
         </view>
       </view>
@@ -108,9 +122,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import AppShell from '@/components/base/AppShell.vue'
+import { computed, ref } from 'vue'
 import LoginThemeSwitcher from '@/components/auth/LoginThemeSwitcher.vue'
+import AppShell from '@/components/base/AppShell.vue'
 import { usePageThemeMeta } from '@/composables/usePageThemeMeta'
 import { useAuthStore } from '@/stores/auth'
 
@@ -127,16 +141,19 @@ const errorMsg = ref('')
 const canSubmit = computed(() => email.value.trim() !== '' && password.value !== '' && !loading.value)
 
 async function handleLogin() {
-  if (!canSubmit.value) return
+  if (!canSubmit.value)
+    return
 
   loading.value = true
   errorMsg.value = ''
   try {
     await authStore.login(email.value.trim(), password.value)
     uni.switchTab({ url: '/pages/dashboard/index' })
-  } catch {
+  }
+  catch {
     errorMsg.value = authStore.error || '登录失败，请重试'
-  } finally {
+  }
+  finally {
     loading.value = false
   }
 }

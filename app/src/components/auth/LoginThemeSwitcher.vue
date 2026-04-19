@@ -11,11 +11,17 @@
       </view>
 
       <view class="login-theme-switcher__text">
-        <text class="login-theme-switcher__label">切换主题</text>
-        <text class="login-theme-switcher__value">{{ activeTheme.name }}</text>
+        <text class="login-theme-switcher__label">
+          切换主题
+        </text>
+        <text class="login-theme-switcher__value">
+          {{ activeTheme.name }}
+        </text>
       </view>
 
-      <text class="login-theme-switcher__action">查看</text>
+      <text class="login-theme-switcher__action">
+        查看
+      </text>
     </view>
 
     <BottomSheet
@@ -25,7 +31,9 @@
       height="72vh"
     >
       <view class="login-theme-sheet">
-        <text class="login-theme-sheet__intro">仅切换主题 token，不改变页面结构与交互。</text>
+        <text class="login-theme-sheet__intro">
+          仅切换主题 token，不改变页面结构与交互。
+        </text>
 
         <view
           v-for="theme in themeOptions"
@@ -44,11 +52,17 @@
           </view>
 
           <view class="login-theme-sheet__content">
-            <text class="login-theme-sheet__name">{{ theme.name }}</text>
-            <text class="login-theme-sheet__id">{{ theme.id }}</text>
+            <text class="login-theme-sheet__name">
+              {{ theme.name }}
+            </text>
+            <text class="login-theme-sheet__id">
+              {{ theme.id }}
+            </text>
           </view>
 
-          <text v-if="theme.id === themeId" class="login-theme-sheet__badge">使用中</text>
+          <text v-if="theme.id === themeId" class="login-theme-sheet__badge">
+            使用中
+          </text>
         </view>
       </view>
     </BottomSheet>
@@ -56,9 +70,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { storeToRefs } from 'pinia'
 import type { ThemeId } from '@/constants/theme'
+import { storeToRefs } from 'pinia'
+import { computed, ref } from 'vue'
 import BottomSheet from '@/components/base/BottomSheet.vue'
 import { useThemeStore } from '@/stores/theme'
 
