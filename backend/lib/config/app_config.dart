@@ -75,7 +75,8 @@ class AppConfig {
       fileStoragePath: fileStoragePath,
       encryptionKey: encryptionKey,
       appPort: appPort,
-      corsOrigins: lookup('CORS_ORIGINS') ?? '*',
+      // 默认为空字符串（不发 CORS 头）；生产环境按实际前端域名配置
+      corsOrigins: lookup('CORS_ORIGINS') ?? '',
       logLevel: lookup('LOG_LEVEL') ?? 'info',
       maxUploadSizeMb: int.tryParse(lookup('MAX_UPLOAD_SIZE_MB') ?? '') ?? 50,
       dbSslMode: _validatedSslMode(lookup('DB_SSL_MODE') ?? 'require'),
