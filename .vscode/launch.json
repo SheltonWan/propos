@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter App (flutter_app)",
+      "request": "launch",
+      "type": "dart",
+      "program": "${workspaceFolder}/flutter_app/lib/main.dart",
+      "cwd": "${workspaceFolder}/flutter_app"
+    },
+    {
+      "name": "Flutter Tests (flutter_app)",
+      "request": "launch",
+      "type": "dart",
+      "codeLens": {
+        "for": ["run-test", "run-test-file", "debug-test", "debug-test-file"]
+      },
+      "cwd": "${workspaceFolder}/flutter_app"
+    },
+    {
+      "name": "Backend Server (backend)",
+      "request": "launch",
+      "type": "dart",
+      "program": "${workspaceFolder}/backend/bin/server.dart",
+      "cwd": "${workspaceFolder}/backend"
+    }
+  ]
+}
