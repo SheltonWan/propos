@@ -8,8 +8,8 @@
       "args": [
         "--dart-define=API_BASE_URL=http://localhost:8080"
       ],
-      "program": "${workspaceFolder}/flutter_app/lib/main.dart",
-      "cwd": "${workspaceFolder}/flutter_app"
+      "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+      "cwd": "${workspaceFolder:flutter_app}"
     },
     {
       "name": "Flutter App Prod",
@@ -18,8 +18,8 @@
       "args": [
         "--dart-define=API_BASE_URL=https://api.propos.cn"
       ],
-      "program": "${workspaceFolder}/flutter_app/lib/main.dart",
-      "cwd": "${workspaceFolder}/flutter_app"
+      "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+      "cwd": "${workspaceFolder:flutter_app}"
     },
     {
       "name": "Flutter Tests (flutter_app)",
@@ -28,14 +28,14 @@
       "codeLens": {
         "for": ["run-test", "run-test-file", "debug-test", "debug-test-file"]
       },
-      "cwd": "${workspaceFolder}/flutter_app"
+      "cwd": "${workspaceFolder:flutter_app}"
     },
     {
       "name": "Backend Server (backend)",
       "request": "launch",
       "type": "dart",
-      "program": "${workspaceFolder}/backend/bin/server.dart",
-      "cwd": "${workspaceFolder}/backend"
+      "program": "${workspaceFolder:backend}/bin/server.dart",
+      "cwd": "${workspaceFolder:backend}"
     }
   ]
 }

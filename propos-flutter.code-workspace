@@ -33,7 +33,8 @@
             "name": "Flutter Dev",
             "request": "launch",
             "type": "dart",
-            "program": "${workspaceFolder}/lib/main.dart",
+            "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+            "cwd": "${workspaceFolder:flutter_app}",
             "args": [
                 "--dart-define=API_BASE_URL=http://localhost:8080"
             ]
@@ -42,7 +43,8 @@
             "name": "Flutter Prod",
             "request": "launch",
             "type": "dart",
-            "program": "${workspaceFolder}/lib/main.dart",
+            "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+            "cwd": "${workspaceFolder:flutter_app}",
             "args": [
                 "--dart-define=API_BASE_URL=https://api.propos.cn"
             ]
@@ -51,7 +53,8 @@
             "name": "Flutter Mock",
             "request": "launch",
             "type": "dart",
-            "program": "${workspaceFolder}/lib/main.dart",
+            "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+            "cwd": "${workspaceFolder:flutter_app}",
             "args": [
                 "--dart-define=USE_MOCK=true"
             ]
