@@ -7,12 +7,11 @@ import '../../../../core/router/route_paths.dart';
 import '../bloc/auth_cubit.dart';
 import '../bloc/auth_state.dart';
 
-/// Login page with email/password form.
+/// 登录页面。
 ///
-/// Uses [BlocConsumer] to handle state transitions:
-/// - loading → show loading indicator
-/// - error → show snackbar
-/// - authenticated → navigate to dashboard
+/// Widget 树结构遵循 PAGE_SPEC_FLUTTER v1.9 §3.1：
+/// - [BlocBuilder] 在表单下方内联展示错误文本（非 Snackbar）
+/// - [BlocConsumer] 仅包裹登录按钮，listener 处理导航及强制改密跳转
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -36,36 +35,43 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       body: SafeArea(
-        child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: BlocConsumer<AuthCubit, AuthState>(
-              listener: _onAuthStateChanged,
-              builder: (context, state) {
-                final isLoading = state is AuthStateLoading;
-                return Form(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Logo 图片，文件未就绪时显示占位图标
+                Image.asset(
+                  'assets/images/logo.png',
+                  height: 80,
+                  errorBuilder: (context, error, stackTrace) =>
+                      Icon(Icons.apartment, size: 80, color: colorScheme.primary),
+                ),
+                const SizedBox(height: 32),
+                Text(
+                  'PropOS',
+                  style: theme.textTheme.headlineLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '物业资产运营管理平台',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 40),
+                // 表单区域
+                Form(
                   key: _formKey,
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'PropOS',
-                        style: theme.textTheme.headlineLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '物业资产运营管理平台',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 48),
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
@@ -95,28 +101,46 @@ class _LoginPageState extends State<LoginPage> {
                         validator: _validatePassword,
                         onFieldSubmitted: (_) => _submit(),
                       ),
-                      const SizedBox(height: 32),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: FilledButton(
-                          onPressed: isLoading ? null : _submit,
-                          child: isLoading
-                              ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text('登录'),
-                        ),
-                      ),
                     ],
                   ),
-                );
-              },
+                ),
+                const SizedBox(height: 8),
+                // 错误内联展示（PAGE_SPEC §3.1：BlocBuilder 显示错误文本）
+                BlocBuilder<AuthCubit, AuthState>(
+                  builder: (context, state) => switch (state) {
+                    AuthStateError(:final message) => Container(
+                      padding: const EdgeInsets.all(8),
+                      child: Text(message, style: TextStyle(color: colorScheme.error)),
+                    ),
+                    _ => const SizedBox.shrink(),
+                  },
+                ),
+                const SizedBox(height: 24),
+                // 登录按钮：listener 处理导航，含 must_change_password 强制改密跳转
+                BlocConsumer<AuthCubit, AuthState>(
+                  listener: _onAuthStateChanged,
+                  builder: (context, state) {
+                    final isLoading = state is AuthStateLoading;
+                    return SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: FilledButton(
+                        onPressed: isLoading ? null : _submit,
+                        child: isLoading
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colorScheme.onPrimary,
+                                ),
+                              )
+                            : const Text('登录'),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         ),
@@ -124,14 +148,15 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  /// 认证状态变化处理：成功时检测 mustChangePassword 决定跳转目标。
   void _onAuthStateChanged(BuildContext context, AuthState state) {
     switch (state) {
-      case AuthStateAuthenticated():
-        context.go(RoutePaths.dashboard);
-      case AuthStateError(:final message):
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(message)));
+      case AuthStateAuthenticated(:final user):
+        if (user.mustChangePassword) {
+          context.go(RoutePaths.changePassword);
+        } else {
+          context.go(RoutePaths.dashboard);
+        }
       case _:
         break;
     }

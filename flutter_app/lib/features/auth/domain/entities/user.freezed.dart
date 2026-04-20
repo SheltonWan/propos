@@ -286,7 +286,8 @@ as bool,
 /// @nodoc
 mixin _$CurrentUser {
 
- String get id; String get name; String get email; UserRole get role; String? get departmentId; String? get departmentName; List<String> get permissions; String? get boundContractId; bool get isActive; DateTime? get lastLoginAt;
+ String get id; String get name; String get email; UserRole get role; String? get departmentId; String? get departmentName; List<String> get permissions; String? get boundContractId; bool get isActive; DateTime? get lastLoginAt;/// 是否需要强制改密（来自登录响应 must_change_password，二房东首次登录）
+ bool get mustChangePassword;
 /// Create a copy of CurrentUser
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -297,16 +298,16 @@ $CurrentUserCopyWith<CurrentUser> get copyWith => _$CurrentUserCopyWithImpl<Curr
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CurrentUser&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.email, email) || other.email == email)&&(identical(other.role, role) || other.role == role)&&(identical(other.departmentId, departmentId) || other.departmentId == departmentId)&&(identical(other.departmentName, departmentName) || other.departmentName == departmentName)&&const DeepCollectionEquality().equals(other.permissions, permissions)&&(identical(other.boundContractId, boundContractId) || other.boundContractId == boundContractId)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.lastLoginAt, lastLoginAt) || other.lastLoginAt == lastLoginAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CurrentUser&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.email, email) || other.email == email)&&(identical(other.role, role) || other.role == role)&&(identical(other.departmentId, departmentId) || other.departmentId == departmentId)&&(identical(other.departmentName, departmentName) || other.departmentName == departmentName)&&const DeepCollectionEquality().equals(other.permissions, permissions)&&(identical(other.boundContractId, boundContractId) || other.boundContractId == boundContractId)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.lastLoginAt, lastLoginAt) || other.lastLoginAt == lastLoginAt)&&(identical(other.mustChangePassword, mustChangePassword) || other.mustChangePassword == mustChangePassword));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,email,role,departmentId,departmentName,const DeepCollectionEquality().hash(permissions),boundContractId,isActive,lastLoginAt);
+int get hashCode => Object.hash(runtimeType,id,name,email,role,departmentId,departmentName,const DeepCollectionEquality().hash(permissions),boundContractId,isActive,lastLoginAt,mustChangePassword);
 
 @override
 String toString() {
-  return 'CurrentUser(id: $id, name: $name, email: $email, role: $role, departmentId: $departmentId, departmentName: $departmentName, permissions: $permissions, boundContractId: $boundContractId, isActive: $isActive, lastLoginAt: $lastLoginAt)';
+  return 'CurrentUser(id: $id, name: $name, email: $email, role: $role, departmentId: $departmentId, departmentName: $departmentName, permissions: $permissions, boundContractId: $boundContractId, isActive: $isActive, lastLoginAt: $lastLoginAt, mustChangePassword: $mustChangePassword)';
 }
 
 
@@ -317,7 +318,7 @@ abstract mixin class $CurrentUserCopyWith<$Res>  {
   factory $CurrentUserCopyWith(CurrentUser value, $Res Function(CurrentUser) _then) = _$CurrentUserCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, String email, UserRole role, String? departmentId, String? departmentName, List<String> permissions, String? boundContractId, bool isActive, DateTime? lastLoginAt
+ String id, String name, String email, UserRole role, String? departmentId, String? departmentName, List<String> permissions, String? boundContractId, bool isActive, DateTime? lastLoginAt, bool mustChangePassword
 });
 
 
@@ -334,7 +335,7 @@ class _$CurrentUserCopyWithImpl<$Res>
 
 /// Create a copy of CurrentUser
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? email = null,Object? role = null,Object? departmentId = freezed,Object? departmentName = freezed,Object? permissions = null,Object? boundContractId = freezed,Object? isActive = null,Object? lastLoginAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? email = null,Object? role = null,Object? departmentId = freezed,Object? departmentName = freezed,Object? permissions = null,Object? boundContractId = freezed,Object? isActive = null,Object? lastLoginAt = freezed,Object? mustChangePassword = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -346,7 +347,8 @@ as String?,permissions: null == permissions ? _self.permissions : permissions //
 as List<String>,boundContractId: freezed == boundContractId ? _self.boundContractId : boundContractId // ignore: cast_nullable_to_non_nullable
 as String?,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
 as bool,lastLoginAt: freezed == lastLoginAt ? _self.lastLoginAt : lastLoginAt // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,mustChangePassword: null == mustChangePassword ? _self.mustChangePassword : mustChangePassword // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -431,10 +433,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String email,  UserRole role,  String? departmentId,  String? departmentName,  List<String> permissions,  String? boundContractId,  bool isActive,  DateTime? lastLoginAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String email,  UserRole role,  String? departmentId,  String? departmentName,  List<String> permissions,  String? boundContractId,  bool isActive,  DateTime? lastLoginAt,  bool mustChangePassword)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _CurrentUser() when $default != null:
-return $default(_that.id,_that.name,_that.email,_that.role,_that.departmentId,_that.departmentName,_that.permissions,_that.boundContractId,_that.isActive,_that.lastLoginAt);case _:
+return $default(_that.id,_that.name,_that.email,_that.role,_that.departmentId,_that.departmentName,_that.permissions,_that.boundContractId,_that.isActive,_that.lastLoginAt,_that.mustChangePassword);case _:
   return orElse();
 
 }
@@ -452,10 +454,10 @@ return $default(_that.id,_that.name,_that.email,_that.role,_that.departmentId,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String email,  UserRole role,  String? departmentId,  String? departmentName,  List<String> permissions,  String? boundContractId,  bool isActive,  DateTime? lastLoginAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String email,  UserRole role,  String? departmentId,  String? departmentName,  List<String> permissions,  String? boundContractId,  bool isActive,  DateTime? lastLoginAt,  bool mustChangePassword)  $default,) {final _that = this;
 switch (_that) {
 case _CurrentUser():
-return $default(_that.id,_that.name,_that.email,_that.role,_that.departmentId,_that.departmentName,_that.permissions,_that.boundContractId,_that.isActive,_that.lastLoginAt);case _:
+return $default(_that.id,_that.name,_that.email,_that.role,_that.departmentId,_that.departmentName,_that.permissions,_that.boundContractId,_that.isActive,_that.lastLoginAt,_that.mustChangePassword);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -472,10 +474,10 @@ return $default(_that.id,_that.name,_that.email,_that.role,_that.departmentId,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String email,  UserRole role,  String? departmentId,  String? departmentName,  List<String> permissions,  String? boundContractId,  bool isActive,  DateTime? lastLoginAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String email,  UserRole role,  String? departmentId,  String? departmentName,  List<String> permissions,  String? boundContractId,  bool isActive,  DateTime? lastLoginAt,  bool mustChangePassword)?  $default,) {final _that = this;
 switch (_that) {
 case _CurrentUser() when $default != null:
-return $default(_that.id,_that.name,_that.email,_that.role,_that.departmentId,_that.departmentName,_that.permissions,_that.boundContractId,_that.isActive,_that.lastLoginAt);case _:
+return $default(_that.id,_that.name,_that.email,_that.role,_that.departmentId,_that.departmentName,_that.permissions,_that.boundContractId,_that.isActive,_that.lastLoginAt,_that.mustChangePassword);case _:
   return null;
 
 }
@@ -487,7 +489,7 @@ return $default(_that.id,_that.name,_that.email,_that.role,_that.departmentId,_t
 
 
 class _CurrentUser extends CurrentUser {
-  const _CurrentUser({required this.id, required this.name, required this.email, required this.role, this.departmentId, this.departmentName, required final  List<String> permissions, this.boundContractId, required this.isActive, this.lastLoginAt}): _permissions = permissions,super._();
+  const _CurrentUser({required this.id, required this.name, required this.email, required this.role, this.departmentId, this.departmentName, required final  List<String> permissions, this.boundContractId, required this.isActive, this.lastLoginAt, this.mustChangePassword = false}): _permissions = permissions,super._();
   
 
 @override final  String id;
@@ -506,6 +508,8 @@ class _CurrentUser extends CurrentUser {
 @override final  String? boundContractId;
 @override final  bool isActive;
 @override final  DateTime? lastLoginAt;
+/// 是否需要强制改密（来自登录响应 must_change_password，二房东首次登录）
+@override@JsonKey() final  bool mustChangePassword;
 
 /// Create a copy of CurrentUser
 /// with the given fields replaced by the non-null parameter values.
@@ -517,16 +521,16 @@ _$CurrentUserCopyWith<_CurrentUser> get copyWith => __$CurrentUserCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CurrentUser&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.email, email) || other.email == email)&&(identical(other.role, role) || other.role == role)&&(identical(other.departmentId, departmentId) || other.departmentId == departmentId)&&(identical(other.departmentName, departmentName) || other.departmentName == departmentName)&&const DeepCollectionEquality().equals(other._permissions, _permissions)&&(identical(other.boundContractId, boundContractId) || other.boundContractId == boundContractId)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.lastLoginAt, lastLoginAt) || other.lastLoginAt == lastLoginAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CurrentUser&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.email, email) || other.email == email)&&(identical(other.role, role) || other.role == role)&&(identical(other.departmentId, departmentId) || other.departmentId == departmentId)&&(identical(other.departmentName, departmentName) || other.departmentName == departmentName)&&const DeepCollectionEquality().equals(other._permissions, _permissions)&&(identical(other.boundContractId, boundContractId) || other.boundContractId == boundContractId)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.lastLoginAt, lastLoginAt) || other.lastLoginAt == lastLoginAt)&&(identical(other.mustChangePassword, mustChangePassword) || other.mustChangePassword == mustChangePassword));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,email,role,departmentId,departmentName,const DeepCollectionEquality().hash(_permissions),boundContractId,isActive,lastLoginAt);
+int get hashCode => Object.hash(runtimeType,id,name,email,role,departmentId,departmentName,const DeepCollectionEquality().hash(_permissions),boundContractId,isActive,lastLoginAt,mustChangePassword);
 
 @override
 String toString() {
-  return 'CurrentUser(id: $id, name: $name, email: $email, role: $role, departmentId: $departmentId, departmentName: $departmentName, permissions: $permissions, boundContractId: $boundContractId, isActive: $isActive, lastLoginAt: $lastLoginAt)';
+  return 'CurrentUser(id: $id, name: $name, email: $email, role: $role, departmentId: $departmentId, departmentName: $departmentName, permissions: $permissions, boundContractId: $boundContractId, isActive: $isActive, lastLoginAt: $lastLoginAt, mustChangePassword: $mustChangePassword)';
 }
 
 
@@ -537,7 +541,7 @@ abstract mixin class _$CurrentUserCopyWith<$Res> implements $CurrentUserCopyWith
   factory _$CurrentUserCopyWith(_CurrentUser value, $Res Function(_CurrentUser) _then) = __$CurrentUserCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, String email, UserRole role, String? departmentId, String? departmentName, List<String> permissions, String? boundContractId, bool isActive, DateTime? lastLoginAt
+ String id, String name, String email, UserRole role, String? departmentId, String? departmentName, List<String> permissions, String? boundContractId, bool isActive, DateTime? lastLoginAt, bool mustChangePassword
 });
 
 
@@ -554,7 +558,7 @@ class __$CurrentUserCopyWithImpl<$Res>
 
 /// Create a copy of CurrentUser
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? email = null,Object? role = null,Object? departmentId = freezed,Object? departmentName = freezed,Object? permissions = null,Object? boundContractId = freezed,Object? isActive = null,Object? lastLoginAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? email = null,Object? role = null,Object? departmentId = freezed,Object? departmentName = freezed,Object? permissions = null,Object? boundContractId = freezed,Object? isActive = null,Object? lastLoginAt = freezed,Object? mustChangePassword = null,}) {
   return _then(_CurrentUser(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -566,7 +570,8 @@ as String?,permissions: null == permissions ? _self._permissions : permissions /
 as List<String>,boundContractId: freezed == boundContractId ? _self.boundContractId : boundContractId // ignore: cast_nullable_to_non_nullable
 as String?,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
 as bool,lastLoginAt: freezed == lastLoginAt ? _self.lastLoginAt : lastLoginAt // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,mustChangePassword: null == mustChangePassword ? _self.mustChangePassword : mustChangePassword // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

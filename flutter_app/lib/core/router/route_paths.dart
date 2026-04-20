@@ -4,6 +4,7 @@
 abstract final class RoutePaths {
   // ── Auth ──
   static const login = '/login';
+  static const changePassword = '/change-password';
 
   // ── Main Tabs ──
   static const dashboard = '/dashboard';

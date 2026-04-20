@@ -35,12 +35,19 @@ class AuthCubit extends Cubit<AuthState> {
   }) async {
     emit(const AuthState.loading());
     try {
-      await _authRepository.login(
+      final (_, loginUser) = await _authRepository.login(
         email: email,
         password: password,
       );
       final currentUser = await _authRepository.getCurrentUser();
-      emit(AuthState.authenticated(currentUser));
+      // 将登录响应中的 mustChangePassword 标志透传至 CurrentUser
+      emit(
+        AuthState.authenticated(
+          loginUser.mustChangePassword
+              ? currentUser.copyWith(mustChangePassword: true)
+              : currentUser,
+        ),
+      );
     } catch (e) {
       emit(AuthState.error(
         e is ApiException ? e.message : '登录失败，请重试',

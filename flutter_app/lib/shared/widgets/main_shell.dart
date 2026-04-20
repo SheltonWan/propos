@@ -1,17 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// Root shell widget providing bottom navigation for the 5 main tabs.
+import 'user_menu_button.dart';
+
+/// 应用主壳体，提供底部导航栏和顶部 AppBar（含用户菜单）。
 ///
-/// Used by [StatefulShellRoute] in [buildAppRouter].
+/// Tab 级页面不应包含自己的 Scaffold，由此 Shell 统一提供。
+/// 子页面（通过 push 导航的详情页）应包含自己的 Scaffold 和返回按钮。
 class MainShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
+
+  /// 各 Tab 对应的 AppBar 标题，与 branches 顺序一致。
+  static const _tabTitles = ['首页', '资产', '合同', '工单', '财务'];
 
   const MainShell({super.key, required this.navigationShell});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: Text(_tabTitles[navigationShell.currentIndex]),
+        actions: const [UserMenuButton()],
+      ),
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,

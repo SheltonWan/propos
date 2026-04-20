@@ -35,11 +35,29 @@ void main() {
     isActive: true,
   );
 
+  const testUserMustChange = User(
+    id: 'user-sub',
+    name: '二房东用户',
+    email: 'sub@propos.com',
+    role: UserRole.subLandlord,
+    mustChangePassword: true,
+  );
+
+  const testCurrentUserMustChange = CurrentUser(
+    id: 'user-sub',
+    name: '二房东用户',
+    email: 'sub@propos.com',
+    role: UserRole.subLandlord,
+    permissions: [],
+    isActive: true,
+    mustChangePassword: true,
+  );
+
+  // AuthCubit 单元测试：验证登录、登出、会话恢复的状态流转
   setUp(() {
     mockAuthRepository = MockAuthRepository();
   });
 
-  // AuthCubit 单元测试：验证登录、登出、会话恢复的状态流转
   group('AuthCubit', () {
     // 初始状态应为 initial，未触发任何操作
     test('initial state is AuthState.initial', () {
@@ -156,6 +174,39 @@ void main() {
             )).called(1);
         verify(() => mockAuthRepository.getCurrentUser()).called(1);
       },
+    );
+
+    // 二房东首次登录：login 返回 mustChangePassword=true →
+    // getCurrentUser 返回的 CurrentUser 需覆写 mustChangePassword=true
+    blocTest<AuthCubit, AuthState>(
+      'login sets mustChangePassword=true on CurrentUser when login response requires it',
+      build: () {
+        when(() => mockAuthRepository.login(
+              email: any(named: 'email'),
+              password: any(named: 'password'),
+            )).thenAnswer((_) async => (testTokens, testUserMustChange));
+        // /me 接口本身不携带 mustChangePassword 字段（设为 false）
+        when(() => mockAuthRepository.getCurrentUser()).thenAnswer(
+          (_) async => const CurrentUser(
+            id: 'user-sub',
+            name: '二房东用户',
+            email: 'sub@propos.com',
+            role: UserRole.subLandlord,
+            permissions: [],
+            isActive: true,
+          ),
+        );
+        return AuthCubit(mockAuthRepository);
+      },
+      act: (cubit) => cubit.login(
+        email: 'sub@propos.com',
+        password: 'init123',
+      ),
+      expect: () => [
+        const AuthState.loading(),
+        // AuthCubit 应将 login 响应中的 mustChangePassword=true 注入到 CurrentUser
+        const AuthState.authenticated(testCurrentUserMustChange),
+      ],
     );
 
     // 服务端返回 ApiException（如 INVALID_CREDENTIALS）→ 将 message 直接透传给 UI

@@ -43,7 +43,7 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<AuthTokens> refreshToken() async {
     final refreshToken = await _storage.read(key: 'refresh_token');
     if (refreshToken == null) {
-      throw ApiException(
+      throw const ApiException(
         code: 'SESSION_EXPIRED',
         message: '会话已过期，请重新登录',
         statusCode: 401,

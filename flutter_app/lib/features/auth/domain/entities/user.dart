@@ -33,6 +33,8 @@ abstract class CurrentUser with _$CurrentUser {
     String? boundContractId,
     required bool isActive,
     DateTime? lastLoginAt,
+    /// 是否需要强制改密（来自登录响应 must_change_password，二房东首次登录）
+    @Default(false) bool mustChangePassword,
   }) = _CurrentUser;
 
   bool hasPermission(String permission) => permissions.contains(permission);
