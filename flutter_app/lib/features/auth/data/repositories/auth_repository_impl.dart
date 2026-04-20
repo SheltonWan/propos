@@ -1,6 +1,7 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../../../core/api/api_client.dart';
+import '../../../../core/api/api_exception.dart';
 import '../../../../core/api/api_paths.dart';
 import '../../domain/entities/auth_tokens.dart';
 import '../../domain/entities/user.dart';
@@ -41,6 +42,13 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<AuthTokens> refreshToken() async {
     final refreshToken = await _storage.read(key: 'refresh_token');
+    if (refreshToken == null) {
+      throw ApiException(
+        code: 'SESSION_EXPIRED',
+        message: '会话已过期，请重新登录',
+        statusCode: 401,
+      );
+    }
     final data = await _apiClient.apiPost<Map<String, dynamic>>(
       ApiPaths.authRefresh,
       data: {'refresh_token': refreshToken},
