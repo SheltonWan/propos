@@ -1,50 +1,39 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'user.freezed.dart';
+
 /// User entity (domain layer, pure Dart).
 ///
 /// Aligned with `UserBrief` from API_CONTRACT v1.7.
 /// No Flutter SDK dependency. No fromJson — see [UserModel] in data layer.
-class User {
-  final String id;
-  final String name;
-  final String email;
-  final UserRole role;
-  final String? departmentId;
-  final bool mustChangePassword;
-
-  const User({
-    required this.id,
-    required this.name,
-    required this.email,
-    required this.role,
-    this.departmentId,
-    this.mustChangePassword = false,
-  });
+@freezed
+abstract class User with _$User {
+  const factory User({
+    required String id,
+    required String name,
+    required String email,
+    required UserRole role,
+    String? departmentId,
+    @Default(false) bool mustChangePassword,
+  }) = _User;
 }
 
 /// Full user profile with permissions (from GET /api/auth/me).
-class CurrentUser {
-  final String id;
-  final String name;
-  final String email;
-  final UserRole role;
-  final String? departmentId;
-  final String? departmentName;
-  final List<String> permissions;
-  final String? boundContractId;
-  final bool isActive;
-  final DateTime? lastLoginAt;
-
-  const CurrentUser({
-    required this.id,
-    required this.name,
-    required this.email,
-    required this.role,
-    this.departmentId,
-    this.departmentName,
-    required this.permissions,
-    this.boundContractId,
-    required this.isActive,
-    this.lastLoginAt,
-  });
+@freezed
+abstract class CurrentUser with _$CurrentUser {
+  const CurrentUser._();
+  const factory CurrentUser({
+    required String id,
+    required String name,
+    required String email,
+    required UserRole role,
+    String? departmentId,
+    String? departmentName,
+    required List<String> permissions,
+    String? boundContractId,
+    required bool isActive,
+    DateTime? lastLoginAt,
+  }) = _CurrentUser;
 
   bool hasPermission(String permission) => permissions.contains(permission);
 }

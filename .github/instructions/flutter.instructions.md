@@ -227,10 +227,60 @@ abstract class BusinessRules {
 
 ## Domain 层规则
 
-- **禁止** `import 'package:flutter/...'`（纯 Dart）
-- 实体类使用 `@freezed`，枚举值标注 `@JsonValue('snake_case')` 与后端 API 一致
+- **禁止** `import 'package:flutter/...'`（纯 Dart），可以 import `package:freezed_annotation`
+- **所有 domain entity 必须使用 `@freezed`**，确保值相等（`==` / `hashCode`）、不可变、`copyWith` 和 `toString`；BLoC/Cubit 的 `emit` 去重依赖 `==`，缺少正确的值相等会导致状态比较隐患
 - Repository 定义为 `abstract class`（仅接口签名，不含实现）
 - UseCase 通过构造函数注入 Repository 接口，单一方法 `call()`
+- **枚举不加 `@freezed`**（Dart 枚举自带值相等），保留手写 `fromString()` / `toServerString()` 方法
+
+### Domain Entity @freezed 模板
+
+**基础实体**（无自定义方法）：
+
+```dart
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'contract.freezed.dart';
+
+@freezed
+abstract class Contract with _$Contract {
+  const factory Contract({
+    required String id,
+    required String tenantId,
+    required DateTime startDate,
+    required DateTime endDate,
+    @Default(false) bool isTerminated,
+  }) = _Contract;
+}
+```
+
+**含自定义方法的实体**（需要私有构造函数 `const XxxEntity._();`）：
+
+```dart
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'current_user.freezed.dart';
+
+@freezed
+abstract class CurrentUser with _$CurrentUser {
+  const CurrentUser._(); // 必须声明，否则无法添加实例方法
+  const factory CurrentUser({
+    required String id,
+    required String name,
+    required List<String> permissions,
+  }) = _CurrentUser;
+
+  bool hasPermission(String permission) => permissions.contains(permission);
+}
+```
+
+**注意事项**：
+- `part 'xxx.freezed.dart';` 必须添加，运行 `dart run build_runner build` 生成
+- domain entity **不加** `@JsonSerializable` / `fromJson`（JSON 序列化放 data 层 Model）
+- data 层 Model 的 `toEntity()` 使用 factory 构造函数：`Contract(id: id, ...)`
+- 引用 domain entity 的 freezed state（如 `AuthState.authenticated(CurrentUser user)`）中，**不要**对 entity 的 import 加 `show` 限定，否则 freezed 生成的 `$XxxCopyWith` 不可见
+
+### Repository 接口模板
 
 ```dart
 abstract class ContractRepository {
