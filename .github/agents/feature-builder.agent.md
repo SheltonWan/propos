@@ -27,10 +27,12 @@ Step 9: Flutter Pages/Widgets → flutter_app/lib/features/<name>/presentation/p
 
 - @file:docs/backend/data_model.md
 - @file:docs/backend/API_CONTRACT_v1.7.md
+- @file:docs/backend/API_INVENTORY_v1.7.md
 - @file:docs/backend/RBAC_MATRIX.md
 - @file:docs/backend/ERROR_CODE_REGISTRY.md
 - @file:docs/backend/SEED_DATA_SPEC.md
 - @file:docs/frontend/PAGE_SPEC_FLUTTER_v1.9.md
+- @file:docs/frontend/PAGE_WIREFRAMES_v1.8.md
 - @file:.github/copilot-instructions.md
 
 ## 每一步完成标准
@@ -41,13 +43,13 @@ Step 9: Flutter Pages/Widgets → flutter_app/lib/features/<name>/presentation/p
 |------|---------|
 | Step 1 迁移 | 包含所有表、枚举类型、索引、TIMESTAMPTZ、加密注释 |
 | Step 2 Model | `@freezed`、枚举 `@JsonValue` 与后端一致 |
-| Step 3 Repository | 参数化 SQL、分页、二房东行级过滤（如适用）、加密字段处理 |
+| Step 3 Repository | 参数化 SQL、动态排序字段白名单映射、分页、二房东行级过滤（如适用）、加密字段处理 |
 | Step 4 Service | `AppException` 模式、四类审计日志（如适用）、调用计算 package |
 | Step 5 Controller | 纯转发逻辑、RBAC 中间件标注、标准信封响应 |
 | Step 6 Flutter domain | 纯 Dart、无 Flutter SDK、只有接口签名 |
-| Step 7 Flutter data | `ApiClient` + `ApiPaths` 常量、`ApiException` 包装 |
-| Step 8 BLoC | 只 import domain、freezed 四态、Clock 注入、配套单元测试 |
-| Step 9 UI | `colorScheme` token、`.when()` 渲染、无业务逻辑 |
+| Step 7 Flutter data | `ApiClient` + `ApiPaths` 常量、`ApiException` 包装、同步创建 `core/api/mock/xxx_mock.dart` |
+| Step 8 BLoC | 只 import domain、freezed 四态、Clock 注入、分页列表必须继承 `PaginatedCubit<T>`、配套单元测试 |
+| Step 9 UI | `colorScheme` + `ThemeExtension<CustomColors>` 语义 token（禁止 `Colors.xxx` 硬编码）、`.when()` 渲染、路由路径来自 `route_paths.dart` 常量（禁止 `Navigator.push`）、无业务逻辑 |
 
 ## 约束
 

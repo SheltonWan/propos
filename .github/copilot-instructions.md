@@ -1,5 +1,10 @@
 # Workspace Instructions
 
+> **重要**：实现任何 API 端点或调用时，必须先阅读权威文档：
+> - 字段级契约：[`docs/backend/API_CONTRACT_v1.7.md`](../../docs/backend/API_CONTRACT_v1.7.md)
+> - 端点清单与权限：[`docs/backend/API_INVENTORY_v1.7.md`](../../docs/backend/API_INVENTORY_v1.7.md)
+> - 错误码注册表：[`docs/backend/ERROR_CODE_REGISTRY.md`](../../docs/backend/ERROR_CODE_REGISTRY.md)
+
 ## PropOS 项目上下文
 
 ### 项目概述
