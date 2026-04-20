@@ -83,6 +83,7 @@ KpiScheme → KpiScore → KpiAppeal（KPI 考核层）
 - **业务计算（WALE、逾期天数）在后端完成**，前端不做业务日期计算
 
 ### 代码规范
+- **注释语言**：所有代码注释统一使用中文编写，包括但不限于：文档注释（`///`、`/** */`、`//!`）、行内注释（`//`）、TODO/FIXME 标记。变量名、函数名、类名等标识符仍使用英文命名
 - 后端 Dart：遵循 Effective Dart，使用 `freezed` 生成不可变数据类
 - Flutter Dart：`analysis_options.yaml` 开启 `strict-casts`/`strict-raw-types`/`strict-inference`；实体/DTO 使用 `@freezed`
 - Admin TypeScript：严格模式 `strict: true`，接口定义放 `src/types/`，组件 `<script setup lang="ts">`

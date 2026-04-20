@@ -86,21 +86,49 @@ sealed class XxxState with _$XxxState {
 - 日期计算注入 `Clock` 接口（来自 `package:clock`），禁止直接调用 `DateTime.now()`
 - 文件超过 200 行 → 按子领域拆分为多个 Cubit
 
-### Cubit 示例
+### PaginatedCubit 基类（列表模块必须继承）
+
+所有分页列表 Cubit **必须**继承 `shared/bloc/paginated_cubit.dart` 中的 `PaginatedCubit<T>`，禁止在各 feature 中重复编写分页加载逻辑。
+
+`PaginatedCubit<T>` 提供：
+- `load({pageSize})` — 加载/重载第一页
+- `loadMore()` — 追加下一页（无限滚动）
+- `refresh()` — 下拉刷新（从第 1 页重载，保留 pageSize）
+
+`PaginatedState<T>` 为 `@Freezed(genericArgumentFactories: true)` 泛型四态：
+- `initial` / `loading` / `loaded(items, meta)` / `error(message)`
+
+子类**只需实现 `fetchPage(page, pageSize)`** 即可：
 
 ```dart
-class ContractListCubit extends Cubit<ContractListState> {
+class ContractListCubit extends PaginatedCubit<Contract> {
+  final ContractRepository _repository;
+  ContractListCubit(this._repository);
+
+  @override
+  Future<ApiListResponse<Contract>> fetchPage(int page, int pageSize) =>
+      _repository.getContracts(page: page, pageSize: pageSize);
+}
+```
+
+**禁止**在 feature 内自建 `XxxListState` 四态 + 手写分页逻辑，统一使用 `PaginatedCubit<T>`。
+如需在列表基础上增加筛选/排序等额外行为，可在子类中添加方法并调用 `load()` 重载。
+
+### Cubit 示例（非列表场景）
+
+```dart
+class ContractDetailCubit extends Cubit<ContractDetailState> {
   final ContractRepository _repository;
 
-  ContractListCubit(this._repository) : super(const ContractListState.initial());
+  ContractDetailCubit(this._repository) : super(const ContractDetailState.initial());
 
-  Future<void> fetchList({int page = 1, int pageSize = 20}) async {
-    emit(const ContractListState.loading());
+  Future<void> fetch(String id) async {
+    emit(const ContractDetailState.loading());
     try {
-      final result = await _repository.getContracts(page: page, pageSize: pageSize);
-      emit(ContractListState.loaded(result.items, meta: result.meta));
+      final contract = await _repository.getContractById(id);
+      emit(ContractDetailState.loaded(contract));
     } catch (e) {
-      emit(ContractListState.error(e is ApiException ? e.message : '加载失败，请重试'));
+      emit(ContractDetailState.error(e is ApiException ? e.message : '加载失败，请重试'));
     }
   }
 }

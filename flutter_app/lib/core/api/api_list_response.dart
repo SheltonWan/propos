@@ -29,4 +29,15 @@ class PaginationMeta {
         pageSize: json['pageSize'] as int,
         total: json['total'] as int,
       );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PaginationMeta &&
+          page == other.page &&
+          pageSize == other.pageSize &&
+          total == other.total;
+
+  @override
+  int get hashCode => Object.hash(page, pageSize, total);
 }
