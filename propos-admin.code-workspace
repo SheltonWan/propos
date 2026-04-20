@@ -1,6 +1,7 @@
 {
   "folders": [
-    { "name": "admin", "path": "admin" }
+    { "name": "admin", "path": "admin" },
+    { "name": "docs",  "path": "docs" }
   ],
   "settings": {
     "files.exclude": {

@@ -1,6 +1,7 @@
 {
   "folders": [
-    { "name": "backend", "path": "backend" }
+    { "name": "backend", "path": "backend" },
+    { "name": "docs",    "path": "docs" }
   ],
   "settings": {
     // 只索引 Dart 源码，排除构建产物
@@ -17,6 +18,30 @@
     "github.copilot.chat.codeGeneration.useInstructionFiles": true,
     "dart.lineLength": 100
   },
+"launch": {
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Backend Server",
+            "request": "launch",
+            "type": "dart",
+            "program": "${workspaceFolder}/bin/server.dart"
+        },
+        {
+            "name": "Backend Tests",
+            "request": "launch",
+            "type": "dart",
+            "codeLens": {
+                "for": [
+                    "run-test",
+                    "run-test-file",
+                    "debug-test",
+                    "debug-test-file"
+                ]
+            }
+        }
+    ]
+},
   "extensions": {
     "recommendations": [
       "dart-code.dart-code"

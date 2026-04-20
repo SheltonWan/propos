@@ -35,5 +35,37 @@
       "esbenp.prettier-vscode",
       "dbaeumer.vscode-eslint"
     ]
+},
+"launch": {
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Flutter Dev",
+            "request": "launch",
+            "type": "dart",
+            "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+            "cwd": "${workspaceFolder:flutter_app}",
+            "args": [
+                "--dart-define=API_BASE_URL=http://localhost:8080"
+            ]
+        },
+        {
+            "name": "Flutter Prod",
+            "request": "launch",
+            "type": "dart",
+            "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+            "cwd": "${workspaceFolder:flutter_app}",
+            "args": [
+                "--dart-define=API_BASE_URL=https://api.propos.cn"
+            ]
+        },
+        {
+            "name": "Backend Server",
+            "request": "launch",
+            "type": "dart",
+            "program": "${workspaceFolder:backend}/bin/server.dart",
+            "cwd": "${workspaceFolder:backend}"
+        }
+    ]
   }
 }
