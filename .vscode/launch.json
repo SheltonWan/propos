@@ -2,9 +2,22 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Flutter App (flutter_app)",
+      "name": "Flutter App Dev",
       "request": "launch",
       "type": "dart",
+      "args": [
+        "--dart-define=API_BASE_URL=http://localhost:8080"
+      ],
+      "program": "${workspaceFolder}/flutter_app/lib/main.dart",
+      "cwd": "${workspaceFolder}/flutter_app"
+    },
+    {
+      "name": "Flutter App Prod",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define=API_BASE_URL=https://api.propos.cn"
+      ],
       "program": "${workspaceFolder}/flutter_app/lib/main.dart",
       "cwd": "${workspaceFolder}/flutter_app"
     },

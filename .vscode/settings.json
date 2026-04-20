@@ -21,7 +21,7 @@
     "app/node_modules/**": true
   },
   "files.exclude": {
-    "pdfdocs/**": false,
+    "pdfdocs/**": true,
     "app/**": true
   }
 }

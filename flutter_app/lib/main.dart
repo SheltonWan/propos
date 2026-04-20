@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'core/di/injection.dart';
 import 'core/router/app_router.dart';
@@ -10,10 +9,7 @@ import 'features/auth/presentation/bloc/auth_cubit.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment config
-  await dotenv.load(fileName: '.env.dev');
-
-  // Register all DI dependencies
+  // 注册所有 DI 依赖
   configureDependencies();
 
   runApp(const ProposApp());
