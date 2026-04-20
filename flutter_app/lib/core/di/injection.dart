@@ -12,10 +12,9 @@ import '../../features/auth/presentation/bloc/auth_cubit.dart';
 /// Global service locator instance.
 final getIt = GetIt.instance;
 
-/// Register all dependencies in correct order.
+/// 注册所有依赖，按顺序：基础设施 → Repository → Cubit/BLoC。
 ///
-/// Called once in `main()` before `runApp()`.
-/// Order: infrastructure → repositories → cubits/blocs.
+/// 在 `main()` 中 `runApp()` 之前调用一次。
 void configureDependencies() {
   // ── Infrastructure ──
   const storage = FlutterSecureStorage();
@@ -46,4 +45,27 @@ void configureDependencies() {
   getIt.registerLazySingleton<AuthCubit>(
     () => AuthCubit(getIt<AuthRepository>()),
   );
+}
+
+/// 重置 DI 容器（用于测试 tearDown）。
+///
+/// Widget 集成测试中，在 `setUp` 注册 mock，`tearDown` 调用此方法清理。
+Future<void> resetDependencies() => getIt.reset();
+
+/// 配置测试模式 DI — 仅注册调用方通过 [overrides] 提供的 mock 实例。
+///
+/// 使用方式：
+/// ```dart
+/// setUp(() {
+///   configureTestDependencies(overrides: (getIt) {
+///     getIt.registerSingleton<AuthRepository>(MockAuthRepository());
+///     getIt.registerFactory<AuthCubit>(() => MockAuthCubit());
+///   });
+/// });
+/// tearDown(resetDependencies);
+/// ```
+void configureTestDependencies({
+  required void Function(GetIt getIt) overrides,
+}) {
+  overrides(getIt);
 }
