@@ -9,7 +9,6 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "sourceMap": true,
-    "baseUrl": ".",
     "paths": {
       "@/uni_modules/*": [
         "./uni_modules/*"
