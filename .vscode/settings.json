@@ -17,11 +17,11 @@
   "java.server.launchMode": "LightWeight",
   "search.exclude": {
     "pdfdocs/**": true,
-    "app/**": true,
+    "app/**": false,
     "app/node_modules/**": true
   },
   "files.exclude": {
     "pdfdocs/**": true,
-    "app/**": true
+    "app/**": false
   }
 }
