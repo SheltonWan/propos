@@ -15,6 +15,9 @@ class AppConfig {
   final String corsOrigins;
   final String logLevel;
   final int maxUploadSizeMb;
+  /// 数据库 SSL 模式：require（默认）/ verify-full / disable
+  /// 生产环境建议设为 verify-full，本地开发可设为 disable
+  final String dbSslMode;
 
   AppConfig._({
     required this.databaseUrl,
@@ -26,6 +29,7 @@ class AppConfig {
     required this.corsOrigins,
     required this.logLevel,
     required this.maxUploadSizeMb,
+    required this.dbSslMode,
   });
 
   static AppConfig load({String? Function(String)? get}) {
@@ -74,6 +78,20 @@ class AppConfig {
       corsOrigins: lookup('CORS_ORIGINS') ?? '*',
       logLevel: lookup('LOG_LEVEL') ?? 'info',
       maxUploadSizeMb: int.tryParse(lookup('MAX_UPLOAD_SIZE_MB') ?? '') ?? 50,
+      dbSslMode: _validatedSslMode(lookup('DB_SSL_MODE') ?? 'require'),
     );
+  }
+
+  /// 校验并标准化 DB_SSL_MODE 值。
+  /// 只接受 require / verify-full / disable，其余值拒绝启动。
+  static String _validatedSslMode(String raw) {
+    const allowed = {'require', 'verify-full', 'disable'};
+    final value = raw.trim().toLowerCase();
+    if (!allowed.contains(value)) {
+      throw StateError(
+        'DB_SSL_MODE 值无效: "$raw"，允许的值为: require / verify-full / disable',
+      );
+    }
+    return value;
   }
 }
