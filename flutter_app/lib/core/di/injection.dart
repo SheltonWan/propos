@@ -42,7 +42,8 @@ void configureDependencies() {
   );
 
   // ── Cubits / BLoCs ──
-  getIt.registerFactory<AuthCubit>(
+  // AuthCubit must be a singleton — shared by BlocProvider and router auth guard.
+  getIt.registerLazySingleton<AuthCubit>(
     () => AuthCubit(getIt<AuthRepository>()),
   );
 }
