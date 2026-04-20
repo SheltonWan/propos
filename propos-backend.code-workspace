@@ -1,0 +1,25 @@
+{
+  "folders": [
+    { "name": "backend", "path": "backend" }
+  ],
+  "settings": {
+    // 只索引 Dart 源码，排除构建产物
+    "files.exclude": {
+      "**/.dart_tool": true,
+      "**/build": true,
+      "**/.pub-cache": true
+    },
+    "search.exclude": {
+      "**/.dart_tool": true,
+      "**/build": true
+    },
+    // Copilot 只在 backend/ 范围内检索
+    "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+    "dart.lineLength": 100
+  },
+  "extensions": {
+    "recommendations": [
+      "dart-code.dart-code"
+    ]
+  }
+}

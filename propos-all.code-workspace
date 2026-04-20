@@ -1,0 +1,39 @@
+{
+  // 全栈协作工作区 —— 用于跨模块任务（接口联调、全局重构等）
+  // 日常单模块开发请优先使用对应的专项工作区以减少 Copilot 上下文开销
+  "folders": [
+    { "name": "backend",     "path": "backend" },
+    { "name": "flutter_app", "path": "flutter_app" },
+    { "name": "admin",       "path": "admin" },
+    { "name": "docs",        "path": "docs" }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.dart_tool": true,
+      "**/build": true,
+      "**/node_modules": true,
+      "**/dist": true,
+      "**/.pub-cache": true,
+      "**/ios/Pods": true,
+      "**/android/.gradle": true,
+      "**/pdfdocs": true
+    },
+    "search.exclude": {
+      "**/.dart_tool": true,
+      "**/build": true,
+      "**/node_modules": true,
+      "**/dist": true,
+      "**/ios/Pods": true
+    },
+    "github.copilot.chat.codeGeneration.useInstructionFiles": true
+  },
+  "extensions": {
+    "recommendations": [
+      "dart-code.flutter",
+      "dart-code.dart-code",
+      "vue.volar",
+      "esbenp.prettier-vscode",
+      "dbaeumer.vscode-eslint"
+    ]
+  }
+}

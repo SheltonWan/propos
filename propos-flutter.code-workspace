@@ -1,0 +1,28 @@
+{
+  "folders": [
+    { "name": "flutter_app", "path": "flutter_app" }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.dart_tool": true,
+      "**/build": true,
+      "**/ios/Pods": true,
+      "**/android/.gradle": true,
+      "**/android/build": true
+    },
+    "search.exclude": {
+      "**/.dart_tool": true,
+      "**/build": true,
+      "**/ios/Pods": true
+    },
+    "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+    "dart.lineLength": 100,
+    "dart.flutterSdkPath": null
+  },
+  "extensions": {
+    "recommendations": [
+      "dart-code.flutter",
+      "dart-code.dart-code"
+    ]
+  }
+}
