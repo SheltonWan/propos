@@ -1,10 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
+import 'package:talker_dio_logger/talker_dio_logger.dart';
 
 import '../api/api_client.dart';
 import '../api/mock/mock_interceptor.dart';
 import '../config/app_config.dart';
+import '../logging/app_logger.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/auth/presentation/bloc/auth_cubit.dart';
@@ -12,10 +14,13 @@ import '../../features/auth/presentation/bloc/auth_cubit.dart';
 /// Global service locator instance.
 final getIt = GetIt.instance;
 
-/// 注册所有依赖，按顺序：基础设施 → Repository → Cubit/BLoC。
+/// 注册所有依赖，按顺序：日志 → 基础设施 → Repository → Cubit/BLoC。
 ///
 /// 在 `main()` 中 `runApp()` 之前调用一次。
 void configureDependencies() {
+  // ── Logging（最先注册，其他层均可注入）──
+  getIt.registerSingleton<AppLogger>(AppLogger.create());
+
   // ── Infrastructure ──
   const storage = FlutterSecureStorage();
   getIt.registerSingleton<FlutterSecureStorage>(storage);
@@ -26,6 +31,18 @@ void configureDependencies() {
     receiveTimeout: const Duration(seconds: 15),
     headers: {'Content-Type': 'application/json'},
   ));
+
+  // 网络日志拦截器（非 Release 模式启用；不打印请求/响应 headers 避免 Authorization 泄漏）
+  dio.interceptors.add(
+    TalkerDioLogger(
+      talker: getIt<AppLogger>().talker,
+      settings: const TalkerDioLoggerSettings(
+        printRequestHeaders: false,
+        printResponseHeaders: false,
+        printResponseData: false,
+      ),
+    ),
+  );
 
   // Add mock interceptor if configured
   if (AppConfig.useMock) {

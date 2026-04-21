@@ -38,6 +38,11 @@ dependencies:
   # Time abstraction
   clock: ^1.1.1
 
+  # Logging
+  talker_flutter: ^4.4.0
+  talker_dio_logger: ^4.4.0
+  talker_bloc_logger: ^4.4.0
+
   # Material Icons
   cupertino_icons: ^1.0.8
 

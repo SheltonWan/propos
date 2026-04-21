@@ -9,6 +9,7 @@ import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../shared/widgets/main_shell.dart';
 import '../di/injection.dart';
+import '../logging/app_logger.dart';
 import 'route_paths.dart';
 
 /// Auth 状态变更通知器，供 GoRouter.refreshListenable 使用。
@@ -105,6 +106,9 @@ GoRouter buildAppRouter() => GoRouter(
 /// Auth guard：未登录强制到登录页；已登录访问登录页跳首页；
 /// mustChangePassword 为 true 时强制跳转改密页，阻止访问其他页面。
 String? _authGuard(BuildContext context, GoRouterState state) {
+  // 记录路由跳转（仅路径，不记录 query 参数防止敏感数据泵漏）
+  getIt<AppLogger>().debug('[Router] navigate → ${state.matchedLocation}');
+
   final authState = getIt<AuthCubit>().state;
   final loc = state.matchedLocation;
   final isLoginRoute = loc == RoutePaths.login;

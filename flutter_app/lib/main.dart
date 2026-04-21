@@ -1,8 +1,13 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/di/injection.dart';
+import 'core/logging/app_bloc_observer.dart';
+import 'core/logging/app_logger.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/bloc/auth_cubit.dart';
@@ -10,10 +15,30 @@ import 'features/auth/presentation/bloc/auth_cubit.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 注册所有 DI 依赖
+  // 注册所有 DI 依赖（AppLogger 最先完成注册）
   configureDependencies();
 
-  runApp(const ProposApp());
+  final logger = getIt<AppLogger>();
+
+  // 层一：捕获 Flutter 框架内的同步异常（Widget build、渲染、布局等）
+  FlutterError.onError = (FlutterErrorDetails details) {
+    logger.error('[Flutter] 未捕获框架异常', details.exception, details.stack);
+  };
+
+  // 层二：捕获原生层 / Dart isolate 的异步异常
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    logger.critical('[Platform] 未捕获平台异常', error, stack);
+    return true; // 已处理，阻止向上传播
+  };
+
+  // 注册 BLoC 全局观察器
+  Bloc.observer = AppBlocObserver(logger);
+
+  // 层三：捕获 Zone 内所有未处理的同步/异步异常
+  runZonedGuarded(
+    () => runApp(const ProposApp()),
+    (error, stack) => logger.critical('[Zone] 未捕获异常', error, stack),
+  );
 }
 
 /// 应用根 Widget，使用 StatefulWidget 确保 GoRouter 实例只创建一次。
