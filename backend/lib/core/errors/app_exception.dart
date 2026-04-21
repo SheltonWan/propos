@@ -64,3 +64,13 @@ class RateLimitException extends AppException {
   const RateLimitException({this.retryAfterSeconds = 60})
       : super('RATE_LIMIT_EXCEEDED', '请求过于频繁，请稍后再试', 429);
 }
+
+/// 快捷子类 — 423 账号锁定
+/// 携带 [lockedUntil] 以便 errorHandler 在响应体中附加 locked_until 字段
+class AccountLockedException extends AppException {
+  /// 账号解锁时间（UTC）
+  final DateTime lockedUntil;
+
+  AccountLockedException(this.lockedUntil)
+      : super('ACCOUNT_LOCKED', '账号已锁定，请稍后重试', 423);
+}

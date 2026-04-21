@@ -8,7 +8,7 @@ import '../models/password_reset_token.dart';
 ///   - 每次发起新请求前先清理同用户的已过期/已使用记录
 ///   - findByHash 返回 null 视为 token 无效
 class PasswordResetTokenRepository {
-  final Connection _db;
+  final Session _db;
 
   PasswordResetTokenRepository(this._db);
 

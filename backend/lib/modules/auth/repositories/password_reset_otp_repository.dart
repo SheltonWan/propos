@@ -7,7 +7,7 @@ import '../models/password_reset_otp.dart';
 /// 核心查询模式：按邮箱查最新未使用 OTP，而非按 code_hash 查询，
 /// 这样可在 Service 层完成哈希比对，与 token 方案保持一致的安全边界。
 class PasswordResetOtpRepository {
-  final Connection _db;
+  final Session _db;
 
   PasswordResetOtpRepository(this._db);
 

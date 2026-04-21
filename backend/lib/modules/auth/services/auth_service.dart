@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:bcrypt/bcrypt.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'package:postgres/postgres.dart';
@@ -18,7 +19,7 @@ import '../../../shared/email_service.dart';
 ///   6. 重置成功后 session_version += 1（使所有旧 JWT 失效）
 ///   7. 二房东角色不允许自助重置（由管理员重置）
 class AuthService {
-  final Connection _db;
+  final Pool _db;
   final PasswordResetOtpRepository _otpRepo;
   final EmailService _emailService;
 
@@ -177,17 +178,17 @@ class AuthService {
     return sha256.convert(utf8.encode(input)).toString();
   }
 
-  /// 简化版 bcrypt hash（实际项目中应引入 bcrypt 包）
-  /// 当前占位实现：使用 SHA-256 + 固定盐（TODO: 替换为真实 bcrypt）
+  /// bcrypt 工作因子（≥12，与 LoginService 保持一致）
+  static const int _bcryptRounds = 12;
+
+  /// bcrypt 哈希（cost = _bcryptRounds）
   String _bcryptHash(String password) {
-    // TODO: 引入 bcrypt 包后替换此实现
-    return sha256.convert(utf8.encode('propos_salt_$password')).toString();
+    return BCrypt.hashpw(password, BCrypt.gensalt(logRounds: _bcryptRounds));
   }
 
-  /// 校验新密码是否与当前密码相同
+  /// 校验新密码是否与当前密码相同（bcrypt 恒定时间比较）
   bool _isSamePassword(String newPassword, String currentHash) {
-    // TODO: 引入 bcrypt 包后替换为 bcrypt.checkpw
-    return _bcryptHash(newPassword) == currentHash;
+    return BCrypt.checkpw(newPassword, currentHash);
   }
 
   /// 密码复杂度校验：≥8位，含大小写字母 + 数字
