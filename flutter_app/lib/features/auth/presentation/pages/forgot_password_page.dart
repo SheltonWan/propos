@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/router/route_paths.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../bloc/forgot_password_cubit.dart';
 import '../bloc/forgot_password_state.dart';
@@ -104,6 +105,9 @@ class _ForgotPasswordViewState extends State<_ForgotPasswordView> {
           return switch (state) {
             ForgotPasswordStateSuccess() => _buildSuccessView(context),
             ForgotPasswordStateCodeSent(:final email) =>
+              _buildStep2View(context, email: email, state: state),
+            // 步骤 2 出错时 email 非 null，停留在 OTP 输入界面而非退回步骤 1
+            ForgotPasswordStateError(:final email) when email != null =>
               _buildStep2View(context, email: email, state: state),
             _ => _buildStep1View(context, state),
           };
@@ -339,7 +343,7 @@ class _ForgotPasswordViewState extends State<_ForgotPasswordView> {
             ),
             const SizedBox(height: 32),
             FilledButton(
-              onPressed: () => context.go('/login'),
+              onPressed: () => context.go(RoutePaths.login),
               child: const Text('前往登录'),
             ),
           ],

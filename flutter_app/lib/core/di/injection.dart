@@ -49,7 +49,13 @@ void configureDependencies() {
     dio.interceptors.add(MockInterceptor());
   }
 
-  final apiClient = ApiClient(dio, storage);
+  final apiClient = ApiClient(
+    dio,
+    storage,
+    // 当 token 刷新失败时，强制清除内存中的认证状态，触发路由守卫跳转至登录页。
+    // 使用惰性 lambda 避免 AuthCubit 尚未注册时的循环依赖问题。
+    onSessionExpired: () => getIt<AuthCubit>().forceLogout(),
+  );
   getIt.registerSingleton<ApiClient>(apiClient);
 
   // ── Repositories ──

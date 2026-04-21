@@ -180,7 +180,8 @@ class _LoginPageState extends State<LoginPage> {
 
   String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) return '请输入邮箱';
-    if (!value.contains('@')) return '请输入有效邮箱地址';
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!emailRegex.hasMatch(value.trim())) return '请输入有效邮箱地址';
     return null;
   }
 
