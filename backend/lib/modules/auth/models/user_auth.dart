@@ -129,12 +129,16 @@ class LoginResponse {
 
   /// JWT 有效期秒数（= jwtExpiresInHours * 3600）
   final int expiresIn;
+
+  /// Refresh token 到期时刻（UTC），客户端据此判断是否需要提前续期。
+  final DateTime refreshTokenExpiresAt;
   final UserBrief user;
 
   const LoginResponse({
     required this.accessToken,
     required this.refreshToken,
     required this.expiresIn,
+    required this.refreshTokenExpiresAt,
     required this.user,
   });
 
@@ -142,6 +146,7 @@ class LoginResponse {
         'access_token': accessToken,
         'refresh_token': refreshToken,
         'expires_in': expiresIn,
+        'refresh_token_expires_at': refreshTokenExpiresAt.toUtc().toIso8601String(),
         'user': user.toJson(),
       };
 }
@@ -192,15 +197,20 @@ class TokenPair {
   final String refreshToken;
   final int expiresIn;
 
+  /// Refresh token 到期时刻（UTC）。
+  final DateTime refreshTokenExpiresAt;
+
   const TokenPair({
     required this.accessToken,
     required this.refreshToken,
     required this.expiresIn,
+    required this.refreshTokenExpiresAt,
   });
 
   Map<String, dynamic> toJson() => {
         'access_token': accessToken,
         'refresh_token': refreshToken,
         'expires_in': expiresIn,
+        'refresh_token_expires_at': refreshTokenExpiresAt.toUtc().toIso8601String(),
       };
 }

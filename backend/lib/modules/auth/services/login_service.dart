@@ -106,6 +106,7 @@ class LoginService {
       accessToken: pair.accessToken,
       refreshToken: pair.refreshToken,
       expiresIn: pair.expiresIn,
+      refreshTokenExpiresAt: pair.refreshTokenExpiresAt,
       user: UserBrief.fromUserAuth(user),
     );
   }
@@ -276,6 +277,7 @@ class LoginService {
       accessToken: accessToken,
       refreshToken: rawRefreshToken,
       expiresIn: expiresIn,
+      refreshTokenExpiresAt: expiresAt,
     );
   }
 

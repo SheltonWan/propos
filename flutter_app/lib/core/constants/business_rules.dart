@@ -17,6 +17,10 @@ abstract final class BusinessRules {
   static const kpiFullScoreThreshold = 0.95;
   static const kpiAppealWindowDays = 7;
 
+  // ── Auth Session ──
+  /// Refresh token 剩余有效期低于此天数时，自动触发静默续期，避免用户被强制登出。
+  static const refreshTokenWarnDays = 3;
+
   // ── Password ──
   static const passwordMinLength = 8;
 
