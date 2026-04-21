@@ -4,6 +4,8 @@
 ///   dart run bin/test_smtp.dart
 ///
 /// 脚本从 .env 文件读取 SMTP 配置，不需要手动填写凭据。
+library;
+
 import 'dart:io';
 import 'dart:math';
 

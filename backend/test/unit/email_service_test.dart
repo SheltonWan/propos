@@ -11,8 +11,6 @@ library;
 
 import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server.dart';
-import 'package:mailer/src/smtp/exceptions.dart'
-    show SmtpClientCommunicationException;
 import 'package:test/test.dart';
 
 import 'package:propos_backend/shared/email_service.dart';
@@ -20,7 +18,7 @@ import 'package:propos_backend/shared/email_service.dart';
 // ─── 测试替身 ──────────────────────────────────────────────────────────────────
 
 /// 捕获传入参数的伪 SMTP 发送函数，不真实连接服务器
-class _FakeSender {
+class FakeSender {
   Message? capturedMessage;
   SmtpServer? capturedServer;
   bool shouldThrow = false;
@@ -38,7 +36,7 @@ class _FakeSender {
 
 /// 构建注入了伪 sender 的 EmailService
 EmailService makeService(
-  _FakeSender fakeSender, {
+  FakeSender fakeSender, {
   String smtpHost = 'smtp.test.com',
   int smtpPort = 587,
   String smtpUser = 'user@test.com',
@@ -80,7 +78,7 @@ void main() {
         'SMTP_FROM': 'no-reply@example.com',
       };
       // 使用注入伪 sender 避免真实 SMTP 调用
-      final fakeSender = _FakeSender();
+      final fakeSender = FakeSender();
       final svc = EmailService.fromEnv(get: (k) => env[k], sender: fakeSender.call);
 
       // 触发 SMTP 路径以验证 host/port/ssl 是否正确传入
@@ -103,7 +101,7 @@ void main() {
   // ──────────────────────────────────────────────────────────────────────────
   group('sendOtpEmail() — 开发模式（smtpHost 为空）', () {
     test('smtpHost 为空 → 不调用 sender，正常返回', () async {
-      final fakeSender = _FakeSender();
+      final fakeSender = FakeSender();
       final svc = makeService(fakeSender, smtpHost: '');
 
       await svc.sendOtpEmail(email: 'dev@propos.com', otp: '000000');
@@ -113,7 +111,7 @@ void main() {
     });
 
     test('smtpHost 为空 → 不抛出任何异常', () {
-      final svc = makeService(_FakeSender(), smtpHost: '');
+      final svc = makeService(FakeSender(), smtpHost: '');
 
       expect(
         svc.sendOtpEmail(email: 'dev@propos.com', otp: '111111'),
@@ -125,7 +123,7 @@ void main() {
   // ──────────────────────────────────────────────────────────────────────────
   group('sendOtpEmail() — SMTP 发送路径', () {
     test('端口 465 → SmtpServer.ssl 为 true', () async {
-      final fakeSender = _FakeSender();
+      final fakeSender = FakeSender();
       final svc = makeService(fakeSender, smtpPort: 465);
 
       await svc.sendOtpEmail(email: 'a@b.com', otp: '123456');
@@ -136,7 +134,7 @@ void main() {
     });
 
     test('端口 587 → SmtpServer.ssl 为 false（使用 STARTTLS）', () async {
-      final fakeSender = _FakeSender();
+      final fakeSender = FakeSender();
       final svc = makeService(fakeSender, smtpPort: 587);
 
       await svc.sendOtpEmail(email: 'a@b.com', otp: '123456');
@@ -146,7 +144,7 @@ void main() {
     });
 
     test('SmtpServer 使用正确的 host / username / password', () async {
-      final fakeSender = _FakeSender();
+      final fakeSender = FakeSender();
       final svc = makeService(
         fakeSender,
         smtpHost: 'smtp.myhost.com',
@@ -163,7 +161,7 @@ void main() {
     });
 
     test('smtpUser 为空 → SmtpServer.username 为 null（匿名发送）', () async {
-      final fakeSender = _FakeSender();
+      final fakeSender = FakeSender();
       final svc = makeService(fakeSender, smtpUser: '', smtpPassword: '');
 
       await svc.sendOtpEmail(email: 'a@b.com', otp: '123456');
@@ -173,7 +171,7 @@ void main() {
     });
 
     test('Message 收件人与主题正确', () async {
-      final fakeSender = _FakeSender();
+      final fakeSender = FakeSender();
       final svc = makeService(fakeSender, senderAddress: 'noreply@propos.com');
 
       await svc.sendOtpEmail(email: 'target@example.com', otp: '555555');
@@ -186,7 +184,7 @@ void main() {
     });
 
     test('HTML 正文包含 OTP 明文', () async {
-      final fakeSender = _FakeSender();
+      final fakeSender = FakeSender();
       final svc = makeService(fakeSender);
 
       await svc.sendOtpEmail(email: 'a@b.com', otp: '246810');
@@ -195,7 +193,7 @@ void main() {
     });
 
     test('HTML 正文包含有效期分钟数', () async {
-      final fakeSender = _FakeSender();
+      final fakeSender = FakeSender();
       final svc = makeService(fakeSender);
 
       await svc.sendOtpEmail(
@@ -209,7 +207,7 @@ void main() {
 
     test('sender 抛出 MailerException → 异常向上传播（由调用方 AuthService 吞掉）',
         () async {
-      final fakeSender = _FakeSender()..shouldThrow = true;
+      final fakeSender = FakeSender()..shouldThrow = true;
       final svc = makeService(fakeSender);
 
       await expectLater(
