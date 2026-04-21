@@ -11,11 +11,16 @@ class EncryptionService {
   late final Encrypter _encrypter;
 
   EncryptionService(String encryptionKeyHex) {
-    if (encryptionKeyHex.length < 32) {
-      throw ArgumentError('ENCRYPTION_KEY 长度不足 32 字节');
+    if (encryptionKeyHex.length < 64) {
+      throw ArgumentError(
+        'ENCRYPTION_KEY 长度不足：AES-256 需要 32 字节密钥，以十六进制字符串存储应为 64 个字符，当前长度 ${encryptionKeyHex.length}',
+      );
     }
-    // 取前 32 字节作为 AES-256 密钥
-    final keyBytes = Uint8List.fromList(encryptionKeyHex.codeUnits.take(32).toList());
+    // 将 64 位 hex 字符串解析为 32 字节密钥
+    final keyBytes = Uint8List.fromList([
+      for (var i = 0; i < 64; i += 2)
+        int.parse(encryptionKeyHex.substring(i, i + 2), radix: 16),
+    ]);
     _encrypter = Encrypter(AES(Key(keyBytes), mode: AESMode.cbc));
   }
 

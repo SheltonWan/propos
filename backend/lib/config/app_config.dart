@@ -72,19 +72,28 @@ class AppConfig {
     if (jwtExpiresInHours == null) {
       throw StateError('环境变量 JWT_EXPIRES_IN_HOURS 必须为整数，当前值: $jwtExpiresInHoursStr');
     }
+    if (jwtExpiresInHours <= 0) {
+      throw StateError('环境变量 JWT_EXPIRES_IN_HOURS 必须为正整数，当前值: $jwtExpiresInHoursStr');
+    }
     final rawStoragePath = require('FILE_STORAGE_PATH');
     // 相对路径以 CWD（通常为 backend/）为基准解析为绝对路径
     final fileStoragePath = path_lib.isAbsolute(rawStoragePath)
         ? rawStoragePath
         : path_lib.join(Directory.current.path, rawStoragePath);
     final encryptionKey = require('ENCRYPTION_KEY');
-    if (encryptionKey.length < 32) {
-      throw StateError('ENCRYPTION_KEY 长度不足 32 字节，至少需要 32 个字符');
+    // AES-256 需要 32 字节密钥；以十六进制字符串存储时应为 64 位 hex 字符
+    if (encryptionKey.length < 64) {
+      throw StateError(
+        'ENCRYPTION_KEY 长度不足：AES-256 需要 32 字节密钥，以十六进制字符串存储应为 64 个字符，当前长度 ${encryptionKey.length}',
+      );
     }
     final appPortStr = require('APP_PORT');
     final appPort = int.tryParse(appPortStr);
     if (appPort == null) {
       throw StateError('环境变量 APP_PORT 必须为整数，当前值: $appPortStr');
+    }
+    if (appPort < 1 || appPort > 65535) {
+      throw StateError('环境变量 APP_PORT 必须在 1–65535 范围内，当前值: $appPortStr');
     }
 
     return AppConfig._(
@@ -97,10 +106,10 @@ class AppConfig {
       // 默认为空字符串（不发 CORS 头）；生产环境按实际前端域名配置
       corsOrigins: lookup('CORS_ORIGINS') ?? '',
       logLevel: lookup('LOG_LEVEL') ?? 'info',
-      maxUploadSizeMb: int.tryParse(lookup('MAX_UPLOAD_SIZE_MB') ?? '') ?? 50,
+      maxUploadSizeMb: _parseOptionalInt('MAX_UPLOAD_SIZE_MB', lookup('MAX_UPLOAD_SIZE_MB'), 50),
 
       smtpHost: lookup('SMTP_HOST') ?? '',
-      smtpPort: int.tryParse(lookup('SMTP_PORT') ?? '') ?? 465,
+      smtpPort: _parseOptionalInt('SMTP_PORT', lookup('SMTP_PORT'), 465),
       smtpUser: lookup('SMTP_USER') ?? '',
       smtpPassword: lookup('SMTP_PASSWORD') ?? '',
       smtpFrom: lookup('SMTP_FROM') ?? 'noreply@propos.internal',
@@ -109,6 +118,16 @@ class AppConfig {
       dbSslMode: _validatedSslMode(lookup('DB_SSL_MODE') ?? 'require'),
 
     );
+  }
+
+  /// 解析可选的整数环境变量。已设置但无法解析为整数时拒绝启动，未设置则使用默认值。
+  static int _parseOptionalInt(String key, String? raw, int defaultValue) {
+    if (raw == null || raw.isEmpty) return defaultValue;
+    final value = int.tryParse(raw);
+    if (value == null) {
+      throw StateError('环境变量 $key 必须为整数，当前值: "$raw"');
+    }
+    return value;
   }
 
   /// 校验并标准化 DB_SSL_MODE 值。
