@@ -45,7 +45,8 @@ void main() {
     // Default storage stubs
     when(() => mockStorage.write(key: any(named: 'key'), value: any(named: 'value')))
         .thenAnswer((_) async {});
-    when(() => mockStorage.deleteAll()).thenAnswer((_) async {});
+    // 仅删除 session token key，不清除 remember-me 条目
+    when(() => mockStorage.delete(key: any(named: 'key'))).thenAnswer((_) async {});
   });
 
   // AuthRepositoryImpl 单元测试：验证 API 调用、SecureStorage 读写及异常处理
@@ -136,10 +137,10 @@ void main() {
     });
 
     // ── logout ──
-    // 登出：有 refresh_token 则先通知服务端撤销，最终无论成败都 deleteAll
+    // 登出：有 refresh_token 则先通知服务端撤销，仅删除 session token（保留 remember-me 条目）
 
     group('logout', () {
-      // 正常流程：发送 POST /api/auth/logout（带 refresh_token）→ deleteAll
+      // 正常流程：发送 POST /api/auth/logout（带 refresh_token）→ 删除三个 session key
       test('sends logout request and clears storage', () async {
         when(() => mockStorage.read(key: 'refresh_token'))
             .thenAnswer((_) async => 'token-to-revoke');
@@ -154,10 +155,12 @@ void main() {
               ApiPaths.authLogout,
               data: {'refresh_token': 'token-to-revoke'},
             )).called(1);
-        verify(() => mockStorage.deleteAll()).called(1);
+        verify(() => mockStorage.delete(key: 'access_token')).called(1);
+        verify(() => mockStorage.delete(key: 'refresh_token')).called(1);
+        verify(() => mockStorage.delete(key: 'refresh_token_expires_at')).called(1);
       });
 
-      // 服务端撤销接口失败（网络异常）→ 仍执行 deleteAll，保证本地会话被清除
+      // 服务端撤销接口失败（网络异常）→ 仍删除本地 session token，保证会话被清除
       test('clears storage even when API call fails', () async {
         when(() => mockStorage.read(key: 'refresh_token'))
             .thenAnswer((_) async => 'token-to-revoke');
@@ -170,10 +173,12 @@ void main() {
 
         await repository.logout();
 
-        verify(() => mockStorage.deleteAll()).called(1);
+        verify(() => mockStorage.delete(key: 'access_token')).called(1);
+        verify(() => mockStorage.delete(key: 'refresh_token')).called(1);
+        verify(() => mockStorage.delete(key: 'refresh_token_expires_at')).called(1);
       });
 
-      // storage 中无 refresh_token → 跳过网络请求，直接 deleteAll
+      // storage 中无 refresh_token → 跳过网络请求，直接删除三个 session key
       test('skips API call and clears storage when no refresh token', () async {
         when(() => mockStorage.read(key: 'refresh_token'))
             .thenAnswer((_) async => null);
@@ -184,7 +189,9 @@ void main() {
               any(),
               data: any<Map<String, dynamic>>(named: 'data'),
             ));
-        verify(() => mockStorage.deleteAll()).called(1);
+        verify(() => mockStorage.delete(key: 'access_token')).called(1);
+        verify(() => mockStorage.delete(key: 'refresh_token')).called(1);
+        verify(() => mockStorage.delete(key: 'refresh_token_expires_at')).called(1);
       });
     });
 
