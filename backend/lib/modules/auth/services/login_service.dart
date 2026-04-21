@@ -149,13 +149,27 @@ class LoginService {
   }
 
   /// 登出：撤销当前 refresh token（access token 等待 TTL 自然失效）。
-  Future<void> logout({required String rawRefreshToken}) async {
+  ///
+  /// [userId] 来自 JWT RequestContext，用于写入审计日志。
+  /// 幂等：无论 refresh token 是否有效均返回成功，避免泄露 token 状态。
+  Future<void> logout({
+    required String rawRefreshToken,
+    required String userId,
+  }) async {
     final hash = _sha256Hex(rawRefreshToken);
     final stored = await _refreshTokenRepo.findByHash(hash);
     // 不论 token 是否有效都返回成功（幂等），避免泄露 token 状态
     if (stored != null && !stored.revoked) {
       await _refreshTokenRepo.revoke(stored.id);
     }
+    // 写登出审计日志（无论 refresh token 是否已失效，登出操作本身均需记录）
+    await _db.execute(
+      Sql.named('''
+        INSERT INTO audit_logs (user_id, action, resource_type, resource_id)
+        VALUES (@userId, 'USER_LOGOUT', 'users', @userId)
+      '''),
+      parameters: {'userId': userId},
+    );
   }
 
   /// 修改密码（已登录用户，需提供旧密码验证）。

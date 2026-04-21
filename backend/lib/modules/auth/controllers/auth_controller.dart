@@ -77,10 +77,14 @@ class AuthController {
   /// Body: { "refresh_token": "..." }
   /// 需要有效 JWT（auth_middleware 会验证）
   Future<Response> _logout(Request request) async {
+    final ctx = request.context[kRequestContextKey] as RequestContext;
     final body = await _parseBody(request);
     final rawToken = _requireString(body, 'refresh_token');
 
-    await _loginService.logout(rawRefreshToken: rawToken);
+    await _loginService.logout(
+      rawRefreshToken: rawToken,
+      userId: ctx.userId,
+    );
     return _jsonResponse(200, {
       'data': {'message': '已成功登出'},
     });
