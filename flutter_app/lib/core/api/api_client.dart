@@ -36,13 +36,17 @@ class ApiClient {
     Map<String, dynamic>? queryParams,
     T Function(dynamic)? fromJson,
   }) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      path,
-      queryParameters: queryParams,
-    );
-    final data = response.data!['data'];
-    if (fromJson != null) return fromJson(data);
-    return data as T;
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        path,
+        queryParameters: queryParams,
+      );
+      final data = response.data!['data'];
+      if (fromJson != null) return fromJson(data);
+      return data as T;
+    } on DioException catch (e) {
+      throw _unwrapDioError(e);
+    }
   }
 
   /// GET paginated list. Returns [ApiListResponse] with items + meta.
@@ -51,17 +55,21 @@ class ApiClient {
     Map<String, dynamic>? queryParams,
     required T Function(dynamic) fromJson,
   }) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      path,
-      queryParameters: queryParams,
-    );
-    final body = response.data!;
-    final rawList = body['data'] as List<dynamic>;
-    final items = rawList.map(fromJson).toList();
-    final meta = body['meta'] != null
-        ? PaginationMeta.fromJson(body['meta'] as Map<String, dynamic>)
-        : const PaginationMeta(page: 1, pageSize: 20, total: 0);
-    return ApiListResponse<T>(items: items, meta: meta);
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        path,
+        queryParameters: queryParams,
+      );
+      final body = response.data!;
+      final rawList = body['data'] as List<dynamic>;
+      final items = rawList.map(fromJson).toList();
+      final meta = body['meta'] != null
+          ? PaginationMeta.fromJson(body['meta'] as Map<String, dynamic>)
+          : const PaginationMeta(page: 1, pageSize: 20, total: 0);
+      return ApiListResponse<T>(items: items, meta: meta);
+    } on DioException catch (e) {
+      throw _unwrapDioError(e);
+    }
   }
 
   /// POST (create resource). Unwraps `body['data']`.
@@ -70,13 +78,14 @@ class ApiClient {
     dynamic data,
     T Function(dynamic)? fromJson,
   }) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      path,
-      data: data,
-    );
-    final payload = response.data!['data'];
-    if (fromJson != null) return fromJson(payload);
-    return payload as T;
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(path, data: data);
+      final payload = response.data!['data'];
+      if (fromJson != null) return fromJson(payload);
+      return payload as T;
+    } on DioException catch (e) {
+      throw _unwrapDioError(e);
+    }
   }
 
   /// PATCH (partial update). Unwraps `body['data']`.
@@ -85,18 +94,23 @@ class ApiClient {
     dynamic data,
     T Function(dynamic)? fromJson,
   }) async {
-    final response = await _dio.patch<Map<String, dynamic>>(
-      path,
-      data: data,
-    );
-    final payload = response.data!['data'];
-    if (fromJson != null) return fromJson(payload);
-    return payload as T;
+    try {
+      final response = await _dio.patch<Map<String, dynamic>>(path, data: data);
+      final payload = response.data!['data'];
+      if (fromJson != null) return fromJson(payload);
+      return payload as T;
+    } on DioException catch (e) {
+      throw _unwrapDioError(e);
+    }
   }
 
   /// DELETE resource.
   Future<void> apiDelete(String path) async {
-    await _dio.delete<void>(path);
+    try {
+      await _dio.delete<void>(path);
+    } on DioException catch (e) {
+      throw _unwrapDioError(e);
+    }
   }
 
   // ── Interceptors ──
@@ -208,6 +222,20 @@ class ApiClient {
         statusCode: statusCode,
         lockedUntil: lockedUntil,
       ),
+    );
+  }
+
+  /// 将 [DioException] 转换为 [ApiException]。
+  ///
+  /// _onError 拦截器已将后端错误体解析并附加到 [DioException.error]；
+  /// 此方法负责最终提取，确保调用方只见到 [ApiException]，不接触原始 [DioException]。
+  ApiException _unwrapDioError(DioException e) {
+    if (e.error is ApiException) return e.error as ApiException;
+    // 兜底：网络层错误（无响应体），如超时、无网络等
+    return ApiException(
+      code: 'NETWORK_ERROR',
+      message: '网络请求失败，请稍后重试',
+      statusCode: e.response?.statusCode ?? 0,
     );
   }
 }
