@@ -1,5 +1,10 @@
 {
   "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ],
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"]
