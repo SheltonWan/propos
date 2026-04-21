@@ -14,7 +14,9 @@ Middleware authMiddleware(String jwtSecret) {
       final path = request.url.path;
       if (path == 'health' ||
           path == 'api/auth/login' ||
-          path == 'api/auth/refresh') {
+          path == 'api/auth/refresh' ||
+          path == 'api/auth/forgot-password' ||
+          path == 'api/auth/reset-password') {
         return innerHandler(request);
       }
 

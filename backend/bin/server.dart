@@ -39,7 +39,7 @@ Future<void> main() async {
     stderr.writeln('[WARN] CORS_ORIGINS=* 将允许所有来源跨域访问，请确认这是预期行为');
   }
 
-  final router = buildRouter();
+  final router = buildRouter(db: Database.pool, config: config);
 
   // Pipeline 顺序：errorHandler → logMiddleware → rateLimitMiddleware
   //               → authMiddleware → rbacMiddleware → auditMiddleware → router

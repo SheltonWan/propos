@@ -10,15 +10,20 @@ Middleware errorHandler() {
       try {
         return await innerHandler(request);
       } on AppException catch (e) {
-        // RateLimitException 需要附加 Retry-After 头
+        // RateLimitException 附加 Retry-After 头
         final extraHeaders = e is RateLimitException
             ? {'retry-after': e.retryAfterSeconds.toString()}
             : const <String, String>{};
+        // AccountLockedException 在 error body 中附加 locked_until 字段
+        final errorBody = <String, dynamic>{
+          'code': e.code,
+          'message': e.message,
+          if (e is AccountLockedException)
+            'locked_until': e.lockedUntil.toUtc().toIso8601String(),
+        };
         return Response(
           e.statusCode,
-          body: jsonEncode({
-            'error': {'code': e.code, 'message': e.message},
-          }),
+          body: jsonEncode({'error': errorBody}),
           headers: {
             'content-type': 'application/json; charset=utf-8',
             ...extraHeaders,
