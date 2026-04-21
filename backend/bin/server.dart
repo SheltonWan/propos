@@ -50,7 +50,7 @@ Future<void> main() async {
       .addMiddleware(corsMiddleware(corsOrigins)) // CORS 必须在 auth 之前，OPTIONS 预检不携带 JWT
       .addMiddleware(logMiddleware())
       .addMiddleware(rateLimitMiddleware())
-      .addMiddleware(authMiddleware(config.jwtSecret))
+      .addMiddleware(authMiddleware(config.jwtSecret, Database.pool))
       .addMiddleware(rbacMiddleware())
       .addMiddleware(auditMiddleware())
       .addHandler(router.call);
