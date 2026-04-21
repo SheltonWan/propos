@@ -1,8 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/api/api_exception.dart';
 import '../../domain/repositories/auth_repository.dart';
 import 'auth_state.dart';
+
+/// 账号锁定时间格式（本地时区，精确到分钟）。
+final _lockTimeFormat = DateFormat('HH:mm');
 
 /// Auth cubit handling login, logout, and session check.
 ///
@@ -49,9 +53,17 @@ class AuthCubit extends Cubit<AuthState> {
         ),
       );
     } catch (e) {
-      emit(AuthState.error(
-        e is ApiException ? e.message : '登录失败，请重试',
-      ));
+      if (e is ApiException) {
+        // ACCOUNT_LOCKED 时在提示文本中附加解锁时间，方便用户了解何时可重试
+        if (e.code == 'ACCOUNT_LOCKED' && e.lockedUntil != null) {
+          final unlockTime = _lockTimeFormat.format(e.lockedUntil!.toLocal());
+          emit(AuthState.error('账号已锁定，请于 $unlockTime 后重试'));
+        } else {
+          emit(AuthState.error(e.message));
+        }
+      } else {
+        emit(const AuthState.error('登录失败，请重试'));
+      }
     }
   }
 

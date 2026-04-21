@@ -182,17 +182,28 @@ class ApiClient {
     String message = '网络请求失败，请稍后重试';
     int statusCode = response?.statusCode ?? 0;
 
+    DateTime? lockedUntil;
     if (response?.data is Map<String, dynamic>) {
       final body = response!.data as Map<String, dynamic>;
       if (body.containsKey('error') && body['error'] is Map<String, dynamic>) {
         final errorBody = body['error'] as Map<String, dynamic>;
         code = (errorBody['code'] as String?) ?? code;
         message = (errorBody['message'] as String?) ?? message;
+        // 解析账号锁定截止时间（仅 ACCOUNT_LOCKED 时后端附加此字段）
+        final rawLockedUntil = errorBody['locked_until'] as String?;
+        if (rawLockedUntil != null) {
+          lockedUntil = DateTime.tryParse(rawLockedUntil);
+        }
       }
     }
 
     return err.copyWith(
-      error: ApiException(code: code, message: message, statusCode: statusCode),
+      error: ApiException(
+        code: code,
+        message: message,
+        statusCode: statusCode,
+        lockedUntil: lockedUntil,
+      ),
     );
   }
 }
