@@ -18,11 +18,11 @@
 7. [Step 5 — M3 财务模块（后端）](#7-step-5--m3-财务模块后端)
 8. [Step 6 — M4 工单模块（后端）](#8-step-6--m4-工单模块后端)
 9. [Step 7 — M5 二房东模块（后端）](#9-step-7--m5-二房东模块后端)
-10. [Step 8 — 前端脚手架（uni-app + admin）](#10-step-8--前端脚手架uni-app--admin)
+10. [Step 8 — 前端脚手架（Flutter + admin）](#10-step-8--前端脚手架flutter--admin)
 11. [Step 9 — 开发与 UI 设计同步](#11-step-9--开发与-ui-设计同步)
 12. [Step 10 — 页面逐模块实现](#12-step-10--页面逐模块实现)
 13. [Step 11 — 后端 API 对接（替换 MockData）](#13-step-11--后端-api-对接替换-mockdata)
-14. [Step 12 — 微信小程序精简版](#14-step-12--微信小程序精简版)
+14. [Step 12 — 工单移动端专项优化](#14-step-12--工单移动端专项优化)
 15. [验收检查清单](#15-验收检查清单)
 16. [关键约束与禁止事项](#16-关键约束与禁止事项)
 
@@ -38,7 +38,7 @@
 | `docs/ARCH.md` | ✅ 完成（v1.0）|
 | `docs/DEV_UI_SYNC_GUIDE.md` | ✅ 完成 |
 | `backend/` | ❌ 空目录，未初始化 |
-| `app/` + `admin/` | ❌ 空目录，未初始化 |
+| `flutter_app/` + `admin/` | ❗ 空目录，未初始化 |
 | 数据库 | ❌ 未创建 |
 | Git 远端 | ✅ 已配置（github.com/SheltonWan/propos）|
 
@@ -84,17 +84,19 @@ createdb propos_dev
 ### 2.2 前端工具链
 
 ```bash
-# 检查 Node.js（需要 18+）
+# 检查 Flutter SDK（需要 3.22+）
+flutter --version
+dart --version
+
+# 如未安装，参考官方安装指南
+# https://docs.flutter.dev/get-started/install
+
+# 检查环境配置
+flutter doctor
+
+# 检查 Node.js（admin 端需要 18+）
 node --version
 npm --version
-
-# 安装（推荐使用 nvm 管理版本）
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-nvm install 18
-nvm use 18
-
-# 安装 uni-app CLI（全局）
-npm install -g @dcloudio/uni-cli
 ```
 
 ### 2.3 其他工具
@@ -116,7 +118,7 @@ ezdxf --version
 ```bash
 cd /Users/wanxt/app/propos
 ls
-# 期望看到：app/ admin/ backend/ docs/ pdfdocs/ scripts/
+# 期望看到：flutter_app/ admin/ backend/ docs/ pdfdocs/ scripts/
 ```
 
 ---
@@ -512,31 +514,39 @@ Future<List<SubLease>> findByMasterContract(
 
 ---
 
-## 10. Step 8 — 前端脚手架（uni-app + admin）
+## 10. Step 8 — 前端脚手架（Flutter + admin）
 
-### 10.1 初始化 uni-app 移动端项目
+### 10.1 初始化 Flutter 移动端项目
 
 ```bash
-cd /Users/wanxt/app/propos/app
-npm install
+cd /Users/wanxt/app/propos
+flutter create --org com.propos --project-name propos_app flutter_app
+cd flutter_app
 ```
 
-`app/package.json` 核心依赖：
+`flutter_app/pubspec.yaml` 核心依赖：
 
-```json
-{
-  "dependencies": {
-    "pinia": "^2.1.7",
-    "luch-request": "^3.1.0",
-    "wot-design-uni": "^1.3.0",
-    "dayjs": "^1.11.10"
-  },
-  "devDependencies": {
-    "@dcloudio/vite-plugin-uni": "^4.0.0",
-    "typescript": "^5.4.0",
-    "vite": "^5.2.0"
-  }
-}
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_bloc: ^8.1.0
+  go_router: ^14.0.0
+  dio: ^5.4.0
+  get_it: ^7.6.0
+  freezed_annotation: ^2.4.0
+  json_annotation: ^4.8.0
+  intl: ^0.19.0
+  flutter_dotenv: ^5.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  build_runner: ^2.4.0
+  freezed: ^2.4.0
+  json_serializable: ^6.7.0
+  bloc_test: ^9.1.0
+  mocktail: ^1.0.0
 ```
 
 ### 10.2 初始化 admin PC 管理后台
@@ -568,29 +578,41 @@ npm install
 
 ### 10.3 建立目录骨架
 
-**uni-app 端**（`app/src/`）：
+**Flutter 端**（`flutter_app/lib/`）：
 
 ```
-app/src/
-├── main.ts
-├── App.vue
-├── pages.json                    # uni-app 页面路由配置
-├── manifest.json                 # 平台配置
-├── uni.scss                      # 全局 CSS 变量 + Design Token
-├── api/
-│   ├── client.ts                 # luch-request 封装，apiGet/apiPost/apiPatch/apiDelete
-│   ├── modules/                  # 按业务模块拆分的 API 函数
-│   └── index.ts                  # 桶导出
-├── constants/
-│   ├── api_paths.ts             # API 路径常量
-│   ├── business_rules.ts        # 业务规则常量
-│   └── ui_constants.ts          # UI 展示常量
-├── stores/                       # Pinia stores（defineStore setup 风格）
-├── types/                        # TypeScript 接口定义
-├── composables/                  # 可复用 Composition API 函数
-├── pages/                        # 按 pages.json 结构组织页面
-├── components/                   # 全局共享组件
-└── static/                       # 静态资源
+flutter_app/lib/
+├── main.dart
+├── core/
+│   ├── api/
+│   │   ├── api_client.dart       # dio 封装，apiGet/apiPost/apiPatch/apiDelete
+│   │   ├── api_paths.dart        # API 路径常量
+│   │   └── api_exception.dart    # ApiException(code, message, statusCode)
+│   ├── constants/
+│   │   ├── business_rules.dart   # 业务规则常量
+│   │   └── ui_constants.dart     # UI 展示常量（defaultPageSize 等）
+│   ├── theme/
+│   │   └── app_theme.dart        # Material 3 ColorScheme + Typography
+│   ├── router/
+│   │   ├── app_router.dart       # go_router 路由表 + redirect 守卫
+│   │   └── route_paths.dart      # 路由路径常量
+│   └── di/
+│       └── injection.dart        # get_it 依赖注入注册
+├── features/
+│   └── <module>/
+│       ├── domain/
+│       │   ├── entities/         # 纯 Dart 实体（@freezed，无 Flutter SDK）
+│       │   └── repositories/     # 抽象接口（abstract class）
+│       ├── data/
+│       │   ├── models/           # freezed DTO + json_serializable
+│       │   └── repositories/     # Repository 实现，调用 ApiClient
+│       └── presentation/
+│           ├── bloc/             # BLoC/Cubit + freezed 四态 State
+│           ├── pages/            # Page Widget（≤ 150 行）
+│           └── widgets/          # 子 Widget（≤ 100 行）
+└── shared/
+    ├── widgets/                  # 全局共享 Widget
+    └── utils/                    # 工具函数
 ```
 
 **admin 端**（`admin/src/`）：
@@ -664,21 +686,21 @@ admin/src/
 
 | 角色 | 任务 |
 |------|------|
-| 开发者 | 完善 Pinia 状态管理、Vue Router 守卫、表单验证、三态 UI（空/加载/错误）|
+| 开发者 | 完善 BLoC/Cubit 状态管理、go_router 路由守卫、表单验证、四态 UI（initial/loading/loaded/error）|
 | 设计师 | Figma 高保真（P0 优先）、输出 Design Token 表格 |
 
 ### 11.3 Design Token 接入（Day 12）
 
-设计师以表格提交 Token（颜色/字体/间距/圆角），开发者填入 `app/src/uni.scss` 和 `admin/src/styles/variables.scss`。
+设计师以表格提交 Token（颜色/字体/间距/圆角），开发者填入 `flutter_app/lib/core/theme/app_theme.dart`（Material 3 ColorScheme + ThemeExtension）和 `admin/src/styles/variables.scss`。
 
 **固定语义色（设计师不得改变含义）**：
 
-| CSS 变量 | 业务含义 |
-|---------|--------|
-| `--color-success` | 已租 → 绿色系 |
-| `--color-warning` | 即将到期 → 黄/橙色系 |
-| `--color-danger` | 空置 → 红色系 |
-| `--color-neutral` / `info` | 非可租 → 中性灰 |
+| 语义 | Flutter token | 业务含义 |
+|------|--------------|--------|
+| success | `colorScheme.primary` / extension `success` | 已租 → 绿色系 |
+| warning | `colorScheme.tertiary` / extension `warning` | 即将到期 → 黄/橙色系 |
+| danger | `colorScheme.error` | 空置 → 红色系 |
+| info | `colorScheme.outline` | 非可租 → 中性灰 |
 
 ---
 
@@ -721,14 +743,19 @@ admin/src/
 
 ### 每个页面实现规范
 
-**uni-app 端（`app/src/`）**：
+**Flutter 端（`flutter_app/lib/features/`）**：
 ```
-api/modules/<module>.ts       # API 函数
-stores/<module>.ts             # Pinia store（defineStore setup 风格）
-pages/<module>/
-├── index.vue                # 列表页
-└── detail.vue               # 详情页
-components/<Component>.vue     # 复用子组件
+features/<module>/
+├── domain/
+│   ├── entities/<entity>.dart      # @freezed 实体
+│   └── repositories/<module>_repository.dart  # 抽象接口
+├── data/
+│   ├── models/<entity>_model.dart  # freezed DTO + json_serializable
+│   └── repositories/<module>_repository_impl.dart
+└── presentation/
+    ├── bloc/<module>_cubit.dart    # Cubit + 四态 State
+    ├── pages/                     # Page Widget
+    └── widgets/                   # 子 Widget
 ```
 
 **admin 端（`admin/src/`）**：
@@ -741,7 +768,8 @@ views/<module>/
 components/<Component>.vue     # 复用子组件
 ```
 
-**三态 UI 强制要求**（每个数据驱动页面）：
+**四态 UI 强制要求**（每个数据驱动页面）：
+- `initial` → 初始空白态
 - `loading` → 显示加载骨屏 / Skeleton
 - 空状态 → 显示提示文字 + 操作按钮
 - 错误状态 → 显示错误信息 + 重试按钮
@@ -794,33 +822,29 @@ Auth（登录/Token 刷新）
 
 ---
 
-## 14. Step 12 — 微信小程序精简版
+## 14. Step 12 — 工单移动端专项优化
 
-微信小程序仅实现两个核心场景，不是主力开发方向：
+Flutter 移动端工单模块的专项优化，在基本页面骨架完成后进行：
 
-### 14.1 功能范围（极简）
+### 14.1 优化范围
 
 | 功能 | 说明 |
 |------|------|
-| 扫码报修 | 扫单元二维码 → 自动填入楼栋/楼层/单元 → 填写问题描述 + 上传 3 张照片 → 提交 |
-| 工单状态查看 | 我提交的工单列表 → 点击查看当前状态（只读，无推送）|
+| 扫码报修 | 扫单元二维码 → 自动填入楼栋/楼层/单元 → 填写问题描述 + 上传照片 → 提交 |
+| 工单状态查看 | 我提交的工单列表 → 点击查看当前状态和进度 |
+| 推送通知 | 工单状态变更时通过 APNs/FCM/HarmonyOS 推送通知 |
 
 ### 14.2 开发时机
 
-**待 uni-app 移动端 P1 页面稳定后再开始**，复用同一后端 API，不单独维护数据层。
+**待 Flutter 移动端 P1 页面稳定后开始**，复用同一后端 API。
 
-> 注：微信小程序已纳入 uni-app 多端编译范围，通过条件编译（`#ifdef MP-WEIXIN`）复用主体代码，仅小程序特有功能需单独处理。
+### 14.3 平台适配注意事项
 
-### 14.3 与 uni-app 移动端的分工
-
-| 功能 | uni-app 移动端 | 微信小程序 |
-|------|------------|----------|
-| 完整工单流程 | ✅ | ❌ |
-| 推送通知 | ✅ APNs/FCM/鸿蒙推送 | ❌ |
-| CAD 楼层快查 | ✅ | ❌ |
-| 管理后台功能 | ✅ | ❌ |
-| 扫码报修 | ✅ | ✅ 核心场景 |
-| 查看工单状态 | ✅ | ✅ 只读 |
+| 平台 | 注意事项 |
+|------|----------|
+| iOS | 相机权限通过 `permission_handler` 处理 |
+| Android | 相机 + 存储权限适配 Android 13+ |
+| HarmonyOS Next | 使用 `flutter_harmony` 分支编译，Beta 成熟度，需单独测试 |
 
 ---
 

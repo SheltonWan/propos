@@ -17,30 +17,31 @@
 
 ---
 
-## 二、建议迁移序列
+## 二、迁移序列
 
-| 顺序 | 文件名建议 | 主要内容 |
-|------|-----------|---------|
-| 001 | 001_create_enums.sql | property_type、contract_status（默认值 `quoting`）、invoice_status、work_order_status、**work_order_type**（`repair`/`complaint`/`inspection`）、**sublease_review_status**（含 `draft`）、**deposit_status**、**termination_type**、**meter_type**、**reading_cycle**、**turnover_approval_status**、**import_data_type**、**import_rollback_status**、**credit_rating**、**cost_nature**（`opex`/`capex`，v1.8 新增） 等 ENUM |
-| 002 | 002_create_users_and_audit.sql | users、audit_logs、job_execution_logs、**refresh_tokens** |
-| 003 | 003_create_assets.sql | buildings、floors、**floor_plans**（多版本图纸）、units（含 `market_rent_reference`、`predecessor_unit_ids`、`archived_at`）、renovation_records |
-| 004 | 004_create_contracts.sql | tenants（含信用评级字段、`data_retention_until`）、contracts（含 `tax_inclusive`、`applicable_tax_rate`、终止字段）、**contract_units**（M:N 中间表）、contract_attachments、rent_escalation_phases、**escalation_templates**（递增规则模板）、alerts（含 `target_user_id`） |
-| 005 | 005_create_finance.sql | invoices、invoice_items、payments、payment_allocations、expenses |
-| 006 | 006_create_workorders.sql | suppliers、work_orders（新增 `cost_nature` 列，v1.8）、work_order_photos |
-| 007 | 007_create_deposits.sql | **deposits**（押金主表）、**deposit_transactions**（押金交易流水） |
-| 008 | 008_create_meter_readings.sql | **meter_readings**（水电抄表记录，含阶梯计价字段） |
-| 009 | 009_create_turnover_reports.sql | **turnover_reports**（商铺营业额申报，含审批状态） |
-| 010 | 010_create_subleases.sql | subleases |
-| 011 | 011_create_kpi.sql | kpi_metric_definitions（含 `direction` 字段）、kpi_schemes（`scoring_mode` 默认 `'official'`）、kpi_scheme_metrics、kpi_score_snapshots、kpi_score_snapshot_items |
-| 012 | 012_create_import_batches.sql | **import_batches**（批量导入跟踪，含 `dry_run`、回滚支持） |
-| 013 | 013_add_deferred_foreign_keys.sql | users.bound_contract_id、users.department_id、expenses.work_order_id |
-| 014 | 014_seed_reference_data.sql | 超级管理员、KPI 指标库（含 `direction`）、初始部门（租务部/财务部/物业运营部）、基础字典数据 |
-| 015 | **015_create_departments.sql** | **departments**（三级组织树：公司→部门→组） |
-| 016 | **016_create_user_managed_scopes.sql** | **user_managed_scopes**（管辖范围，支持部门默认 + 个人覆盖） |
-| 017 | **017_create_kpi_targets_and_appeals.sql** | **kpi_scheme_targets**（方案绑定部门/员工）、**kpi_appeals**（KPI 申诉） |
-| 018 | **018_add_noi_budgets.sql** | **noi_budgets**（NOI 年度预算，v1.8 新增）：按楼栋/业态录入年度 NOI 预算，附加建楼栋和业态复合索引 |
-| 019 | **019_v1.5_model_alignment.sql** | data_model v1.5 对齐：枚举扩展（unit_status、credit_rating）、新增枚举（pricing_model、kpi_scheme_status、kpi_metric_category）、表结构变更（contracts.pricing_model、kpi_schemes.status、kpi_metric_definitions.category、alerts.target_roles）、K11-K14 种子 |
-| 020 | **020_create_notifications_and_approvals.sql** | 新增 6 个 ENUM（notification_type、notification_severity、dunning_method、approval_type、approval_status、renewal_intent）、**notifications** 表、**dunning_logs** 表 |
+> **注意**：所有历史增量变更（v1.5/v1.7/v1.8）已直接合入对应建表文件，无需单独增量迁移文件。
+
+| 顺序 | 文件名 | 主要内容 | 关键依赖 |
+|------|--------|---------|---------|
+| 001 | 001_create_enums.sql | 全部 ENUM 类型（property_type / unit_status / unit_decoration / user_role / tenant_type / contract_status / pricing_model / escalation_type / alert_type / invoice_status / invoice_item_type / expense_category / cost_nature / work_order_type / work_order_status / work_order_priority / sublease_occupancy_status / sublease_review_status / kpi_period_type / kpi_scheme_status / kpi_metric_category / deposit_status / termination_type / meter_type / reading_cycle / turnover_approval_status / import_data_type / import_rollback_status / credit_rating / notification_type / notification_severity / dunning_method / approval_type / approval_status / renewal_intent） | 无 |
+| 002 | 002_create_departments.sql | departments（三级组织树，仅有自引用 FK） | 001 |
+| 003 | 003_create_users_and_audit.sql | users（department_id 列暂无 FK 约束）、audit_logs、job_execution_logs、refresh_tokens | 001、002 |
+| 004 | 004_create_assets.sql | buildings、floors、floor_plans、units、renovation_records | 001、003 |
+| 005 | 005_create_user_managed_scopes.sql | user_managed_scopes（部门默认 + 个人覆盖双机制） | 002、003、004 |
+| 006 | 006_create_contracts.sql | tenants（含信用评级 4 列、data_retention_until）、contracts（含 tax_inclusive / applicable_tax_rate / termination 字段）、contract_units（M:N 中间表）、contract_attachments、rent_escalation_phases、escalation_templates、alerts（含 target_roles） | 001、003、004 |
+| 007 | 007_create_finance.sql | invoices、invoice_items、payments、payment_allocations、expenses（work_order_id 列暂无 FK 约束） | 001、003、004、006 |
+| 008 | 008_create_workorders.sql | suppliers、work_orders（含 work_order_type / cost_nature / contract_id）、work_order_photos | 001、003、004、006 |
+| 009 | 009_create_deposits.sql | deposits、deposit_transactions | 001、003、006 |
+| 010 | 010_create_meter_readings.sql | meter_readings（含阶梯计价 tiered_details JSONB） | 001、003、004、007 |
+| 011 | 011_create_turnover_reports.sql | turnover_reports（UNIQUE: contract_id + report_month WHERE is_amendment = FALSE） | 001、003、006、007 |
+| 012 | 012_create_subleases.sql | subleases（含 review_status / version_no / submission_channel / truth_declared_at） | 001、003、004、006 |
+| 013 | 013_create_kpi.sql | kpi_metric_definitions（含 direction / category）、kpi_schemes（status 默认 draft，scoring_mode 默认 official）、kpi_scheme_metrics、kpi_score_snapshots、kpi_score_snapshot_items | 001、002、003 |
+| 014 | 014_create_kpi_targets_and_appeals.sql | kpi_scheme_targets（方案绑定部门/员工）、kpi_appeals（KPI 申诉） | 002、003、013 |
+| 015 | 015_create_import_batches.sql | import_batches（含 is_dry_run / rollback_status / error_details JSONB） | 001、003 |
+| 016 | 016_create_noi_budgets.sql | noi_budgets（按楼栋/业态录入年度 NOI 预算） | 001、003、004 |
+| 017 | 017_create_notifications.sql | notifications（站内通知）、dunning_logs（催收记录） | 001、003、007 |
+| 018 | 018_add_deferred_foreign_keys.sql | users.department_id → departments、users.bound_contract_id → contracts、expenses.work_order_id → work_orders、work_orders.follow_up_work_order_id → work_orders（自引用延迟 FK） | 002、003、006、007、008 |
+| 019 | 019_seed_reference_data.sql | 超级管理员账号、初始三个部门（租务部/财务部/物业运营部）、KPI 指标库 K01-K14（含 direction / category） | 001-018 |
 
 ---
 

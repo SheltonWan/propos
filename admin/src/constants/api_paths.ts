@@ -4,6 +4,8 @@ export const API_AUTH_REFRESH = '/api/auth/refresh'
 export const API_AUTH_LOGOUT = '/api/auth/logout'
 export const API_AUTH_ME = '/api/auth/me'
 export const API_AUTH_CHANGE_PASSWORD = '/api/auth/change-password'
+export const API_AUTH_FORGOT_PASSWORD = '/api/auth/forgot-password'
+export const API_AUTH_RESET_PASSWORD = '/api/auth/reset-password'
 
 export const API_DEPARTMENTS = '/api/departments'
 export const API_BUILDINGS = '/api/buildings'

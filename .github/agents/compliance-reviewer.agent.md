@@ -11,7 +11,7 @@ user-invocable: false
 
 输入参数应指定要审查的模块路径，例如：
 - `backend/lib/modules/contract/`
-- `frontend/lib/features/contract/`
+- `flutter_app/lib/features/contract/`
 - 或两者都检查
 
 ## 逐层检查清单

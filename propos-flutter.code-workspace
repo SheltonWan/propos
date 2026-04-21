@@ -1,0 +1,77 @@
+{
+  "folders": [
+    { "name": "flutter_app", "path": "flutter_app" },
+    { "name": "docs",        "path": "docs" }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.dart_tool": true,
+      "**/build": true,
+      "**/ios/Pods": true,
+      "**/android/.gradle": true,
+      "**/android/build": true
+    },
+    "search.exclude": {
+      "**/.dart_tool": true,
+      "**/build": true,
+      "**/ios/Pods": true
+    },
+    "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+    "dart.lineLength": 100,
+    "dart.flutterSdkPath": null
+  },
+  "extensions": {
+    "recommendations": [
+      "dart-code.flutter",
+      "dart-code.dart-code"
+    ]
+},
+"launch": {
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Flutter Dev",
+            "request": "launch",
+            "type": "dart",
+            "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+            "cwd": "${workspaceFolder:flutter_app}",
+            "args": [
+                "--dart-define=API_BASE_URL=http://localhost:8080"
+            ]
+        },
+        {
+            "name": "Flutter Prod",
+            "request": "launch",
+            "type": "dart",
+            "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+            "cwd": "${workspaceFolder:flutter_app}",
+            "args": [
+                "--dart-define=API_BASE_URL=https://api.propos.cn"
+            ]
+        },
+        {
+            "name": "Flutter Mock",
+            "request": "launch",
+            "type": "dart",
+            "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+            "cwd": "${workspaceFolder:flutter_app}",
+            "args": [
+                "--dart-define=USE_MOCK=true"
+            ]
+        },
+        {
+            "name": "Flutter Tests",
+            "request": "launch",
+            "type": "dart",
+            "codeLens": {
+                "for": [
+                    "run-test",
+                    "run-test-file",
+                    "debug-test",
+                    "debug-test-file"
+                ]
+            }
+        }
+    ]
+  }
+}

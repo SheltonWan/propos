@@ -1,20 +1,79 @@
 #!/usr/bin/env bash
+# =============================================================================
+# init_local_postgres.sh — PropOS 本地 PostgreSQL 一键初始化脚本
+#
+# 用途：
+#   开发机首次搭建或重置本地数据库环境。按顺序完成以下步骤：
+#   1. 校验管理员（超级用户）连接是否正常
+#   2. 幂等创建业务角色（propos）和数据库（propos_dev），已存在则跳过
+#   3. 按文件名顺序执行 backend/migrations/*.sql（DDL + 参考数据）
+#   4. 可选执行 scripts/seed.sql（仅限开发/测试，⚠️ 勿在生产运行）
+#
+# 前提条件：
+#   - 本机已安装 PostgreSQL 客户端工具（psql）
+#   - 管理员账号（默认使用 libpq 环境变量，macOS 开发机通常为当前系统用户）
+#
+# 管理员身份连接方式（两种选其一）：
+#   ① 环境变量 ADMIN_DATABASE_URL=postgres://superuser:pwd@host:5432/postgres
+#   ② libpq 标准变量：PGHOST / PGPORT / PGUSER / PGPASSWORD / PGDATABASE
+#      macOS 本地开发常见用法：
+#        PGUSER=sheltonwan bash scripts/init_local_postgres.sh --seed
+#
+# 业务数据库连接参数（均有默认值，可通过选项或同名环境变量覆盖）：
+#   APP_DB_NAME     数据库名，默认 propos_dev
+#   APP_DB_USER     角色名，默认 propos
+#   APP_DB_PASSWORD 密码，默认 ChangeMe_2026!（开发机专用，生产必须替换）
+#   APP_DB_HOST     主机，默认 localhost（或 $PGHOST）
+#   APP_DB_PORT     端口，默认 5432（或 $PGPORT）
+#
+# 典型用法：
+#   # 首次初始化（不含测试数据）
+#   PGUSER=sheltonwan bash scripts/init_local_postgres.sh
+#
+#   # 初始化并写入开发测试数据
+#   PGUSER=sheltonwan bash scripts/init_local_postgres.sh --seed
+#
+#   # 重置数据库（先手动 DROP，再重建）
+#   psql -d postgres -c "DROP DATABASE IF EXISTS propos_dev;"
+#   PGUSER=sheltonwan bash scripts/init_local_postgres.sh --seed
+#
+#   # 只跑 migrations，跳过测试数据
+#   PGUSER=sheltonwan bash scripts/init_local_postgres.sh --skip-migrations=false
+#
+#   # 预览会执行什么，不真正操作数据库
+#   PGUSER=sheltonwan bash scripts/init_local_postgres.sh --seed --dry-run
+#
+# 注意事项：
+#   - seed.sql 为开发专用测试数据，⚠️ 生产环境绝对不能执行 --seed
+#   - migrations/ 下 *.undo.sql 文件会自动跳过，不会被执行
+#   - 脚本幂等：重复运行不会报错（角色/数据库已存在时自动跳过）
+#   - 执行失败时整体中止（set -euo pipefail + ON_ERROR_STOP=1）
+# =============================================================================
 
 set -euo pipefail
 
+# -----------------------------------------------------------------------------
+# 路径配置（支持通过环境变量覆盖，便于 CI 使用不同目录布局）
+# -----------------------------------------------------------------------------
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 MIGRATIONS_DIR="${MIGRATIONS_DIR:-$ROOT_DIR/backend/migrations}"
 SEED_FILE="${SEED_FILE:-$ROOT_DIR/scripts/seed.sql}"
 
+# -----------------------------------------------------------------------------
+# 业务数据库连接参数（默认值适用于本地开发机）
+# -----------------------------------------------------------------------------
 APP_DB_NAME="${APP_DB_NAME:-propos_dev}"
 APP_DB_USER="${APP_DB_USER:-propos}"
 APP_DB_PASSWORD="${APP_DB_PASSWORD:-ChangeMe_2026!}"
 APP_DB_HOST="${APP_DB_HOST:-${PGHOST:-localhost}}"
 APP_DB_PORT="${APP_DB_PORT:-${PGPORT:-5432}}"
 
-RUN_SEED=false
-SKIP_MIGRATIONS=false
-DRY_RUN=false
+# -----------------------------------------------------------------------------
+# 运行时标志（由命令行参数控制）
+# -----------------------------------------------------------------------------
+RUN_SEED=false        # --seed：是否执行 seed.sql
+SKIP_MIGRATIONS=false # --skip-migrations：是否跳过 DDL 迁移
+DRY_RUN=false         # --dry-run：只打印步骤，不真正执行
 
 usage() {
     cat <<'EOF'
@@ -148,6 +207,7 @@ fi
 
 APP_PSQL_ARGS=("-h" "$APP_DB_HOST" "-p" "$APP_DB_PORT" "-U" "$APP_DB_USER" "-d" "$APP_DB_NAME")
 
+# 生成幂等的角色与数据库初始化 SQL（通过 psql \gexec 执行，避免 IF NOT EXISTS 兼容问题）
 bootstrap_sql() {
     cat <<'SQL'
 SELECT format(
@@ -192,6 +252,7 @@ SELECT format(
 SQL
 }
 
+# 以管理员身份对管理库执行任意 SQL（用于建库/建角色，不访问业务库）
 run_admin_sql() {
     local description="$1"
     local sql="$2"
@@ -211,6 +272,7 @@ $sql
 SQL
 }
 
+# 以业务角色（propos）身份对业务库执行 SQL 文件（migrations / seed）
 run_app_file() {
     local description="$1"
     local file_path="$2"
@@ -225,6 +287,7 @@ run_app_file() {
         "${APP_PSQL_ARGS[@]}" -f "$file_path"
 }
 
+# 校验管理员 psql 连通性，失败时给出明确提示后中止
 check_admin_connection() {
     info "检查管理员连接: $ADMIN_TARGET_DESCRIPTION"
 
@@ -240,6 +303,8 @@ check_admin_connection() {
     ok "管理员连接正常"
 }
 
+# 按文件名字典序（即版本号顺序 001、002…）执行全部 DDL 迁移
+# *.undo.sql 自动排除，保证幂等性必须由 migration 文件自身负责（如 CREATE TABLE IF NOT EXISTS）
 run_migrations() {
     local migration_files
 
@@ -272,6 +337,8 @@ run_migrations() {
     fi
 }
 
+# 执行开发测试种子数据（仅在 --seed 参数存在时运行）
+# ⚠️  生产环境禁止调用此函数
 run_seed() {
     if [[ "$RUN_SEED" != true ]]; then
         return 0
@@ -286,6 +353,7 @@ run_seed() {
     fi
 }
 
+# 打印初始化结果摘要，并输出可直接写入 backend/.env 的 DATABASE_URL 参考值
 print_summary() {
     ok "本地 PostgreSQL 初始化完成"
     printf '  db_name: %s\n' "$APP_DB_NAME"
@@ -299,14 +367,17 @@ print_summary() {
         "$APP_DB_USER" "$APP_DB_HOST" "$APP_DB_PORT" "$APP_DB_NAME"
 }
 
+# =============================================================================
+# 主执行流程（按依赖顺序串行，任意步骤失败则整体中止）
+# =============================================================================
 info "开始初始化 PropOS 本地 PostgreSQL"
-check_admin_connection
-run_admin_sql "创建或更新本地业务角色与数据库" "$(bootstrap_sql)"
+check_admin_connection           # 步骤 1：校验管理员连接
+run_admin_sql "创建或更新本地业务角色与数据库" "$(bootstrap_sql)"  # 步骤 2：建角色 + 建库
 if [[ "$DRY_RUN" == true ]]; then
     ok "dry-run 模式下已模拟角色和数据库初始化"
 else
     ok "角色和数据库已就绪"
 fi
-run_migrations
-run_seed
-print_summary
+run_migrations   # 步骤 3：执行 DDL migrations
+run_seed         # 步骤 4：写入开发测试数据（可选）
+print_summary    # 步骤 5：打印结果摘要

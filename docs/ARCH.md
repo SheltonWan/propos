@@ -51,9 +51,9 @@
 ┌───────────────────────────────────────────────────────────────────────────────┐
 │                              客户端层                                           │
 │  ┌──────────────────────────────────────────┐  ┌───────────────────────────┐  │
-│  │            uni-app 4.x 移动端              │  │    Vue3 + Element Plus     │  │
-│  │  iOS / Android / HarmonyOS Next / 微信小程序│  │      PC 管理后台 (admin/)   │  │
-│  │         (app/，Vue 3 + TypeScript + Pinia) │  │  (Vue Router + Pinia + Axios│  │
+│  │            Flutter 移动端                  │  │    Vue3 + Element Plus     │  │
+│  │      iOS / Android / HarmonyOS Next       │  │      PC 管理后台 (admin/)   │  │
+│  │   (flutter_app/，Dart + flutter_bloc)     │  │  (Vue Router + Pinia + Axios│  │
 │  └───────────────────────────┬──────────────┘  └──────────────┬────────────┘  │
 └──────────────────────────────│───────────────────────────────│───────────────-┘
                                │                               │
@@ -94,35 +94,35 @@
 | 认证 | JWT（`dart_jsonwebtoken`） | Claims 携带 role + sub_landlord_scope |
 | 数据库 | PostgreSQL 15+ | 行级安全 + GIN 索引 |
 | 文件转换 | ODA File Converter + `ezdxf[draw]`（Python）| .dwg → DXF → SVG/PNG 楼层平面图，两步转换链路 |
-| 移动端 + 小程序 | uni-app 4.x（Vue 3 + TypeScript + Pinia） | iOS / Android / HarmonyOS Next / 微信小程序四端复用；`wot-design-uni` 组件库；`luch-request` HTTP 客户端 |
+| 移动端 | Flutter（Dart） | iOS / Android / HarmonyOS Next 三端覆盖；Material 3 组件库；`dio` HTTP 客户端；`flutter_bloc` 状态管理；`go_router` 路由；`get_it` 依赖注入 |
 | PC 管理后台 | Vue 3 + TypeScript + Vite + Element Plus + Pinia | 浏览器端 PC 优先响应式；Axios 封装；Vue Router 4 |
 
 ### 平台能力矩阵
 
-| 功能 | iOS | Android | HarmonyOS Next | 微信小程序 | PC 管理后台(admin) |
-|------|:---:|:-------:|:--------------:|:--------:|:-----------------:|
-| 全部业务页面（Dashboard、资产、租务、财务） | ✅ | ✅ | ✅ | ✅ | ✅ |
-| QR 扫码报修（`uni.scanCode`） | ✅ | ✅ | ✅ | ✅ | ❌ → 手动填报 |
-| 推送通知（APNs / FCM / 鸿蒙推送） | ✅ | ✅ | ✅ | ✅（模板消息） | ❌ 轮询替代 |
-| 文件选择 / Excel 导入 | ✅ | ✅ | ✅ | ⚠️ 受限 | ✅ |
-| 相机拍照上传 | ✅ | ✅ | ✅ | ✅ | ❌ |
-| SVG 楼层热区图 | ✅ | ✅ | ✅ | ⚠️ 需 canvas | ✅ |
+| 功能 | iOS | Android | HarmonyOS Next | PC 管理后台(admin) |
+|------|:---:|:-------:|:--------------:|:-----------------:|
+| 全部业务页面（Dashboard、资产、租务、财务） | ✅ | ✅ | ✅ | ✅ |
+| QR 扫码报修（`qr_code_scanner`） | ✅ | ✅ | ✅ | ❌ → 手动填报 |
+| 推送通知（APNs / FCM / 鸿蒙推送） | ✅ | ✅ | ✅ | ❌ 轮询替代 |
+| 文件选择 / Excel 导入 | ✅ | ✅ | ✅ | ✅ |
+| 相机拍照上传（`image_picker`） | ✅ | ✅ | ✅ | ❌ |
+| SVG 楼层热区图（`flutter_svg`） | ✅ | ✅ | ✅ | ✅ |
 
-> **扫码替代方案**：桌面端 `QrScanPage` 降级为 `WorkOrderFormPage`（手动输入楼栋/楼层/单元号）。  
-> **通知替代方案**：桌面端 / Web 使用应用内 Badge 角标 + 30 秒轮询 `/api/alerts/unread`，不依赖 FCM。  
-> **平台判断统一封装**：所有平台差异通过 uni-app 条件编译处理，集中在各功能模块内部，页面层不散落平台检测代码。
+> **扫码替代方案**：Admin PC 端无扫码功能，`WorkOrderFormPage` 降级为手动输入楼栋/楼层/单元号。  
+> **通知替代方案**：Admin PC 端使用应用内 Badge 角标 + 30 秒轮询 `/api/alerts/unread`，不依赖 FCM。  
+> **平台差异隔离**：所有平台特定代码通过 `dart:io` 的 `Platform` 类判断，集中在 `core/utils/` 或独立 Service 类中，Page/Widget 层保持平台无关。
 
-```typescript
-// 通过 uni-app 条件编译处理平台差异（app/src 各模块内部使用）
-// #ifdef APP-PLUS
-//   iOS / Android / HarmonyOS 原生 App（支持相机、扫码、uni-push 推送）
-// #endif
-// #ifdef MP-WEIXIN
-//   微信小程序（扫码受限，使用 wx.scanCode；推送用模板消息）
-// #endif
-// #ifdef H5
-//   H5 浏览器端（无扫码，使用手动输入降级；Admin PC 端归于此类）
-// #endif
+```dart
+// Flutter 平台差异处理（flutter_app/lib 各模块内部使用）
+// 通过 dart:io Platform 或 Theme.of(context).platform 判断平台
+import 'dart:io' show Platform;
+
+if (Platform.isIOS) {
+  // iOS 特定逻辑（如 APNs 推送注册）
+} else if (Platform.isAndroid) {
+  // Android 特定逻辑（如 FCM 推送注册）
+}
+// HarmonyOS Next 通过 flutter_harmony 适配层支持
 ```
 
 ---
@@ -291,7 +291,7 @@ backend/
 │   │   │   │   └── supplier_repository.dart
 │   │   │   ├── services/
 │   │   │   │   ├── work_order_service.dart   # 状态机转换 + 成本归口
-│   │   │   │   └── push_service.dart         # uni-push 推送封装（APNs/FCM/HarmonyOS 统一通道）
+│   │   │   │   └── push_service.dart         # 推送封装（APNs/FCM/HarmonyOS 统一通道，后端发送）
 │   │   │   └── controllers/
 │   │   │       └── work_order_controller.dart
 │   │   │
@@ -419,66 +419,96 @@ dependencies:
 
 | 端 | 路由方案 | 守卫方式 | 状态管理 |
 |----|---------|---------|---------|
-| uni-app（App + 小程序） | `pages.json` 静态注册 | `uni.addInterceptor('navigateTo')` | Pinia |
+| Flutter（App） | `go_router` 声明式路由 | `redirect` 重定向守卫 | `flutter_bloc`（BLoC/Cubit） |
 | Admin（PC Web） | Vue Router 4 `createWebHistory` | `router.beforeEach` | Pinia |
 
-- **uni-app 路由**：所有页面在 `pages.json` 中声明，底部 tabBar 5 个 Tab；路由跳转使用 `uni.navigateTo` / `uni.switchTab`；守卫通过 `uni.addInterceptor` 拦截器在跳转前检查 JWT
+- **Flutter 路由**：使用 `go_router` 声明所有路由，底部 BottomNavigationBar 5 个 Tab；路由跳转通过 `context.push()` / `context.go()` 实现；守卫在 `redirect` 回调中检查 JWT
 - **Admin 路由**：Vue Router 4，`AppLayout.vue` 作为根布局（侧边栏 + 顶部栏），`router.beforeEach` 检查 `localStorage.access_token`，公开路由通过 `meta.public: true` 标记
 
-### 4.2 uni-app 页面路由（pages.json）
+### 4.2 Flutter 页面路由（go_router 配置）
 
-```json
-{
-  "pages": [
-    { "path": "pages/auth/login",             "style": { "navigationBarTitleText": "登录", "navigationStyle": "custom" } },
-    { "path": "pages/dashboard/index",        "style": { "navigationBarTitleText": "首页" } },
-    { "path": "pages/assets/index",           "style": { "navigationBarTitleText": "资产总览" } },
-    { "path": "pages/assets/building-detail", "style": { "navigationBarTitleText": "楼栋详情" } },
-    { "path": "pages/assets/floor-plan",      "style": { "navigationBarTitleText": "楼层热区图" } },
-    { "path": "pages/assets/unit-detail",     "style": { "navigationBarTitleText": "房源详情" } },
-    { "path": "pages/contracts/index",        "style": { "navigationBarTitleText": "合同管理" } },
-    { "path": "pages/contracts/detail",       "style": { "navigationBarTitleText": "合同详情" } },
-    { "path": "pages/finance/index",          "style": { "navigationBarTitleText": "财务总览" } },
-    { "path": "pages/finance/invoices",       "style": { "navigationBarTitleText": "发票账单" } },
-    { "path": "pages/finance/kpi",            "style": { "navigationBarTitleText": "KPI 考核" } },
-    { "path": "pages/workorders/index",       "style": { "navigationBarTitleText": "工单管理" } },
-    { "path": "pages/workorders/detail",      "style": { "navigationBarTitleText": "工单详情" } },
-    { "path": "pages/workorders/new",         "style": { "navigationBarTitleText": "新建工单" } },
-    { "path": "pages/subleases/index",        "style": { "navigationBarTitleText": "二房东管理" } },
-    { "path": "pages/subleases/detail",       "style": { "navigationBarTitleText": "二房东详情" } }
+```dart
+// flutter_app/lib/core/router/app_router.dart
+import 'package:go_router/go_router.dart';
+
+final appRouter = GoRouter(
+  initialLocation: '/dashboard',
+  redirect: (context, state) {
+    final isAuthenticated = _checkAuth();
+    if (!isAuthenticated && state.matchedLocation != '/login') {
+      return '/login';
+    }
+    return null;
+  },
+  routes: [
+    GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
+    StatefulShellRoute.indexedStack(
+      builder: (_, __, navigationShell) => AppShell(navigationShell: navigationShell),
+      branches: [
+        StatefulShellBranch(routes: [
+          GoRoute(path: '/dashboard', builder: (_, __) => const DashboardPage()),
+        ]),
+        StatefulShellBranch(routes: [
+          GoRoute(path: '/assets', builder: (_, __) => const AssetsPage(),
+            routes: [
+              GoRoute(path: 'buildings/:id', builder: (_, state) => BuildingDetailPage(id: state.pathParameters['id']!)),
+              GoRoute(path: 'buildings/:bid/floors/:fid', builder: (_, state) => FloorPlanPage(buildingId: state.pathParameters['bid']!, floorId: state.pathParameters['fid']!)),
+              GoRoute(path: 'units/:id', builder: (_, state) => UnitDetailPage(id: state.pathParameters['id']!)),
+            ],
+          ),
+        ]),
+        StatefulShellBranch(routes: [
+          GoRoute(path: '/contracts', builder: (_, __) => const ContractsPage(),
+            routes: [
+              GoRoute(path: ':id', builder: (_, state) => ContractDetailPage(id: state.pathParameters['id']!)),
+            ],
+          ),
+        ]),
+        StatefulShellBranch(routes: [
+          GoRoute(path: '/workorders', builder: (_, __) => const WorkordersPage(),
+            routes: [
+              GoRoute(path: 'new', builder: (_, __) => const WorkorderNewPage()),
+              GoRoute(path: ':id', builder: (_, state) => WorkorderDetailPage(id: state.pathParameters['id']!)),
+            ],
+          ),
+        ]),
+        StatefulShellBranch(routes: [
+          GoRoute(path: '/finance', builder: (_, __) => const FinancePage(),
+            routes: [
+              GoRoute(path: 'invoices', builder: (_, __) => const InvoicesPage()),
+              GoRoute(path: 'kpi', builder: (_, __) => const KpiPage()),
+            ],
+          ),
+        ]),
+      ],
+    ),
+    GoRoute(path: '/subleases', builder: (_, __) => const SubleasesPage(),
+      routes: [
+        GoRoute(path: ':id', builder: (_, state) => SubleaseDetailPage(id: state.pathParameters['id']!)),
+      ],
+    ),
   ],
-  "tabBar": {
-    "color": "#8c8c8c",
-    "selectedColor": "#1677ff",
-    "backgroundColor": "#ffffff",
-    "borderStyle": "black",
-    "list": [
-      { "pagePath": "pages/dashboard/index",  "text": "首页", "iconPath": "static/tabbar/dashboard.png",  "selectedIconPath": "static/tabbar/dashboard-active.png" },
-      { "pagePath": "pages/assets/index",     "text": "资产", "iconPath": "static/tabbar/assets.png",     "selectedIconPath": "static/tabbar/assets-active.png" },
-      { "pagePath": "pages/contracts/index",  "text": "合同", "iconPath": "static/tabbar/contracts.png",  "selectedIconPath": "static/tabbar/contracts-active.png" },
-      { "pagePath": "pages/workorders/index", "text": "工单", "iconPath": "static/tabbar/workorders.png", "selectedIconPath": "static/tabbar/workorders-active.png" },
-      { "pagePath": "pages/finance/index",    "text": "财务", "iconPath": "static/tabbar/finance.png",    "selectedIconPath": "static/tabbar/finance-active.png" }
-    ]
-  }
-}
+);
 ```
 
-### 4.3 uni-app 路由守卫
+### 4.3 Flutter 路由守卫与认证检查
 
-```typescript
-// app/src/utils/request-interceptor.ts
-// 统一在页面跳转前检查 JWT，未登录则重定向到登录页
-uni.addInterceptor('navigateTo', {
-  invoke(args) {
-    const token = uni.getStorageSync('access_token')
-    const publicPages = ['/pages/auth/login']
-    if (!token && !publicPages.some(p => (args.url as string).startsWith(p))) {
-      uni.redirectTo({ url: '/pages/auth/login' })
-      return false
-    }
-    return args
+```dart
+// flutter_app/lib/core/router/app_router.dart
+// 在 GoRouter redirect 回调中集中检查认证状态
+
+GoRouter(
+  redirect: (context, state) {
+    final authCubit = context.read<AuthCubit>();
+    final isLoggedIn = authCubit.state.isAuthenticated;
+    final isLoggingIn = state.matchedLocation == '/login';
+
+    if (!isLoggedIn && !isLoggingIn) return '/login';
+    if (isLoggedIn && isLoggingIn) return '/dashboard';
+    return null;
   },
-})
+  // routes...
+);
 ```
 
 ### 4.4 Admin Vue Router 路由（router/index.ts）
@@ -525,7 +555,7 @@ router.beforeEach((to) => {
 
 ### 4.5 角色路由权限映射
 
-| 角色 | uni-app 可访问 Tab | Admin 可访问路由 |
+| 角色 | Flutter 可访问 Tab | Admin 可访问路由 |
 |------|------------------|----------------|
 | `super_admin` / `operations_manager` | 全部 5 Tab | 全部路由 |
 | `leasing_specialist` | 资产 / 合同 / 工单 | assets / contracts / workorders |
@@ -535,7 +565,7 @@ router.beforeEach((to) => {
 | `report_viewer` | 资产 / 财务 / 合同（全只读） | assets / finance / contracts（只读） |
 | `sub_landlord` | 二房东门户（`subleases/`） | 不开放 Admin |
 
-> 角色在登录后从 JWT Claims 解析写入 Pinia `useAuthStore`；uni-app 守卫读取 store 中的 `role` 字段；Admin `router.beforeEach` 读取 `localStorage.access_token`，完整角色鉴权委托给后端 RBAC 中间件。
+> 角色在登录后从 JWT Claims 解析写入 BLoC/Cubit 状态；Flutter 通过 `redirect` 守卫检查认证；Admin `router.beforeEach` 读取 `localStorage.access_token`，完整角色鉴权委托给后端 RBAC 中间件。
 
 ---
 
@@ -1272,16 +1302,16 @@ JobRunner.execute(job)
 |------|------|---------|
 | AES | Advanced Encryption Standard | 高级加密标准，本项目使用 AES-256-GCM 对证件号、手机号等敏感字段加密存储 |
 | API | Application Programming Interface | 应用程序接口，前后端通过 REST API 通信 |
-| APNs | Apple Push Notification service | 苹果推送通知服务，并入 uni-push 统一推送通道，做到一套 SDK 覆盖全平台 |
+| APNs | Apple Push Notification service | 苹果推送通知服务，后端统一推送通道覆盖 APNs/FCM/HarmonyOS |
 | ARCH | Architecture | 架构（本文档文件名缩写）|
 | CAD | Computer-Aided Design | 计算机辅助设计，本项目处理 `.dwg` 格式楼层平面图 |
 | CPI | Consumer Price Index | 消费者价格指数，用于合同租金年度联动递增计算 |
 | CRUD | Create, Read, Update, Delete | 增删改查，数据库基本操作统称 |
 | DDL | Data Definition Language | 数据定义语言，用于创建/修改数据库表结构的 SQL 语句 |
-| DI | Dependency Injection | 依赖注入，后端通过构造函数注入实现分层解耦（Repository → Service → Controller）；前端通过 Pinia store 共享状态 |
+| DI | Dependency Injection | 依赖注入，后端通过构造函数注入实现分层解耦（Repository → Service → Controller）；Flutter 端使用 `get_it` 服务定位器；Admin 端通过 Pinia store 共享状态 |
 | DWG | Drawing（AutoCAD 格式） | AutoCAD 专有矢量图格式，楼层 CAD 平面图原始格式 |
 | EGI | Effective Gross Income | 有效总收入，EGI = PGI - VacancyLoss + OtherIncome |
-| FCM | Firebase Cloud Messaging | Firebase 云消息推送服务，并入 uni-push 统一通道覆盖 Android/iOS 工单通知 |
+| FCM | Firebase Cloud Messaging | Firebase 云消息推送服务，后端统一推送通道覆盖 Android/iOS 工单通知 |
 | GCM | Galois/Counter Mode | 伽罗华/计数器模式，AES 的一种认证加密工作模式 |
 | GIN | Generalized Inverted Index | 通用倒排索引，PostgreSQL 索引类型，用于 JSONB 字段高效过滤 |
 | HTTP | HyperText Transfer Protocol | 超文本传输协议，客户端与后端服务通信基础协议 |
@@ -1299,7 +1329,8 @@ JobRunner.execute(job)
 | PGI | Potential Gross Income | 潜在总收入，满租状态下的理论最大收入 |
 | PIPL | Personal Information Protection Law | 《个人信息保护法》（中国），要求合同终止后个人信息保留不超过 3 年，脱敏还原须记录完整审计日志 |
 | PNG | Portable Network Graphics | 便携网络图形格式，楼层 SVG 转换后的备用光栅图 |
-| Pinia | Pinia | Vue3 官方状态管理库，uni-app 与 Admin 端统一使用；`defineStore` setup 风格，state = `ref`，getter = `computed`，action 为 async 函数 |
+| Pinia | Pinia | Vue3 官方状态管理库，Admin 端使用；`defineStore` setup 风格，state = `ref`，getter = `computed`，action 为 async 函数 |
+| flutter_bloc | flutter_bloc | Flutter 移动端状态管理库，遵循单向数据流；Cubit 为简化版，BLoC 含事件触发；状态使用 `@freezed` sealed union 四态 |
 | PRD | Product Requirements Document | 产品需求文档，本架构对应 PRD v1.8 |
 | QR | Quick Response Code | 快速响应码（二维码），移动端扫码报修入口，桌面端降级为手动填报 |
 | RBAC | Role-Based Access Control | 基于角色的访问控制，所有 API 端点须经 RBAC 中间件验证 |

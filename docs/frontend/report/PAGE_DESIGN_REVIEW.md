@@ -22,7 +22,7 @@
 
 **结论**: Admin 一级页面架构 **设计合理，无需调整顶层结构**。7 个分组精准对应 5 个业务模块 + 概览 + 系统配置，导航深度合理（大多数高频操作在 L1→L2 两层内完成）。
 
-### 1.2 uni-app 移动端（5 Tab + navigateTo）
+### 1.2 Flutter 移动端（5 Tab + go_router）
 
 | TabBar | 页面 | 评估结论 |
 |--------|------|---------|
@@ -36,7 +36,7 @@
 
 **关键设计原则确认**：
 - ✅ NOI 三级架构（L1 Dashboard → L2 NoiDetailView → L3 Collapse/Dialog）执行到位
-- ✅ uni-app 仅承载 L1，L2/L3 由 Admin PC 承载
+- ✅ Flutter 移动端仅承载 L1，L2/L3 由 Admin PC 承载
 - ✅ 复杂表单（合同新建/编辑、KPI 方案配置）仅在 Admin 端提供
 - ✅ WALE 双口径在 Dashboard(L1) + WaleDetailView(L2) 正确展示
 
@@ -514,7 +514,7 @@ ElDivider "二房东配置"
 ### 4.1 不建议修改的内容
 
 1. **Admin 7 分组侧边栏结构** — 合理完整，无需调整
-2. **uni-app 5-Tab 结构** — 符合移动端操作习惯
+2. **Flutter 5-Tab 结构** — 符合移动端操作习惯
 3. **NOI 三级架构** — 设计精良，渐进披露到位
 4. **押金管理嵌入合同详情 Tab** — 比独立页面更符合业务语境（押金始终关联合同）
 5. **KPI 放置在财务模块下** — 财务与考核的关联性最强，归类合理
@@ -537,7 +537,7 @@ ElDivider "二房东配置"
 | 类别 | 当前 PAGE_SPEC | 补充后 | 变化 |
 |------|---------------|--------|------|
 | Admin Views | 44 | **50** | +6（ExpenseList/Form, MeterReadingList, PaymentList, SupplierList, PenetrationDashboard） |
-| uni-app Pages | 16 | 16 | 无变化（缺口均为 Admin 端） |
+| Flutter Pages | 16 | 16 | 无变化（缺口均为 Admin 端） |
 | 外部门户 | 3 | 3 | 无变化 |
 | **合计** | **63** | **69** | **+6 个 L2 页面** |
 | Dialog/Drawer（L3） | 未统计 | +5 | 改造表单/图纸版本/预算录入/检查清单/拆合向导 |

@@ -6,7 +6,7 @@
 | 日期 | 2026-04-11 |
 | 依据 | PRD v1.8 · PAGE_SPEC v1.8 · PAGE_WIREFRAMES v1.8 |
 | 分析对象 | `frontend/` 目录 React 高保真原型（10 个页面组件） |
-| 目标输出端 | uni-app 移动端（`app/`）· Admin PC 端（`admin/`） |
+| 目标输出端 | Flutter 移动端（`flutter_app/`）· Admin PC 端（`admin/`） |
 
 ---
 
@@ -18,7 +18,7 @@
 
 | 端 | 项目目录 | 技术栈 | 用途 |
 |----|---------|--------|------|
-| uni-app 移动端 | `app/` | Vue 3 + wot-design-uni + Pinia | iOS / Android / HarmonyOS / 微信小程序 / H5 |
+| Flutter 移动端 | `flutter_app/` | Flutter + Material 3 + flutter_bloc / Cubit | iOS / Android / HarmonyOS Next |
 | Admin PC 端 | `admin/` | Vue 3 + Element Plus + Pinia | 管理层 PC 操作 |
 | 原型 | `frontend/` | React 19 + TailwindCSS | 设计验证 / 产品评审（不上线） |
 
@@ -137,7 +137,7 @@
 | SLA 时效提示（报修 24h/投诉 2h） | 无 | ⚠️ 不足 | 可在详情页补充倒计时 |
 | 退租验房逐项检查清单 | 有退租类型，但缺详细查验清单 UI | ⚠️ 不足 | L2 详情页扩展 |
 | 维修成本自动汇入 NOI OpEx | 费用录入有材料费/人工费，但无 OpEx/CapEx 标记 | ❌ 缺失 | 增加费用性质选择器 |
-| 扫码报修 | 无 | ⚠️ 后续 | uni-app 端实现 |
+| 扫码报修 | 无 | ⚠️ 后续 | Flutter 移动端实现 |
 
 **M4 总结**：三类工单核心流程完整，是仅次于资产模块的第二亮点。需补充工单独立详情页、SLA 倒计时、退租验房清单、费用 OpEx/CapEx 标记。
 
@@ -269,7 +269,7 @@
 
 ## 七、原型亮点总结
 
-尽管覆盖度不足，原型在以下方面的设计质量值得肯定，可直接作为 uni-app 实现的设计参照：
+尽管覆盖度不足，原型在以下方面的设计质量值得肯定，可直接作为 Flutter 实现的设计参照：
 
 | 亮点 | 设计质量 | 可复用程度 |
 |------|---------|-----------|
@@ -279,7 +279,7 @@
 | WALE 仪表盘（瀑布图/到期风险/趋势） | ★★★★★ | 高 — 创新性展示形式 |
 | 三类工单完整流程 | ★★★★☆ | 高 — 表单 + 列表 + 完工结构清晰 |
 | 色彩语义一致性 | ★★★★☆ | 高 — 符合 PRD 状态色规范 |
-| Mobile-first 布局 + 安全区适配 | ★★★★☆ | 中 — 需迁移至 uni-app 布局体系 |
+| Mobile-first 布局 + 安全区适配 | ★★★★☆ | 中 — 需迁移至 Flutter 布局体系 |
 
 ---
 

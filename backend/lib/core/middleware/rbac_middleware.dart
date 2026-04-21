@@ -100,12 +100,14 @@ Handler withRbac(
 // ---------------------------------------------------------------------------
 
 /// 判断路由是否属于公开不需鉴权的路径。
-/// 仅登录和刷新 Token 两个端点无需 Bearer，其余 /api/auth/* 均需鉴权。
+/// 无需 Bearer Token 的公开端点，与 auth_middleware 白名单保持一致。
 /// Shelf 的 request.url.path 不含前导斜杠，此处 path 已在外部加了 '/'。
 bool _isPublicPath(String path) =>
     path == '/health' ||
     path == '/api/auth/login' ||
-    path == '/api/auth/refresh';
+    path == '/api/auth/refresh' ||
+    path == '/api/auth/forgot-password' ||
+    path == '/api/auth/reset-password';
 
 /// 二房东可访问的路径前缀
 bool _isSubLandlordPath(String path) =>

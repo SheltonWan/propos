@@ -24,6 +24,17 @@
   color: $color-foreground;
 }
 
+@mixin text-heading {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: $color-foreground;
+}
+
+@mixin text-body {
+  font-size: 28rpx;
+  color: $color-foreground;
+}
+
 @mixin text-caption {
   font-size: 24rpx;
   color: $color-muted-foreground;

@@ -1,0 +1,41 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter App Dev",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define=API_BASE_URL=http://localhost:8080"
+      ],
+      "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+      "cwd": "${workspaceFolder:flutter_app}"
+    },
+    {
+      "name": "Flutter App Prod",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define=API_BASE_URL=https://api.propos.cn"
+      ],
+      "program": "${workspaceFolder:flutter_app}/lib/main.dart",
+      "cwd": "${workspaceFolder:flutter_app}"
+    },
+    {
+      "name": "Flutter Tests (flutter_app)",
+      "request": "launch",
+      "type": "dart",
+      "codeLens": {
+        "for": ["run-test", "run-test-file", "debug-test", "debug-test-file"]
+      },
+      "cwd": "${workspaceFolder:flutter_app}"
+    },
+    {
+      "name": "Backend Server (backend)",
+      "request": "launch",
+      "type": "dart",
+      "program": "${workspaceFolder:backend}/bin/server.dart",
+      "cwd": "${workspaceFolder:backend}"
+    }
+  ]
+}

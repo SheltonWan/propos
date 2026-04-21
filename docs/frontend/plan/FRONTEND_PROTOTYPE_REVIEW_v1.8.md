@@ -15,7 +15,7 @@
 `frontend/` 是一个 **React 交互原型**（`package.json` name: `@figma/my-make-file`），使用 React 18 + React Router 7 + shadcn/ui + Tailwind v4 构建，定位为前期 UI 验证原型与设计参照物，**并非生产交付物**。
 
 最终交付目标为：
-- `app/`（uni-app 4.x + Vue 3 + Pinia + wot-design-uni）— 移动端
+- `flutter_app/`（Flutter + Dart + flutter_bloc + Material 3）— 移动端
 - `admin/`（Vue 3 + Element Plus）— PC Admin 端
 
 ---
@@ -24,10 +24,10 @@
 
 | 维度 | PAGE_SPEC v1.8 规格 | frontend/ 原型实际 | 影响等级 |
 |------|---------------------|-------------------|---------|
-| 移动端框架 | uni-app 4.x + Vue 3 | React 18 | 参照可用，移植需重写 |
-| 状态管理 | Pinia（setup 风格）| React Context | 参照可用，移植需重写 |
-| UI 组件库 | wot-design-uni / Element Plus | shadcn/ui + Radix UI | 组件无法复用 |
-| 设计语言 | CSS 变量体系 | Tailwind 硬编码类 | 移植时需逐一映射 |
+| 移动端框架 | Flutter (Dart) | React 18 | 参照可用，移植需重写 |
+| 状态管理 | flutter_bloc / Cubit | React Context | 参照可用，移植需重写 |
+| UI 组件库 | Material 3 / Element Plus | shadcn/ui + Radix UI | 组件无法复用 |
+| 设计语言 | Material 3 ThemeData + CSS 变量 | Tailwind 硬编码类 | 移植时需逐一映射 |
 | Admin PC 端 | Vue 3 + Element Plus（44 视图）| **完全缺失** | 🔴 严重缺口 |
 | 状态色 | `--color-success/warning/danger` | `text-emerald-600` 等 | 移植时替换 |
 | API 层 | api → store → page 单向数据流 | 全量静态 mock 数据 | 🔴 移植时全量替换 |
@@ -120,7 +120,7 @@
 | 编号 | 问题 | 当前状态 | 处理阶段 |
 |------|------|---------|---------|
 | A1 | 全量静态 mock 数据，无 API 接口调用层 | frontend/ 原型设计 | app/ / admin/ 实现时全量替换 |
-| A2 | 状态色硬编码 Tailwind 类，未走 CSS 变量 | frontend/ 原型设计 | 移植到 uni-app / Element Plus 时逐一映射 |
+| A2 | 状态色硬编码 Tailwind 类，未走语义色体系 | frontend/ 原型设计 | 移植到 Flutter Material 3 / Element Plus 时逐一映射 |
 | A3 | FloorPlan.tsx SVG 坐标静态硬编码 | 原型内建 mock | M1 交付时对接 `GET /api/floors/:id` + SVG_HOTZONE_SPEC |
 | A4 | Admin PC 端（44 视图）完全缺失 | 未开工 | admin/ 建设中补齐 |
 | A5 | 登录页缺失，原型默认跳过鉴权 | 原型设计范围 | app/ 已有登录页，admin/ 需补充 |

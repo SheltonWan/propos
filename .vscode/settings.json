@@ -1,5 +1,5 @@
 {
-  "typescript.tsdk": "./app/node_modules/typescript/lib",
+  "js/ts.tsdk.path": "./admin/node_modules/typescript/lib",
   "github.copilot.chat.codeGeneration.useInstructionFiles": true,
   "github.copilot.nextEditSuggestions.enabled": true,
   "github.copilot.chat.experimental.temporalContext.enabled": true,
@@ -8,10 +8,20 @@
     "*": true,
     "dart": true
   },
+  "dart.projectSearchDepth": 5,
+  "java.import.gradle.enabled": false,
+  "java.import.maven.enabled": false,
+  "java.import.exclusions": [
+    "**"
+  ],
+  "java.server.launchMode": "LightWeight",
   "search.exclude": {
-    "pdfdocs/**": true
+    "pdfdocs/**": true,
+    "app/**": false,
+    "app/node_modules/**": false
   },
   "files.exclude": {
-    "pdfdocs/**": false
+    "pdfdocs/**": true,
+    "app/**": false
   }
 }

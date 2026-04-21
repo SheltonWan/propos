@@ -12,6 +12,7 @@ dependencies:
   postgres: ^3.3.0
   dart_jsonwebtoken: ^2.12.2
   crypto: ^3.0.3
+  bcrypt: ^1.1.4
   encrypt: ^5.0.3
   dotenv: ^4.2.0
   uuid: ^4.4.0
@@ -26,6 +27,7 @@ dependencies:
     path: packages/rent_escalation_engine
   propos_kpi_scorer:
     path: packages/kpi_scorer
+  mailer: ^7.1.0
 
 dev_dependencies:
   build_runner: ^2.4.12

@@ -334,6 +334,61 @@
 
 ---
 
+### 1.13 `POST /api/auth/forgot-password` — 发送 OTP 验证码邮件
+
+**权限**: 公共
+
+> 安全说明：不论该邮箱是否存在于系统中，响应均为 200，防止用户名枚举攻击。
+> 同一用户 5 分钟内最多发送 3 次，超出时后端静默忽略（仍返回 200，不暴露限频信息）。
+> OTP 为 6 位数字，有效期 10 分钟，最多允许 5 次错误验证。
+
+**Request Body** — `ForgotPasswordRequest`
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `email` | string | 是 | 申请重置的账号邮箱 |
+
+**Response 200**
+
+```json
+{ "data": { "message": "若该邮箱已注册，验证码已发送至邮箱" } }
+```
+
+---
+
+### 1.14 `POST /api/auth/reset-password` — 通过 OTP 验证码重置密码
+
+**权限**: 公共
+
+> OTP 来自发往注册邮箱的验证码，6 位数字，有效期 10 分钟，使用一次后立即失效。
+> 重置成功后 `session_version` 递增，所有已登录会话的 JWT 全部失效。
+
+**Request Body** — `ResetPasswordRequest`
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `email` | string | 是 | 用户邮箱（与申请 OTP 时一致） |
+| `otp` | string | 是 | 邮件中收到的 6 位数字验证码 |
+| `new_password` | string | 是 | 新密码（≥8位，含大小写+数字，≠旧密码） |
+
+**Response 200**
+
+```json
+{ "data": { "message": "密码已重置，请使用新密码登录" } }
+```
+
+**错误码**
+
+| 错误码 | 说明 |
+|--------|------|
+| `OTP_INVALID` | 验证码不存在、已使用，或输入错误 |
+| `OTP_EXPIRED` | 验证码已过期（超过 10 分钟） |
+| `RESET_PASSWORD_EXHAUSTED` | 验证码已失效（错误次数超过 5 次），请重新获取 |
+| `PASSWORD_TOO_WEAK` | 新密码不符合复杂度要求 |
+| `PASSWORD_SAME_AS_OLD` | 新密码不能与旧密码相同 |
+
+---
+
 ## 一-A、组织架构管理
 
 ### 1A.1 `GET /api/departments` — 部门树列表

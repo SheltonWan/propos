@@ -16,6 +16,21 @@ class AppConfig {
   final String logLevel;
   final int maxUploadSizeMb;
 
+  // 邮件相关（可选，未配置时退化为控制台打印）
+  final String smtpHost;
+  final int smtpPort;
+  final String smtpUser;
+  final String smtpPassword;
+  final String smtpFrom;
+
+  /// Admin Web 基础 URL，用于拼接密码重置链接
+  final String adminWebBaseUrl;
+
+  /// 数据库 SSL 模式：require（默认）/ verify-full / disable
+  /// 生产环境建议设为 verify-full，本地开发可设为 disable
+  final String dbSslMode;
+
+
   AppConfig._({
     required this.databaseUrl,
     required this.jwtSecret,
@@ -26,6 +41,14 @@ class AppConfig {
     required this.corsOrigins,
     required this.logLevel,
     required this.maxUploadSizeMb,
+    required this.smtpHost,
+    required this.smtpPort,
+    required this.smtpUser,
+    required this.smtpPassword,
+    required this.smtpFrom,
+    required this.adminWebBaseUrl,
+    required this.dbSslMode,
+
   });
 
   static AppConfig load({String? Function(String)? get}) {
@@ -49,19 +72,28 @@ class AppConfig {
     if (jwtExpiresInHours == null) {
       throw StateError('环境变量 JWT_EXPIRES_IN_HOURS 必须为整数，当前值: $jwtExpiresInHoursStr');
     }
+    if (jwtExpiresInHours <= 0) {
+      throw StateError('环境变量 JWT_EXPIRES_IN_HOURS 必须为正整数，当前值: $jwtExpiresInHoursStr');
+    }
     final rawStoragePath = require('FILE_STORAGE_PATH');
     // 相对路径以 CWD（通常为 backend/）为基准解析为绝对路径
     final fileStoragePath = path_lib.isAbsolute(rawStoragePath)
         ? rawStoragePath
         : path_lib.join(Directory.current.path, rawStoragePath);
     final encryptionKey = require('ENCRYPTION_KEY');
-    if (encryptionKey.length < 32) {
-      throw StateError('ENCRYPTION_KEY 长度不足 32 字节，至少需要 32 个字符');
+    // AES-256 需要 32 字节密钥；以十六进制字符串存储时应为 64 位 hex 字符
+    if (encryptionKey.length < 64) {
+      throw StateError(
+        'ENCRYPTION_KEY 长度不足：AES-256 需要 32 字节密钥，以十六进制字符串存储应为 64 个字符，当前长度 ${encryptionKey.length}',
+      );
     }
     final appPortStr = require('APP_PORT');
     final appPort = int.tryParse(appPortStr);
     if (appPort == null) {
       throw StateError('环境变量 APP_PORT 必须为整数，当前值: $appPortStr');
+    }
+    if (appPort < 1 || appPort > 65535) {
+      throw StateError('环境变量 APP_PORT 必须在 1–65535 范围内，当前值: $appPortStr');
     }
 
     return AppConfig._(
@@ -71,9 +103,43 @@ class AppConfig {
       fileStoragePath: fileStoragePath,
       encryptionKey: encryptionKey,
       appPort: appPort,
-      corsOrigins: lookup('CORS_ORIGINS') ?? '*',
+      // 默认为空字符串（不发 CORS 头）；生产环境按实际前端域名配置
+      corsOrigins: lookup('CORS_ORIGINS') ?? '',
       logLevel: lookup('LOG_LEVEL') ?? 'info',
-      maxUploadSizeMb: int.tryParse(lookup('MAX_UPLOAD_SIZE_MB') ?? '') ?? 50,
+      maxUploadSizeMb: _parseOptionalInt('MAX_UPLOAD_SIZE_MB', lookup('MAX_UPLOAD_SIZE_MB'), 50),
+
+      smtpHost: lookup('SMTP_HOST') ?? '',
+      smtpPort: _parseOptionalInt('SMTP_PORT', lookup('SMTP_PORT'), 465),
+      smtpUser: lookup('SMTP_USER') ?? '',
+      smtpPassword: lookup('SMTP_PASSWORD') ?? '',
+      smtpFrom: lookup('SMTP_FROM') ?? 'noreply@propos.internal',
+      adminWebBaseUrl: lookup('ADMIN_WEB_BASE_URL') ?? 'http://localhost:5173',
+
+      dbSslMode: _validatedSslMode(lookup('DB_SSL_MODE') ?? 'require'),
+
     );
+  }
+
+  /// 解析可选的整数环境变量。已设置但无法解析为整数时拒绝启动，未设置则使用默认值。
+  static int _parseOptionalInt(String key, String? raw, int defaultValue) {
+    if (raw == null || raw.isEmpty) return defaultValue;
+    final value = int.tryParse(raw);
+    if (value == null) {
+      throw StateError('环境变量 $key 必须为整数，当前值: "$raw"');
+    }
+    return value;
+  }
+
+  /// 校验并标准化 DB_SSL_MODE 值。
+  /// 只接受 require / verify-full / disable，其余值拒绝启动。
+  static String _validatedSslMode(String raw) {
+    const allowed = {'require', 'verify-full', 'disable'};
+    final value = raw.trim().toLowerCase();
+    if (!allowed.contains(value)) {
+      throw StateError(
+        'DB_SSL_MODE 值无效: "$raw"，允许的值为: require / verify-full / disable',
+      );
+    }
+    return value;
   }
 }

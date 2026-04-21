@@ -12,7 +12,7 @@
 - 前端按 `code` 字段做业务判断，**不解析 `message`**
 - 后端新增错误码时**必须**同步更新本表
 - 后端常量定义：`backend/lib/shared/constants/error_codes.dart`
-- uni-app 常量定义：`app/src/constants/error_codes.ts`
+- Flutter 常量定义：`flutter_app/lib/core/constants/error_codes.dart`
 - Admin 常量定义：`admin/src/constants/error_codes.ts`
 
 ---
@@ -60,7 +60,10 @@
 | `BOUND_CONTRACT_REQUIRED` | 400 | `POST /api/users` | 二房东角色必须绑定主合同 |
 | `CONTRACT_NOT_SUBLEASE_MASTER` | 400 | `POST /api/users` | 绑定的合同不是二房东主合同 |
 | `INVALID_OLD_PASSWORD` | 400 | `POST /api/auth/change-password` | 旧密码不正确 |
-| `PASSWORD_SAME_AS_OLD` | 400 | `POST /api/auth/change-password` | 新密码不能与旧密码相同 |
+| `PASSWORD_SAME_AS_OLD` | 400 | `POST /api/auth/change-password`、`POST /api/auth/reset-password` | 新密码不能与旧密码相同 |
+| `OTP_INVALID` | 400 | `POST /api/auth/reset-password` | 验证码不存在、已使用，或输入错误 |
+| `OTP_EXPIRED` | 400 | `POST /api/auth/reset-password` | 验证码已过期（超过 10 分钟） |
+| `RESET_PASSWORD_EXHAUSTED` | 400 | `POST /api/auth/reset-password` | 验证码错误次数已达上限，需重新获取 |
 
 ---
 
@@ -258,6 +261,9 @@ class ErrorCodes {
   static const contractNotSubleaseMaster = 'CONTRACT_NOT_SUBLEASE_MASTER';
   static const invalidOldPassword = 'INVALID_OLD_PASSWORD';
   static const passwordSameAsOld = 'PASSWORD_SAME_AS_OLD';
+  static const otpInvalid = 'OTP_INVALID';
+  static const otpExpired = 'OTP_EXPIRED';
+  static const resetPasswordExhausted = 'RESET_PASSWORD_EXHAUSTED';
 
   // ── 组织架构 ──
   static const maxDepthExceeded = 'MAX_DEPTH_EXCEEDED';

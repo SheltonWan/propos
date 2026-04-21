@@ -8,7 +8,7 @@ import axios from 'axios'
 import type { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'
 import { ApiError } from '@/types/api'
 import type { ApiResponse, ApiListResponse, ApiErrorBody } from '@/types/api'
-import { API_AUTH_REFRESH } from '@/constants/api_paths'
+import { API_AUTH_LOGIN, API_AUTH_REFRESH } from '@/constants/api_paths'
 import router from '@/router'
 
 const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -47,7 +47,11 @@ http.interceptors.response.use(
     const statusCode: number = error.response?.status ?? 0
     const body = error.response?.data as ApiErrorBody | undefined
 
-    if (statusCode === 401 && !originalRequest._retry) {
+    // 登录/刷新端点本身返回 401 时，不触发 token 刷新逻辑，直接走通用错误解析
+    const isAuthEndpoint =
+      originalRequest.url === API_AUTH_LOGIN || originalRequest.url === API_AUTH_REFRESH
+
+    if (statusCode === 401 && !originalRequest._retry && !isAuthEndpoint) {
       const refreshToken = localStorage.getItem('refresh_token')
       if (refreshToken && !isRefreshing) {
         isRefreshing = true

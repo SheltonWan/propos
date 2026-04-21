@@ -19,7 +19,7 @@
 8. [业务计算精度测试](#八业务计算精度测试)
 9. [安全测试计划](#九安全测试计划)
 10. [性能测试计划](#十性能测试计划)
-11. [前端测试计划（uni-app + Admin）](#十一前端测试计划uni-app--admin)
+11. [前端测试计划（Flutter + Admin）](#十一前端测试计划flutter--admin)
 12. [测试数据策略](#十二测试数据策略)
 13. [UAT 验收标准](#十三uat-验收标准)
 14. [定时任务测试](#十四定时任务测试)
@@ -65,7 +65,7 @@
 └──────────────────────────────────────────────────────┘
 ```
 
-| 层级 | 后端技术栈 | 前端技术栈（uni-app + Admin） |
+| 层级 | 后端技术栈 | 前端技术栈（Flutter + Admin） |
 |------|----------|---------------------------|
 | Layer 1 单元 | `package:test` + `mocktail` | `vitest` + `@vue/test-utils` + `pinia` testing |
 | Layer 2 集成 | `package:test` + 真实 PostgreSQL（Docker） | `vitest` + MSW (Mock Service Worker) |
@@ -502,11 +502,11 @@
 
 ---
 
-## 十一、前端测试计划（uni-app + Admin）
+## 十一、前端测试计划（Flutter + Admin）
 
-### 11.1 Pinia Store 单元测试
+### 11.1 BLoC/Cubit 单元测试（Flutter）+ Pinia Store 单元测试（Admin）
 
-使用 `vitest` + `pinia` testing helpers，验证 Store action 执行后 state 变化。Mock API client（不依赖 HTTP）。
+Flutter 端使用 `bloc_test` + `mocktail`，验证 BLoC/Cubit 状态转换。Admin 端使用 `vitest` + `pinia` testing helpers，验证 Store action 执行后 state 变化。Mock API client（不依赖 HTTP）。
 
 | Store | 关键测试场景 |
 |-------|------------|
@@ -522,7 +522,7 @@
 
 ### 11.2 组件测试
 
-使用 `@vue/test-utils` + `vitest`，通过 `createTestingPinia` 注入初始 state，验证 UI 渲染。
+Flutter 端使用 `flutter_test` + `mocktail`，通过 `BlocProvider` 注入 mock BLoC 验证 UI 渲染。Admin 端使用 `@vue/test-utils` + `vitest`，通过 `createTestingPinia` 注入初始 state，验证 UI 渲染。
 
 | 组件 / 页面 | 测试重点 |
 |------------|---------|
@@ -537,12 +537,12 @@
 
 验证色彩语义与业务状态正确映射（遵循 copilot-instructions 色彩规范）：
 
-| 状态 | uni-app CSS 变量 | Admin Element Plus | 测试验证 |
+| 状态 | Flutter ThemeExtension | Admin Element Plus | 测试验证 |
 |------|-----------------|-------------------|---------|
-| `leased` / `paid` | `--color-success`（绿色系） | `type="success"` | 已租单元/已核销账单为绿 |
-| `expiring_soon` / `warning` | `--color-warning`（黄/橙色系） | `type="warning"` | 即将到期为黄 |
-| `vacant` / `overdue` / `error` | `--color-danger`（红色系） | `type="danger"` | 空置/逾期为红 |
-| `non_leasable` | `--color-neutral`（灰色） | `type="info"` | 非可租为灰 |
+| `leased` / `paid` | `colorScheme.primary` / extension `success`（绿色系） | `type="success"` | 已租单元/已核销账单为绿 |
+| `expiring_soon` / `warning` | `colorScheme.tertiary` / extension `warning`（黄/橙色系） | `type="warning"` | 即将到期为黄 |
+| `vacant` / `overdue` / `error` | `colorScheme.error`（红色系） | `type="danger"` | 空置/逾期为红 |
+| `non_leasable` | `colorScheme.outline`（灰色） | `type="info"` | 非可租为灰 |
 
 ---
 
@@ -779,14 +779,14 @@ cd backend/packages/kpi_scorer && dart test
 cd backend && dart test test/e2e/
 ```
 
-### 16.2 前端测试（uni-app + Admin）
+### 16.2 前端测试（Flutter + Admin）
 
 ```bash
-# uni-app Store + 组件单元测试
-cd app && pnpm test
+# Flutter BLoC/Cubit 单元测试
+cd flutter_app && flutter test
 
 # 含覆盖率
-cd app && pnpm test -- --coverage
+cd flutter_app && flutter test --coverage
 
 # Admin Store + 组件单元测试
 cd admin && pnpm test
@@ -848,7 +848,7 @@ test/unit/<module>/<service>_test.dart
 test/integration/<module>/<repository>_test.dart
 test/e2e/<module>/<feature>_e2e_test.dart
 
-// 前端测试文件命名（uni-app 与 Admin 同规范）
+// 前端测试文件命名（Flutter 与 Admin 同规范）
 src/stores/__tests__/<store>.test.ts
 src/components/__tests__/<component>.test.ts
 src/pages/__tests__/<page>.test.ts       // Admin 为 src/views/__tests__/<view>.test.ts

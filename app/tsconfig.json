@@ -8,6 +8,12 @@
     ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "strict": true,
+    "jsx": "preserve",
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "sourceMap": true,
     "paths": {
       "@/uni_modules/*": [
         "./uni_modules/*"

@@ -14,7 +14,7 @@
 |------|------|---------|--------|------|
 | **系统内消息中心** | 全平台 | ✅ | 准实时（轮询） | 写入 `alerts` 表，前端定期拉取 |
 | **邮件** | 全平台 | ✅ | 延迟（分钟级） | SMTP 发送，失败自动重试 |
-| **FCM / uni-push 推送** | iOS / Android / HarmonyOS | ✅ | 实时 | uni-push 统一通道（集成 APNs/FCM/华为推送） |
+| **FCM 推送** | iOS / Android / HarmonyOS | ✅ | 实时 | FCM 统一推送通道（集成 APNs/FCM/华为推送） |
 | **应用内 Badge** | macOS / Windows / Web | ✅ | 准实时 | 未读数轮询，角标显示 |
 | **企业微信 Webhook** | — | ❌ Phase 2 | 实时 | 预留接口 |
 | **飞书 Webhook** | — | ❌ Phase 2 | 实时 | 预留接口 |
@@ -28,7 +28,7 @@ Phase 1 存在两个通知相关表，职责分工如下：
 | 表 | 来源 | 职责 | 前端入口 |
 |----|------|------|---------|
 | `alerts` | 定时任务自动生成 | **预警**：到期预警、逾期预警、工单超时等业务规则触发 | Admin: 预警中心 `/settings/alerts` |
-| `notifications` | API 手动/业务事件写入 | **通知**：审批结果、催收提醒、系统公告等操作型通知 | Admin + uni-app: 通知中心 `/notifications` |
+| `notifications` | API 手动/业务事件写入 | **通知**：审批结果、催收提醒、系统公告等操作型通知 | Admin + Flutter: 通知中心 `/notifications` |
 
 `notification_type` 枚举值（对应 data_model v1.5 §九-A）：
 
@@ -74,60 +74,69 @@ Phase 1 存在两个通知相关表，职责分工如下：
 | 预警轮询间隔 | 30 秒 | 在 `ui_constants.ts` 定义 `ALERT_POLL_INTERVAL` |
 | 通知轮询间隔 | 60 秒 | 在 `ui_constants.ts` 定义 `NOTIFICATION_POLL_INTERVAL`（v1.8 新增）|
 | 应用前台 | 正常轮询 | 30 秒一次 |
-| 应用后台 | 暂停轮询 | uni-app 通过 `onHide`/`onShow` 生命周期检测；Admin 通过 `visibilitychange` 事件检测 |
+| 应用后台 | 暂停轮询 | Flutter 通过 `WidgetsBindingObserver` 生命周期检测；Admin 通过 `visibilitychange` 事件检测 |
 | 未读 > 0 | Badge 显示 | 导航栏铃铛图标 + 数字角标 |
 
-### 2.3 uni-push 推送（移动端）
+### 2.3 FCM 推送（移动端）
 
 #### 后端集成
 
 ```dart
 /// backend/lib/services/push_service.dart
 class PushService {
-  final String _pushAppId;     // 从环境变量 UNI_PUSH_APP_ID 读取
-  final String _pushAppSecret; // 从环境变量 UNI_PUSH_APP_SECRET 读取
+  final String _fcmServerKey; // 从环境变量 FCM_SERVER_KEY 读取
 
-  /// 发送推送通知（通过 uni-push 服务端 API）
+  /// 发送推送通知（通过 FCM 服务端 API）
   Future<void> sendPush({
-    required String clientId,
+    required String deviceToken,
     required String title,
     required String body,
     Map<String, String>? data,
   }) async {
-    // 调用 uni-push 服务端 REST API 发送推送
-    // 支持 APNs(iOS) / 个推(Android) / 华为推送(HarmonyOS) 统一通道
+    // 调用 FCM HTTP v1 API 发送推送
+    // 支持 APNs(iOS) / FCM(Android) / 华为推送(HarmonyOS) 统一通道
   }
 }
 ```
 
-#### uni-app 端集成
+#### Flutter 端集成
 
-```typescript
-// app/src/utils/push.ts
-import { onPushMessage } from '@dcloudio/uni-push'
+```dart
+// flutter_app/lib/core/services/push_service.dart
+import 'package:firebase_messaging/firebase_messaging.dart';
 
-// 获取 client id，上报给后端
-uni.getPushClientId({
-  success: async (res) => {
-    await apiPost('/api/users/me/device-token', { token: res.cid })
+class FlutterPushService {
+  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+
+  /// 获取 FCM device token，上报给后端
+  Future<void> registerDeviceToken() async {
+    final token = await _messaging.getToken();
+    if (token != null) {
+      await apiPost('/api/users/me/device-token', {'token': token});
+    }
   }
-})
 
-// 前台消息处理
-onPushMessage((message) => {
-  // 更新本地未读数 + 显示 Toast
-})
-
-// 点击通知消息导航
-uni.onPushMessage((res) => {
-  if (res.type === 'click') {
-    // 根据 res.data.alert_id 导航到对应页面
-    uni.navigateTo({ url: `/pages/alerts/detail?id=${res.data.alert_id}` })
+  /// 前台消息处理
+  void setupForegroundHandler() {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      // 更新本地未读数 + 显示 SnackBar
+    });
   }
-})
+
+  /// 点击通知消息导航
+  void setupNotificationTapHandler() {
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      final alertId = message.data['alert_id'];
+      if (alertId != null) {
+        // 通过 go_router 导航到对应页面
+        // context.push('/alerts/detail/$alertId');
+      }
+    });
+  }
+}
 ```
 
-> **微信小程序**：不支持 uni-push，使用微信模板消息（订阅消息）替代，需单独申请模板。
+> **微信小程序**：不支持 FCM，使用微信模板消息（订阅消息）替代，需单独申请模板。
 
 #### 设备令牌管理
 
@@ -200,7 +209,7 @@ class NotifyService {
       }
     }
 
-    // 3. uni-push 推送（仅移动端用户）
+    // 3. FCM 推送（仅移动端用户）
     if (_pushService != null) {
       final tokens = await _deviceTokenRepo.findActiveByUsers(recipients);
       for (final t in tokens) {
@@ -259,7 +268,5 @@ class NotifyService {
 | `SMTP_PASSWORD` | Phase 1 可选 | SMTP 密码 |
 | `SMTP_FROM` | Phase 1 可选 | 发件人地址 |
 | `FCM_SERVER_KEY` | Phase 1 可选 | Firebase 服务端密钥（未配置则跳过 FCM 推送） |
-| `UNI_PUSH_APP_ID` | Phase 1 可选 | uni-push 应用 ID（未配置则跳过 uni-push） |
-| `UNI_PUSH_APP_SECRET` | Phase 1 可选 | uni-push 应用密钥 |
 
 > **Phase 1 最小启动**：即使不配 SMTP/FCM，系统内消息中心 + 轮询轮询仍可正常工作，仅降级为"仅系统内通知"。

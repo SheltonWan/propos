@@ -276,10 +276,10 @@ COMMIT;
 22. `admin/src/stores/auth.ts`
 23. `admin/src/router/index.ts`
 
-### App uni-app（3 个）
-24. `app/src/types/api.ts`
-25. `app/src/api/modules/auth.ts`
-26. `app/src/stores/auth.ts`
+### App Flutter（3 个）
+24. `flutter_app/lib/core/api/api_client.dart`
+25. `flutter_app/lib/features/auth/data/repositories/auth_repository_impl.dart`
+26. `flutter_app/lib/features/auth/presentation/bloc/auth_cubit.dart`
 
 **总计：26 个文件**（10 文档 + 4 后端 + 7 前端原型 + 3 Admin + 3 App）
 
