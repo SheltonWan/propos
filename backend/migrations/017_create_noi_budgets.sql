@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration: 016_create_noi_budgets
+-- Migration: 017_create_noi_budgets
 -- Description: NOI 年度预算（v1.7 新增）
 --   按楼栋或业态维度录入预算值，用于 K07（NOI 达成率）计算。
 --   匹配规则：取最近一条 building_id（或 property_type）+ period_year +
