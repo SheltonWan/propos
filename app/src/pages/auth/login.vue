@@ -95,13 +95,6 @@
         </view>
 
         <LoginThemeSwitcher />
-
-        <!-- Footer hint -->
-        <view class="login__hint">
-          <text>演示模式：任意邮箱 + 密码</text>
-          <text class="login__hint-code">123456</text>
-          <text>登录</text>
-        </view>
       </view>
     </view>
   </AppShell>
@@ -318,24 +311,5 @@ function handleForgotPassword() {
   font-size: 26rpx;
   color: $color-destructive;
   flex: 1;
-}
-
-.login__hint {
-  margin-top: 28rpx;
-  font-size: 22rpx;
-  color: $color-muted-foreground-soft;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-}
-
-.login__hint-code {
-  font-size: 22rpx;
-  color: $color-muted-foreground;
-  background: $color-muted;
-  padding: 4rpx 12rpx;
-  border-radius: 8rpx;
 }
 </style>
