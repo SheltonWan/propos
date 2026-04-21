@@ -144,7 +144,7 @@ GRANT ALL PRIVILEGES ON DATABASE propos_dev TO propos;
 ### 步骤 5: 验证连接
 
 ```bash
-psql postgres://propos:ChangeMe_2026!@localhost:5432/propos_dev -c "SELECT version();"
+psql postgres://propos:ChangeMe_2026\!@localhost:5432/propos_dev -c "SELECT version();"
 ```
 
 ### 步骤 6: 连接 PropOS 后端

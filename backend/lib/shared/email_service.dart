@@ -1,5 +1,11 @@
 import 'dart:io' show Platform;
 
+import 'package:mailer/mailer.dart';
+import 'package:mailer/smtp_server.dart';
+
+/// 用于测试注入的 SMTP 发送函数类型
+typedef SmtpSender = Future<SendReport> Function(Message, SmtpServer);
+
 /// 邮件发送服务。
 /// 当前实现：通过 SMTP 或第三方邮件 API 发送（生产），
 ///           若未配置 SMTP，则仅打印日志（开发模式）。
@@ -13,20 +19,28 @@ class EmailService {
   final String _smtpPassword;
   final String _senderAddress;
 
+  /// SMTP 发送函数（生产使用 mailer 的 send，测试注入伪实现）
+  final SmtpSender _sender;
+
   EmailService({
     required String smtpHost,
     required int smtpPort,
     required String smtpUser,
     required String smtpPassword,
     required String senderAddress,
+    SmtpSender? sender,
   })  : _smtpHost = smtpHost,
         _smtpPort = smtpPort,
         _smtpUser = smtpUser,
         _smtpPassword = smtpPassword,
-        _senderAddress = senderAddress;
+        _senderAddress = senderAddress,
+        _sender = sender ?? send;
 
   /// 从环境变量构建 EmailService 实例
-  factory EmailService.fromEnv({String? Function(String)? get}) {
+  factory EmailService.fromEnv({
+    String? Function(String)? get,
+    SmtpSender? sender,
+  }) {
     String? lookup(String key) => get != null ? get(key) : Platform.environment[key];
     return EmailService(
       smtpHost: lookup('SMTP_HOST') ?? '',
@@ -34,6 +48,7 @@ class EmailService {
       smtpUser: lookup('SMTP_USER') ?? '',
       smtpPassword: lookup('SMTP_PASSWORD') ?? '',
       senderAddress: lookup('SMTP_FROM') ?? 'noreply@propos.internal',
+      sender: sender,
     );
   }
 
@@ -58,10 +73,24 @@ class EmailService {
       return;
     }
 
-    // TODO: 接入 SMTP 库（如 mailer 包），此处预留占位
-    // ignore: unused_local_variable
-    final body = _buildOtpEmailBody(otp, expireMinutes);
-    print('[EmailService] OTP 邮件发送（SMTP 依赖待配置）: $email，验证码: $otp');
+    // 端口 465 使用隐式 SSL，其余端口（如 587）使用 STARTTLS
+    final useSSL = _smtpPort == 465;
+    final smtpServer = SmtpServer(
+      _smtpHost,
+      port: _smtpPort,
+      ssl: useSSL,
+      username: _smtpUser.isNotEmpty ? _smtpUser : null,
+      password: _smtpPassword.isNotEmpty ? _smtpPassword : null,
+    );
+
+    final message = Message()
+      ..from = Address(_senderAddress, 'PropOS')
+      ..recipients.add(email)
+      ..subject = subject
+      ..html = _buildOtpEmailBody(otp, expireMinutes);
+
+    final report = await _sender(message, smtpServer);
+    print('[EmailService] OTP 邮件已发送至 $email，服务器响应: ${report.toString()}');
   }
 
   /// 构建 OTP 验证码邮件 HTML 正文

@@ -6,6 +6,7 @@
 ///   resetPassword()  — 密码强度不足（快速失败）/ OTP 不存在 / OTP 已使用 /
 ///                      OTP 已过期 / OTP 已耗尽 / OTP 哈希不匹配（累计失败次数）/
 ///                      新旧密码相同 / 重置成功
+library;
 
 import 'dart:convert';
 import 'package:bcrypt/bcrypt.dart';

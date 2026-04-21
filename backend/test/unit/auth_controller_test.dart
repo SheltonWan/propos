@@ -11,6 +11,7 @@
 ///
 /// 策略：注入伪 LoginService / AuthService，不执行真实业务逻辑；
 ///       通过 errorHandler() 中间件验证错误信封格式。
+library;
 
 import 'dart:convert';
 import 'package:shelf/shelf.dart';

@@ -33,6 +33,7 @@ DECLARE
     v_user_insp    UUID := 'f0000000-0000-0000-0000-000000000007'; -- U-INSP    周楼管
     v_user_view    UUID := 'f0000000-0000-0000-0000-000000000008'; -- U-VIEW    钱投资
     v_user_sublord UUID := 'f0000000-0000-0000-0000-000000000006'; -- U-SUBLORD 鼎盛物业
+    v_user_wxt    UUID := 'f0000000-0000-0000-0000-000000000009'; -- U-WXT     万小通（超级管理员，电话: 19520723980）
 
     -- =====================================================================
     -- Buildings (3) — a0 前缀
@@ -226,7 +227,11 @@ VALUES
      'report_viewer', v_dept_root, TRUE, 1),
     (v_user_sublord, '鼎盛物业有限公司', 'dingsheng@external.com',
      '$2a$10$YKdJkBpVBhzRnzJeA7EBOe8Klfyr0YgmGq3aTxMm3B3fjkuoF9NOC',
-     'sub_landlord', NULL, TRUE, 1)
+     'sub_landlord', NULL, TRUE, 1),
+    -- 万小通 | 超级管理员 | 电话: 19520723980
+    (v_user_wxt,     '万小通',           'smartv@qq.com',
+     '$2a$10$YKdJkBpVBhzRnzJeA7EBOe8Klfyr0YgmGq3aTxMm3B3fjkuoF9NOC',
+     'super_admin', v_dept_root, TRUE, 1)
 -- v_user_admin 已由 019 用相同 UUID 预置，其余用户为 seed.sql 新增
 ON CONFLICT (id) DO NOTHING;
 

@@ -7,6 +7,7 @@
 ///   logout()         — 成功撤销 / token 不存在（幂等）
 ///   changePassword() — 成功 / 旧密码错误 / 新密码强度不足 / 新旧密码相同
 ///   getMe()          — 成功 / 用户不存在
+library;
 
 import 'dart:convert';
 import 'package:bcrypt/bcrypt.dart';
