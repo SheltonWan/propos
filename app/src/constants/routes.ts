@@ -4,6 +4,7 @@
 export const PUBLIC_PAGES = [
   '/pages/splash/index',
   '/pages/auth/login',
+  '/pages/auth/forgot-password',
   '/pages/auth/change-password',
 ] as const
 

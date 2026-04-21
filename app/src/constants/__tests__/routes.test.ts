@@ -9,6 +9,7 @@ describe('routes constants', () => {
 
   it('isPublicPage returns true for public pages', () => {
     expect(isPublicPage('/pages/auth/login')).toBe(true)
+    expect(isPublicPage('/pages/auth/forgot-password')).toBe(true)
     expect(isPublicPage('/pages/auth/change-password')).toBe(true)
   })
 
