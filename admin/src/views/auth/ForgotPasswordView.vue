@@ -65,7 +65,7 @@
       <template v-else-if="step === 2">
         <div class="forgot-header">
           <el-link :underline="false" @click="step = 1" class="back-link">
-            ← 重新发送
+            ← 返回
           </el-link>
           <h2 class="forgot-title">输入验证码</h2>
           <p class="forgot-subtitle">验证码已发送至 {{ form1.email }}，10 分钟内有效</p>
@@ -126,6 +126,16 @@
               重置密码
             </el-button>
           </el-form-item>
+
+          <el-form-item>
+            <el-button
+              :disabled="loading || countdown > 0"
+              style="width: 100%"
+              @click="handleResend"
+            >
+              {{ countdown > 0 ? `重新发送验证码（${countdown} 秒）` : '重新发送验证码' }}
+            </el-button>
+          </el-form-item>
         </el-form>
       </template>
 
@@ -134,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { forgotPassword, resetPassword } from '@/api/modules/auth'
@@ -191,7 +201,25 @@ const rules2: FormRules = {
 // ── 公共状态 ───────────────────────────────────────────────────────────
 const loading = ref(false)
 const error = ref<string | null>(null)
+// ── 重发倒计时 (防频繁发送验证码) ────────────────────────────────────
+const countdown = ref(0)
+let countdownTimer: ReturnType<typeof setInterval> | null = null
 
+function startCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer)
+  countdown.value = 60
+  countdownTimer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) {
+      clearInterval(countdownTimer!)
+      countdownTimer = null
+    }
+  }, 1000)
+}
+
+onUnmounted(() => {
+  if (countdownTimer) clearInterval(countdownTimer)
+})
 // ── 处理器 ─────────────────────────────────────────────────────────────
 async function handleSendOtp() {
   if (!form1Ref.value) return
@@ -203,8 +231,7 @@ async function handleSendOtp() {
   try {
     await forgotPassword(form1.email.trim().toLowerCase())
     // 防枚举：无论邮箱是否存在均进入第二步
-    step.value = 2
-  } catch (e) {
+    step.value = 2    startCountdown()  } catch (e) {
     error.value = e instanceof ApiError ? e.message : '请求失败，请稍后再试'
   } finally {
     loading.value = false
@@ -230,6 +257,17 @@ async function handleReset() {
   } finally {
     loading.value = false
   }
+}
+
+/// 重新发送验证码（倒计时结束后才可点击）
+async function handleResend() {
+  if (countdown.value > 0) return
+  form2.otp = ''
+  form2.newPassword = ''
+  form2.confirmPassword = ''
+  error.value = null
+  step.value = 1
+  await handleSendOtp()
 }
 </script>
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -44,13 +46,34 @@ class _ForgotPasswordViewState extends State<_ForgotPasswordView> {
   bool _obscureNew = true;
   bool _obscureConfirm = true;
 
+  /// 重新发送倒计时（秒），大于 0 时禁用重发按钮，防止频繁发送。
+  int _resendCountdown = 0;
+  Timer? _resendTimer;
+
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _emailController.dispose();
     _otpController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  /// 启动 60 秒重发倒计时，防止用户频繁请求验证码。
+  void _startResendCountdown() {
+    _resendTimer?.cancel();
+    setState(() => _resendCountdown = 60);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() {
+        _resendCountdown--;
+        if (_resendCountdown <= 0) t.cancel();
+      });
+    });
   }
 
   @override
@@ -64,6 +87,10 @@ class _ForgotPasswordViewState extends State<_ForgotPasswordView> {
       ),
       body: BlocConsumer<ForgotPasswordCubit, ForgotPasswordState>(
         listener: (context, state) {
+          // 验证码发送成功后启动倒计时，防止用户频繁重发
+          if (state is ForgotPasswordStateCodeSent) {
+            _startResendCountdown();
+          }
           if (state is ForgotPasswordStateError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -258,8 +285,14 @@ class _ForgotPasswordViewState extends State<_ForgotPasswordView> {
             ),
             const SizedBox(height: 12),
             TextButton(
-              onPressed: isLoading ? null : () => _submitStep1(context),
-              child: const Text('重新发送验证码'),
+              onPressed: (isLoading || _resendCountdown > 0)
+                  ? null
+                  : () => _submitStep1(context),
+              child: Text(
+                _resendCountdown > 0
+                    ? '重新发送验证码（$_resendCountdown 秒）'
+                    : '重新发送验证码',
+              ),
             ),
           ],
         ),

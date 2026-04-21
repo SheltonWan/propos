@@ -158,10 +158,10 @@
           <wd-button
             type="text"
             size="small"
-            :disabled="loading"
+            :disabled="loading || countdown > 0"
             @click="handleResend"
           >
-            重新发送验证码
+            {{ countdown > 0 ? `重新发送验证码（${countdown}秒）` : '重新发送验证码' }}
           </wd-button>
         </view>
       </view>
@@ -171,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import AppShell from '@/components/base/AppShell.vue'
 import PageHeader from '@/components/base/PageHeader.vue'
 import { usePageThemeMeta } from '@/composables/usePageThemeMeta'
@@ -194,6 +194,26 @@ const showConfirm = ref(false)
 
 const loading = ref(false)
 const errorMsg = ref('')
+
+// ── 重发倒计时 (防频繁发送验证码) ────────────────────────────────────────
+const countdown = ref(0)
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+
+function startCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer)
+  countdown.value = 60
+  countdownTimer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) {
+      clearInterval(countdownTimer!)
+      countdownTimer = null
+    }
+  }, 1000)
+}
+
+onUnmounted(() => {
+  if (countdownTimer) clearInterval(countdownTimer)
+})
 
 const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
@@ -219,8 +239,7 @@ async function handleSendOtp() {
   try {
     await authStore.forgotPassword(trimmed)
     // 防枚举：无论邮箱是否存在均进入第二步
-    step.value = 2
-  } catch {
+    step.value = 2    startCountdown()  } catch {
     errorMsg.value = authStore.error || '请求失败，请稍后再试'
   } finally {
     loading.value = false
@@ -256,11 +275,11 @@ async function handleReset() {
 
 // ── 重新发送 ───────────────────────────────────────────────────────────
 async function handleResend() {
+  if (countdown.value > 0) return
   otp.value = ''
   newPassword.value = ''
   confirmPassword.value = ''
   errorMsg.value = ''
-  step.value = 1
   await handleSendOtp()
 }
 
