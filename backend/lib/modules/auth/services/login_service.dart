@@ -248,6 +248,7 @@ class LoginService {
           user.role == 'sub_landlord' && user.passwordChangedAt == null,
       permissions: _permissionsForRole(user.role),
       lastLoginAt: user.lastLoginAt,
+      isActive: user.isActive,
     );
   }
 

@@ -151,6 +151,7 @@ final _fakeMeResponse = CurrentUserResponse(
   role: 'super_admin',
   mustChangePassword: false,
   permissions: ['contracts.read', 'invoices.write'],
+  isActive: true,
 );
 
 // ──────────────────────────────────────────────────────────────────────────────

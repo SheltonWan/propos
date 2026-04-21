@@ -165,6 +165,9 @@ class CurrentUserResponse {
   final List<String> permissions;
   final DateTime? lastLoginAt;
 
+  /// 账号是否启用（对应 API 合同字段 is_active）
+  final bool isActive;
+
   const CurrentUserResponse({
     required this.id,
     required this.name,
@@ -175,6 +178,7 @@ class CurrentUserResponse {
     required this.mustChangePassword,
     required this.permissions,
     this.lastLoginAt,
+    required this.isActive,
   });
 
   Map<String, dynamic> toJson() => {
@@ -186,6 +190,7 @@ class CurrentUserResponse {
         if (departmentName != null) 'department_name': departmentName,
         'must_change_password': mustChangePassword,
         'permissions': permissions,
+        'is_active': isActive,
         if (lastLoginAt != null)
           'last_login_at': lastLoginAt!.toUtc().toIso8601String(),
       };
