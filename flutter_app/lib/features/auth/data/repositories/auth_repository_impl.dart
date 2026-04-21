@@ -86,7 +86,10 @@ class AuthRepositoryImpl implements AuthRepository {
         // Best effort — clear local tokens regardless
       }
     }
-    await _storage.deleteAll();
+    // 仅清除会话 token，保留 "记住账号与密码" 相关条目
+    await _storage.delete(key: 'access_token');
+    await _storage.delete(key: 'refresh_token');
+    await _storage.delete(key: 'refresh_token_expires_at');
   }
 
   @override

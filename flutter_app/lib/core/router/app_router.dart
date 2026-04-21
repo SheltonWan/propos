@@ -7,6 +7,7 @@ import '../../features/auth/presentation/bloc/auth_cubit.dart';
 import '../../features/auth/presentation/bloc/auth_state.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
+import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../shared/widgets/main_shell.dart';
 import '../di/injection.dart';
 import '../logging/app_logger.dart';
@@ -53,8 +54,7 @@ GoRouter buildAppRouter() => GoRouter(
               routes: [
                 GoRoute(
                   path: RoutePaths.dashboard,
-                  builder: (_, _) =>
-                      const _PlaceholderPage(title: '首页'),
+              builder: (_, _) => const DashboardPage(),
                 ),
               ],
             ),
