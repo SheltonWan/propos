@@ -288,7 +288,7 @@ void main() {
         makeRefreshToken(id: 'rt-logout-1', userId: 'user-1', tokenHash: knownHash),
       );
 
-      await svc.logout(rawRefreshToken: knownRaw);
+      await svc.logout(rawRefreshToken: knownRaw, userId: 'user-1');
 
       expect(tokenRepo.revokedIds, contains('rt-logout-1'));
     });
@@ -296,7 +296,7 @@ void main() {
     test('token 不存在 → 幂等返回成功（不抛出异常）', () async {
       // tokenRepo 为空，不存在任何 token
       await expectLater(
-        svc.logout(rawRefreshToken: 'nonexistent-token-abcdef'),
+        svc.logout(rawRefreshToken: 'nonexistent-token-abcdef', userId: 'user-1'),
         completes,
       );
     });

@@ -4,6 +4,8 @@ import 'package:propos_backend/core/middleware/auth_middleware.dart';
 import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 
+import 'helpers/fakes.dart';
+
 /// JWT 鉴权中间件单元测试
 /// 重点验证 V002 修复：只允许 HS256 算法，拒绝算法混淆攻击
 void main() {
@@ -13,7 +15,7 @@ void main() {
   late Handler handler;
 
   setUp(() {
-    final middleware = authMiddleware(testSecret);
+    final middleware = authMiddleware(testSecret, FakePool());
     // 内层 handler：仅在验证通过后返回 200
     handler = middleware((_) async => Response.ok('ok'));
   });

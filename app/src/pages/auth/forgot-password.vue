@@ -239,7 +239,9 @@ async function handleSendOtp() {
   try {
     await authStore.forgotPassword(trimmed)
     // 防枚举：无论邮箱是否存在均进入第二步
-    step.value = 2    startCountdown()  } catch {
+    step.value = 2
+    startCountdown()
+  } catch {
     errorMsg.value = authStore.error || '请求失败，请稍后再试'
   } finally {
     loading.value = false

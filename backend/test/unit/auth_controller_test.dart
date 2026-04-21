@@ -67,7 +67,10 @@ class FakeLoginService extends LoginService {
   }
 
   @override
-  Future<void> logout({required String rawRefreshToken}) async {
+  Future<void> logout({
+    required String rawRefreshToken,
+    required String userId,
+  }) async {
     if (shouldThrow != null) throw shouldThrow!;
   }
 
@@ -130,6 +133,7 @@ final _fakeLoginResponse = LoginResponse(
   accessToken: 'fake-access-token',
   refreshToken: 'fake-refresh-token',
   expiresIn: 3600,
+  refreshTokenExpiresAt: DateTime.utc(2099),
   user: _fakeBrief,
 );
 
@@ -137,6 +141,7 @@ final _fakeTokenPair = TokenPair(
   accessToken: 'fake-new-access',
   refreshToken: 'fake-new-refresh',
   expiresIn: 3600,
+  refreshTokenExpiresAt: DateTime.utc(2099),
 );
 
 final _fakeMeResponse = CurrentUserResponse(
