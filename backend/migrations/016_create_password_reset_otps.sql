@@ -1,9 +1,16 @@
--- Migration: 015_replace_password_reset_tokens_with_otps
--- 将基于邮件链接的密码重置方案替换为 OTP 验证码方案。
--- 原 password_reset_tokens 表废弃（迁移期间直接 DROP，未上生产）。
-BEGIN;
+-- =============================================================================
+-- Migration: 016_create_password_reset_otps
+-- Description: OTP 验证码密码重置表
+--   password_reset_otps — 存储 6 位 OTP 验证码（SHA-256 哈希），有效期 10 分钟
+--   安全规则：
+--     1. 数据库只存 SHA-256 哈希，原始 OTP 明文仅在邮件中发送，不入库
+--     2. failed_attempts 累计失败次数，超过 5 次视为耗尽，不可继续使用
+--     3. used_at 记录使用时刻，已使用 OTP 不可二次提交
+--     4. 发起新请求时清理同邮箱历史未过期记录（防止枚举）
+-- 依赖: 003_create_users_and_audit
+-- =============================================================================
 
-DROP TABLE IF EXISTS password_reset_tokens;
+BEGIN;
 
 -- OTP 记录表
 -- code_hash: SHA-256( 6位数字 OTP 明文 )，明文只在邮件中发送，不入库

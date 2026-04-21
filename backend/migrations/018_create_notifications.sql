@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration: 017_create_notifications
+-- Migration: 018_create_notifications
 -- Description: 站内通知 + 催收记录（v1.7 新增）
 --   notifications：按角色/用户推送、已读未读、关联资源跳转
 --   dunning_logs：逾期账单催收过程记录（多方式，多结果）

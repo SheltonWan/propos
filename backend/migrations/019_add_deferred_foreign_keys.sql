@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration: 018_add_deferred_foreign_keys
+-- Migration: 019_add_deferred_foreign_keys
 -- Description: 补全启动时无法建立的跨表 FK 约束（循环/乱序依赖）
 --   1. users.department_id → departments
 --      （departments 在 002 建立，users 在 003 建立，FK 此处补全）
