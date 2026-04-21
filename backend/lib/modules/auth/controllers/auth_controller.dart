@@ -30,14 +30,14 @@ class AuthController {
   Router get router {
     final router = Router();
     // 公开端点
-    router.post('/api/auth/login', _login);
-    router.post('/api/auth/refresh', _refresh);
-    router.post('/api/auth/forgot-password', _forgotPassword);
-    router.post('/api/auth/reset-password', _resetPassword);
+    router.post('/auth/login', _login);
+    router.post('/auth/refresh', _refresh);
+    router.post('/auth/forgot-password', _forgotPassword);
+    router.post('/auth/reset-password', _resetPassword);
     // 需要 JWT 的端点
-    router.post('/api/auth/logout', _logout);
-    router.get('/api/auth/me', _me);
-    router.post('/api/auth/change-password', _changePassword);
+    router.post('/auth/logout', _logout);
+    router.get('/auth/me', _me);
+    router.post('/auth/change-password', _changePassword);
     return router;
   }
 

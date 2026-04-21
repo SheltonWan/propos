@@ -25,7 +25,8 @@ Future<void> main() async {
   // 任一必填变量缺失时此处 throw StateError，服务拒绝启动
   late final AppConfig config;
   try {
-    config = AppConfig.load(get: (key) => dotEnv[key]);
+    // Platform.environment（进程级）优先于 .env 文件，符合 12-factor 原则
+    config = AppConfig.load(get: (key) => Platform.environment[key] ?? dotEnv[key]);
   } on StateError catch (e) {
     stderr.writeln('[FATAL] ${e.message}');
     exit(1);

@@ -38,7 +38,7 @@ class AuthService {
     // 查询该邮箱是否存在（不对外暴露结果）
     final userResult = await _db.execute(
       Sql.named('''
-        SELECT id, role
+        SELECT id::TEXT, role::TEXT
         FROM users
         WHERE email = @email AND is_active = true
         LIMIT 1
