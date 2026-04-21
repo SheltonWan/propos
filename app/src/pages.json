@@ -7,6 +7,17 @@
   },
   "pages": [
     {
+      "path": "pages/splash/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "",
+        "app-plus": {
+          "animationType": "none",
+          "animationDuration": 0
+        }
+      }
+    },
+    {
       "path": "pages/dashboard/index",
       "style": {
         "navigationStyle": "custom",

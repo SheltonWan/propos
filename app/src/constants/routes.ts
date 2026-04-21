@@ -2,6 +2,7 @@
  * 公开页面白名单（无需登录即可访问）
  */
 export const PUBLIC_PAGES = [
+  '/pages/splash/index',
   '/pages/auth/login',
   '/pages/auth/change-password',
 ] as const
