@@ -231,7 +231,9 @@ async function handleSendOtp() {
   try {
     await forgotPassword(form1.email.trim().toLowerCase())
     // 防枚举：无论邮箱是否存在均进入第二步
-    step.value = 2    startCountdown()  } catch (e) {
+    step.value = 2
+    startCountdown()
+  } catch (e) {
     error.value = e instanceof ApiError ? e.message : '请求失败，请稍后再试'
   } finally {
     loading.value = false
