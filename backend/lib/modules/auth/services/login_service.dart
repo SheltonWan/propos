@@ -166,8 +166,8 @@ class LoginService {
     // 写登出审计日志（无论 refresh token 是否已失效，登出操作本身均需记录）
     await _db.execute(
       Sql.named('''
-        INSERT INTO audit_logs (user_id, action, resource_type, resource_id)
-        VALUES (@userId, 'USER_LOGOUT', 'users', @userId)
+        INSERT INTO audit_logs (user_id, action, entity_type, entity_id)
+        VALUES (@userId, 'USER_LOGOUT', 'users', @userId::uuid)
       '''),
       parameters: {'userId': userId},
     );
@@ -217,8 +217,8 @@ class LoginService {
       // 写改密审计日志
       await tx.execute(
         Sql.named('''
-          INSERT INTO audit_logs (user_id, action, resource_type, resource_id)
-          VALUES (@userId, 'USER_PASSWORD_CHANGED', 'users', @userId)
+          INSERT INTO audit_logs (user_id, action, entity_type, entity_id)
+          VALUES (@userId, 'USER_PASSWORD_CHANGED', 'users', @userId::uuid)
         '''),
         parameters: {'userId': userId},
       );
