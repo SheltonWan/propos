@@ -13,23 +13,21 @@
     </template>
 
     <view class="forgot-password">
-      <!-- 发送成功状态 -->
-      <view v-if="sent" class="forgot-password__result">
+
+      <!-- 成功状态 -->
+      <view v-if="step === 'success'" class="forgot-password__result">
         <wd-icon name="check-circle" size="120rpx" class="forgot-password__result-icon" />
-        <text class="forgot-password__result-title">重置链接已发送</text>
-        <text class="forgot-password__result-desc">
-          若该邮箱已注册，您将收到一封密码重置邮件，链接有效期 2 小时。
-          请在电脑浏览器中打开链接完成密码重置。
-        </text>
+        <text class="forgot-password__result-title">密码已重置</text>
+        <text class="forgot-password__result-desc">请使用新密码重新登录</text>
         <view class="forgot-password__result-btn">
-          <wd-button type="primary" block @click="handleBack">返回登录</wd-button>
+          <wd-button type="primary" block @click="handleToLogin">前往登录</wd-button>
         </view>
       </view>
 
-      <!-- 表单 -->
-      <view v-else class="forgot-password__form">
+      <!-- 第一步：输入邮箱 -->
+      <view v-else-if="step === 1" class="forgot-password__form">
         <text class="forgot-password__desc">
-          输入账号邮箱，我们将向您发送密码重置链接
+          输入账号邮箱，我们将向您发送 6 位验证码
         </text>
 
         <view class="forgot-password__field">
@@ -44,7 +42,7 @@
               class="forgot-password__input"
               :disabled="loading"
               confirm-type="done"
-              @confirm="handleSubmit"
+              @confirm="handleSendOtp"
             />
           </view>
         </view>
@@ -61,13 +59,113 @@
             block
             size="large"
             :loading="loading"
-            :disabled="!canSubmit"
-            @click="handleSubmit"
+            :disabled="!canSubmitStep1"
+            @click="handleSendOtp"
           >
-            {{ loading ? '发送中…' : '发送重置链接' }}
+            {{ loading ? '发送中…' : '发送验证码' }}
           </wd-button>
         </view>
       </view>
+
+      <!-- 第二步：输入 OTP + 新密码 -->
+      <view v-else-if="step === 2" class="forgot-password__form">
+        <text class="forgot-password__desc">
+          验证码已发送至 {{ email }}，10 分钟内有效
+        </text>
+
+        <view class="forgot-password__field">
+          <text class="forgot-password__label">6 位验证码</text>
+          <view class="forgot-password__input-wrap">
+            <wd-icon name="pin" size="36rpx" custom-class="forgot-password__input-icon" />
+            <input
+              v-model="otp"
+              type="number"
+              :maxlength="6"
+              placeholder="请输入邮件中的 6 位数字"
+              placeholder-class="forgot-password__placeholder"
+              class="forgot-password__input"
+              :disabled="loading"
+              confirm-type="next"
+            />
+          </view>
+        </view>
+
+        <view class="forgot-password__field">
+          <text class="forgot-password__label">新密码</text>
+          <view class="forgot-password__input-wrap">
+            <wd-icon name="lock-on" size="36rpx" custom-class="forgot-password__input-icon" />
+            <input
+              v-model="newPassword"
+              :type="showNew ? 'text' : 'password'"
+              placeholder="至少 8 位，含大小写字母和数字"
+              placeholder-class="forgot-password__placeholder"
+              class="forgot-password__input"
+              :disabled="loading"
+              confirm-type="next"
+            />
+            <wd-icon
+              :name="showNew ? 'view' : 'eye-close'"
+              size="36rpx"
+              custom-class="forgot-password__eye"
+              @click="showNew = !showNew"
+            />
+          </view>
+        </view>
+
+        <view class="forgot-password__field">
+          <text class="forgot-password__label">确认新密码</text>
+          <view class="forgot-password__input-wrap">
+            <wd-icon name="lock-on" size="36rpx" custom-class="forgot-password__input-icon" />
+            <input
+              v-model="confirmPassword"
+              :type="showConfirm ? 'text' : 'password'"
+              placeholder="再次输入新密码"
+              placeholder-class="forgot-password__placeholder"
+              class="forgot-password__input"
+              :disabled="loading"
+              confirm-type="done"
+              @confirm="handleReset"
+            />
+            <wd-icon
+              :name="showConfirm ? 'view' : 'eye-close'"
+              size="36rpx"
+              custom-class="forgot-password__eye"
+              @click="showConfirm = !showConfirm"
+            />
+          </view>
+        </view>
+
+        <!-- 错误提示 -->
+        <view v-if="errorMsg" class="forgot-password__error">
+          <wd-icon name="warning" size="32rpx" custom-class="forgot-password__error-icon" />
+          <text class="forgot-password__error-text">{{ errorMsg }}</text>
+        </view>
+
+        <view class="forgot-password__btn-wrap">
+          <wd-button
+            type="primary"
+            block
+            size="large"
+            :loading="loading"
+            :disabled="!canSubmitStep2"
+            @click="handleReset"
+          >
+            {{ loading ? '重置中…' : '重置密码' }}
+          </wd-button>
+        </view>
+
+        <view class="forgot-password__resend">
+          <wd-button
+            type="text"
+            size="small"
+            :disabled="loading"
+            @click="handleResend"
+          >
+            重新发送验证码
+          </wd-button>
+        </view>
+      </view>
+
     </view>
   </AppShell>
 </template>
@@ -82,18 +180,36 @@ import { useAuthStore } from '@/stores/auth'
 const { pageMetaBackgroundColor, pageMetaRootBackgroundColor, pageMetaPageStyle, pageMetaTextStyle } = usePageThemeMeta()
 
 const authStore = useAuthStore()
+
+// ── 步骤控制 ───────────────────────────────────────────────────────────
+const step = ref<1 | 2 | 'success'>(1)
+
+// ── 表单数据 ───────────────────────────────────────────────────────────
 const email = ref('')
+const otp = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+const showNew = ref(false)
+const showConfirm = ref(false)
+
 const loading = ref(false)
 const errorMsg = ref('')
-const sent = ref(false)
-
-const canSubmit = computed(() => email.value.trim() !== '' && !loading.value)
 
 const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
-async function handleSubmit() {
-  if (!canSubmit.value) return
-  const trimmed = email.value.trim()
+const canSubmitStep1 = computed(() => email.value.trim() !== '' && !loading.value)
+const canSubmitStep2 = computed(
+  () =>
+    otp.value.trim().length === 6 &&
+    newPassword.value.length >= 8 &&
+    confirmPassword.value !== '' &&
+    !loading.value,
+)
+
+// ── 第一步：发送 OTP ───────────────────────────────────────────────────
+async function handleSendOtp() {
+  if (!canSubmitStep1.value) return
+  const trimmed = email.value.trim().toLowerCase()
   if (!emailRegex.test(trimmed)) {
     errorMsg.value = '请输入有效的邮箱地址'
     return
@@ -102,8 +218,8 @@ async function handleSubmit() {
   errorMsg.value = ''
   try {
     await authStore.forgotPassword(trimmed)
-    // 防枚举：无论邮箱是否存在均显示成功状态
-    sent.value = true
+    // 防枚举：无论邮箱是否存在均进入第二步
+    step.value = 2
   } catch {
     errorMsg.value = authStore.error || '请求失败，请稍后再试'
   } finally {
@@ -111,8 +227,45 @@ async function handleSubmit() {
   }
 }
 
-function handleBack() {
-  uni.navigateBack({ delta: 2 })
+// ── 第二步：重置密码 ───────────────────────────────────────────────────
+async function handleReset() {
+  if (!canSubmitStep2.value) return
+  if (newPassword.value !== confirmPassword.value) {
+    errorMsg.value = '两次密码输入不一致'
+    return
+  }
+  if (!/[A-Z]/.test(newPassword.value) || !/[a-z]/.test(newPassword.value) || !/[0-9]/.test(newPassword.value)) {
+    errorMsg.value = '密码须含大小写字母和数字'
+    return
+  }
+  loading.value = true
+  errorMsg.value = ''
+  try {
+    await authStore.resetPassword(
+      email.value.trim().toLowerCase(),
+      otp.value.trim(),
+      newPassword.value,
+    )
+    step.value = 'success'
+  } catch {
+    errorMsg.value = authStore.error || '操作失败，请稍后再试'
+  } finally {
+    loading.value = false
+  }
+}
+
+// ── 重新发送 ───────────────────────────────────────────────────────────
+async function handleResend() {
+  otp.value = ''
+  newPassword.value = ''
+  confirmPassword.value = ''
+  errorMsg.value = ''
+  step.value = 1
+  await handleSendOtp()
+}
+
+function handleToLogin() {
+  uni.reLaunch({ url: '/pages/auth/login' })
 }
 </script>
 
@@ -175,6 +328,12 @@ function handleBack() {
 
 .forgot-password__btn-wrap {
   margin-top: 48rpx;
+}
+
+.forgot-password__resend {
+  display: flex;
+  justify-content: center;
+  margin-top: 24rpx;
 }
 
 // ─── 成功状态 ─────────────────────────────────────────────────────────────

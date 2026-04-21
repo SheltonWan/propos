@@ -2,16 +2,17 @@ import 'dart:convert';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
+import '../../../core/errors/app_exception.dart';
 import '../services/auth_service.dart';
 
-/// Auth Controller — 忘记密码 / 重置密码路由处理器。
+/// Auth Controller — 忘记密码 / OTP 验证码重置密码路由处理器。
 ///
 /// 路由列表（均为公共接口，无需 RBAC 中间件）：
-///   POST /api/auth/forgot-password  — 申请密码重置邮件
-///   POST /api/auth/reset-password   — 通过 token 重置密码
+///   POST /api/auth/forgot-password  — 向邮箱发送 6 位 OTP 验证码
+///   POST /api/auth/reset-password   — 通过 email + OTP + new_password 重置密码
 ///
 /// 响应均遵循统一信封格式 {data: {message: ...}}，错误由全局 error_handler 处理。
-/// Controller 不含业务逻辑，不直接构建错误 Response。
+/// Controller 不含业务逻辑，不直接构建错误 Response（VALIDATION_ERROR 通过抛异常处理）。
 class AuthController {
   final AuthService _authService;
 
@@ -32,41 +33,40 @@ class AuthController {
     final body = await _parseBody(request);
     final email = body['email'];
     if (email == null || email is! String || email.trim().isEmpty) {
-      return _jsonResponse(400, {
-        'error': {'code': 'VALIDATION_ERROR', 'message': 'email 不能为空'},
-      });
+      throw const ValidationException('VALIDATION_ERROR', 'email 不能为空');
     }
 
     // Service 内部永不抛出业务异常（防枚举）
     await _authService.forgotPassword(email: email.trim().toLowerCase());
 
     return _jsonResponse(200, {
-      'data': {'message': '若该邮箱已注册，重置链接将在几分钟内发送'},
+      'data': {'message': '若该邮箱已注册，验证码已发送至邮箱'},
     });
   }
 
   /// POST /api/auth/reset-password
-  /// Body: { "token": "...", "new_password": "..." }
+  /// Body: { "email": "...", "otp": "...", "new_password": "..." }
   Future<Response> _resetPassword(Request request) async {
     final body = await _parseBody(request);
-    final token = body['token'];
+    final email = body['email'];
+    final otp = body['otp'];
     final newPassword = body['new_password'];
 
-    if (token == null || token is! String || token.trim().isEmpty) {
-      return _jsonResponse(400, {
-        'error': {'code': 'VALIDATION_ERROR', 'message': 'token 不能为空'},
-      });
+    if (email == null || email is! String || email.trim().isEmpty) {
+      throw const ValidationException('VALIDATION_ERROR', 'email 不能为空');
+    }
+    if (otp == null || otp is! String || otp.trim().isEmpty) {
+      throw const ValidationException('VALIDATION_ERROR', 'otp 不能为空');
     }
     if (newPassword == null || newPassword is! String || newPassword.isEmpty) {
-      return _jsonResponse(400, {
-        'error': {'code': 'VALIDATION_ERROR', 'message': 'new_password 不能为空'},
-      });
+      throw const ValidationException('VALIDATION_ERROR', 'new_password 不能为空');
     }
 
-    // 业务异常（RESET_TOKEN_INVALID / RESET_TOKEN_EXPIRED 等）
+    // 业务异常（OTP_INVALID / OTP_EXPIRED / RESET_PASSWORD_EXHAUSTED 等）
     // 由全局 error_handler 捕获转为 HTTP 响应，此处不 try/catch
     await _authService.resetPassword(
-      rawToken: token.trim(),
+      email: email.trim().toLowerCase(),
+      otp: otp.trim(),
       newPassword: newPassword,
     );
 

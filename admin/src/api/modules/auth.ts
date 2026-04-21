@@ -58,13 +58,15 @@ export async function forgotPassword(email: string): Promise<{ message: string }
   return apiPost<{ message: string }>(API_AUTH_FORGOT_PASSWORD, { email })
 }
 
-/** 通过 token 重置密码 */
+/** 通过 OTP 验证码重置密码 */
 export async function resetPassword(
-  token: string,
+  email: string,
+  otp: string,
   newPassword: string,
 ): Promise<{ message: string }> {
   return apiPost<{ message: string }>(API_AUTH_RESET_PASSWORD, {
-    token,
+    email,
+    otp,
     new_password: newPassword,
   })
 }

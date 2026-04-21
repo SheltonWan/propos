@@ -7,10 +7,11 @@ import '../../domain/repositories/auth_repository.dart';
 import '../bloc/forgot_password_cubit.dart';
 import '../bloc/forgot_password_state.dart';
 
-/// 忘记密码页面。
+/// 忘记密码页面 — 两步 OTP 验证码流程。
 ///
-/// 用户输入邮箱后提交，后端静默处理（防枚举），前端统一显示"已发送"状态。
-/// 重置密码在 Admin Web 完成，移动端不处理 reset-password 流程。
+/// 第一步：输入邮箱，点击"发送验证码"；
+/// 第二步：输入 6 位 OTP + 新密码，点击"重置密码"；
+/// 成功后展示完成状态，返回登录页。
 class ForgotPasswordPage extends StatelessWidget {
   const ForgotPasswordPage({super.key});
 
@@ -31,12 +32,24 @@ class _ForgotPasswordView extends StatefulWidget {
 }
 
 class _ForgotPasswordViewState extends State<_ForgotPasswordView> {
-  final _formKey = GlobalKey<FormState>();
+  /// 第一步表单
+  final _step1Key = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+
+  /// 第二步表单
+  final _step2Key = GlobalKey<FormState>();
+  final _otpController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
 
   @override
   void dispose() {
     _emailController.dispose();
+    _otpController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -61,69 +74,35 @@ class _ForgotPasswordViewState extends State<_ForgotPasswordView> {
           }
         },
         builder: (context, state) {
-          if (state is ForgotPasswordStateSent) {
-            return _buildSentView(context);
-          }
-          return _buildFormView(context, state);
+          return switch (state) {
+            ForgotPasswordStateSuccess() => _buildSuccessView(context),
+            ForgotPasswordStateCodeSent(:final email) =>
+              _buildStep2View(context, email: email, state: state),
+            _ => _buildStep1View(context, state),
+          };
         },
       ),
     );
   }
 
-  Widget _buildSentView(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.mark_email_read_outlined,
-              size: 72,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              '重置链接已发送',
-              style: Theme.of(context).textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '若该邮箱已注册，您将收到一封密码重置邮件，链接有效期 2 小时。\n请在电脑浏览器中打开链接完成密码重置。',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            FilledButton(
-              onPressed: () => context.pop(),
-              child: const Text('返回登录'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // ── 第一步：输入邮箱 ───────────────────────────────────────────────────
 
-  Widget _buildFormView(BuildContext context, ForgotPasswordState state) {
+  Widget _buildStep1View(BuildContext context, ForgotPasswordState state) {
     final isLoading = state is ForgotPasswordStateLoading;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Form(
-        key: _formKey,
+        key: _step1Key,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '重置密码',
-              style: Theme.of(context).textTheme.headlineMedium,
+              '重置密码', style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 8),
             Text(
-              '输入账号邮箱，我们将向您发送重置链接',
+              '输入账号邮箱，我们将向您发送 6 位验证码',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -145,18 +124,18 @@ class _ForgotPasswordViewState extends State<_ForgotPasswordView> {
                 if (!emailRegex.hasMatch(v.trim())) return '请输入有效的邮箱地址';
                 return null;
               },
-              onFieldSubmitted: (_) => _submit(context),
+              onFieldSubmitted: (_) => _submitStep1(context),
             ),
             const SizedBox(height: 32),
             FilledButton(
-              onPressed: isLoading ? null : () => _submit(context),
+              onPressed: isLoading ? null : () => _submitStep1(context),
               child: isLoading
                   ? const SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('发送重置链接'),
+                  : const Text('发送验证码'),
             ),
           ],
         ),
@@ -164,10 +143,175 @@ class _ForgotPasswordViewState extends State<_ForgotPasswordView> {
     );
   }
 
-  void _submit(BuildContext context) {
-    if (!_formKey.currentState!.validate()) return;
-    context.read<ForgotPasswordCubit>().sendResetEmail(
-          email: _emailController.text.trim().toLowerCase(),
-        );
+  void _submitStep1(BuildContext context) {
+    if (!_step1Key.currentState!.validate()) return;
+    context.read<ForgotPasswordCubit>().sendOtp(
+      email: _emailController.text.trim().toLowerCase(),
+    );
+  }
+
+  // ── 第二步：输入 OTP + 新密码 ──────────────────────────────────────────
+
+  Widget _buildStep2View(
+    BuildContext context, {
+    required String email,
+    required ForgotPasswordState state,
+  }) {
+    final isLoading = state is ForgotPasswordStateLoading;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      child: Form(
+        key: _step2Key,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '输入验证码',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '验证码已发送至 $email，10 分钟内有效',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 32),
+            TextFormField(
+              controller: _otpController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: '6 位验证码',
+                prefixIcon: Icon(Icons.pin_outlined),
+                counterText: '',
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return '请输入验证码';
+                if (!RegExp(r'^\d{6}$').hasMatch(v.trim())) return '验证码为 6 位数字';
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _newPasswordController,
+              obscureText: _obscureNew,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                labelText: '新密码',
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureNew
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                  ),
+                  onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                ),
+              ),
+              validator: (v) {
+                if (v == null || v.isEmpty) return '请输入新密码';
+                if (v.length < 8) return '密码至少 8 位';
+                if (!v.contains(RegExp(r'[A-Z]'))) return '密码须含大写字母';
+                if (!v.contains(RegExp(r'[a-z]'))) return '密码须含小写字母';
+                if (!v.contains(RegExp(r'[0-9]'))) return '密码须含数字';
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _confirmPasswordController,
+              obscureText: _obscureConfirm,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: '确认新密码',
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureConfirm
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscureConfirm = !_obscureConfirm),
+                ),
+              ),
+              validator: (v) {
+                if (v == null || v.isEmpty) return '请确认新密码';
+                if (v != _newPasswordController.text) return '两次密码输入不一致';
+                return null;
+              },
+              onFieldSubmitted: (_) => _submitStep2(context, email),
+            ),
+            const SizedBox(height: 32),
+            FilledButton(
+              onPressed: isLoading ? null : () => _submitStep2(context, email),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('重置密码'),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: isLoading ? null : () => _submitStep1(context),
+              child: const Text('重新发送验证码'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _submitStep2(BuildContext context, String email) {
+    if (!_step2Key.currentState!.validate()) return;
+    context.read<ForgotPasswordCubit>().resetPassword(
+      email: email,
+      otp: _otpController.text.trim(),
+      newPassword: _newPasswordController.text,
+    );
+  }
+
+  // ── 成功状态 ───────────────────────────────────────────────────────────
+
+  Widget _buildSuccessView(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              size: 72,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              '密码已重置',
+              style: Theme.of(context).textTheme.headlineSmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '请使用新密码重新登录',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            FilledButton(
+              onPressed: () => context.go('/login'),
+              child: const Text('前往登录'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

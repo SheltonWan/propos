@@ -105,4 +105,16 @@ class AuthRepositoryImpl implements AuthRepository {
       data: {'email': email},
     );
   }
+
+  @override
+  Future<void> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    await _apiClient.apiPost<void>(
+      ApiPaths.authResetPassword,
+      data: {'email': email, 'otp': otp, 'new_password': newPassword},
+    );
+  }
 }

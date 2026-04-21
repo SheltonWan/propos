@@ -1,33 +1,37 @@
-import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
+import 'dart:convert';
 import 'package:postgres/postgres.dart';
 
 import '../../../core/errors/app_exception.dart';
-import '../repositories/password_reset_token_repository.dart';
+import '../repositories/password_reset_otp_repository.dart';
 import '../../../shared/email_service.dart';
 
-/// Auth Service — 忘记密码 / 重置密码业务逻辑。
+/// Auth Service — 忘记密码 / OTP 验证码重置密码业务逻辑。
 ///
 /// 安全规则（严格遵守）：
-///   1. forgotPassword — 不论邮箱是否存在均不抛出异常（防止枚举）
-///   2. 同一邮箱 5 分钟内最多申请 3 次，超出则静默忽略（仍返回正常）
-///   3. token 为 32 字节随机串，SHA-256 哈希后入库，明文只在邮件链接中出现一次
-///   4. resetPassword — token 使用后立即标记，不可二次提交
-///   5. 重置成功后 session_version += 1（使所有旧 JWT 失效）
-///   6. 二房东角色不允许自助重置（由管理员重置）
+///   1. forgotPassword — 不论邮箱是否存在均不抛出异常（防枚举）
+///   2. 同一账号 5 分钟内最多发送 3 次 OTP，超出则静默忽略
+///   3. OTP 为 6 位数字，SHA-256 哈希后入库，明文仅在邮件中出现一次
+///   4. resetPassword — OTP 验证失败累计 5 次则耗尽，不可继续使用
+///   5. OTP 使用后立即标记，不可二次提交
+///   6. 重置成功后 session_version += 1（使所有旧 JWT 失效）
+///   7. 二房东角色不允许自助重置（由管理员重置）
 class AuthService {
   final Connection _db;
-  final PasswordResetTokenRepository _tokenRepo;
+  final PasswordResetOtpRepository _otpRepo;
   final EmailService _emailService;
 
   /// 速率限制：5 分钟内最多申请次数
   static const int _rateLimit = 3;
   static const Duration _rateWindow = Duration(minutes: 5);
 
-  AuthService(this._db, this._tokenRepo, this._emailService);
+  /// OTP 有效期（分钟）
+  static const int _otpExpiryMinutes = 10;
 
-  /// 申请密码重置邮件。
+  AuthService(this._db, this._otpRepo, this._emailService);
+
+  /// 发送 OTP 验证码邮件（忘记密码第一步）。
   /// 此方法永远不抛出业务异常 — 对外只有"已发送"或"静默忽略"。
   Future<void> forgotPassword({required String email}) async {
     // 查询该邮箱是否存在（不对外暴露结果）
@@ -52,72 +56,94 @@ class AuthService {
     if (role == 'sub_landlord') return;
 
     // 清理历史过期/已使用记录
-    await _tokenRepo.deleteStaleByUserId(userId);
+    await _otpRepo.deleteStaleByUserId(userId);
 
     // 速率限制检查
-    final recentCount = await _tokenRepo.countRecentByUserId(userId, _rateWindow);
-    if (recentCount >= _rateLimit) {
-      // 超限则静默忽略，不暴露给调用方
-      return;
-    }
+    final recentCount = await _otpRepo.countRecentByUserId(userId, _rateWindow);
+    if (recentCount >= _rateLimit) return;
 
-    // 生成 32 字节随机 token（cryptographically secure）
-    final rawToken = _generateSecureToken();
-    final tokenHash = _sha256Hex(rawToken);
+    // 生成 6 位数字 OTP
+    final otp = _generateOtp();
+    final codeHash = _sha256Hex(otp);
 
-    // 持久化 token 记录
-    await _tokenRepo.create(userId: userId, tokenHash: tokenHash);
+    // 持久化 OTP 记录
+    await _otpRepo.create(
+      userId: userId,
+      email: email,
+      codeHash: codeHash,
+      expiryMinutes: _otpExpiryMinutes,
+    );
 
     // 发送邮件（失败不影响主流程响应，记录日志）
     try {
-      await _emailService.sendPasswordResetEmail(
+      await _emailService.sendOtpEmail(
         email: email,
-        rawToken: rawToken,
+        otp: otp,
+        expireMinutes: _otpExpiryMinutes,
       );
     } catch (e) {
       // 邮件发送失败 — 不对外抛出，只打日志
-      print('[AuthService] 发送重置邮件失败: $e');
+      print('[AuthService] 发送 OTP 邮件失败: $e');
     }
   }
 
-  /// 通过重置 token 设置新密码。
+  /// 通过 OTP 验证码重置密码（忘记密码第二步）。
+  ///
+  /// 参数：
+  ///   [email]       — 用户邮箱（与发送 OTP 时相同）
+  ///   [otp]         — 用户输入的 6 位数字验证码
+  ///   [newPassword] — 新密码
+  ///
   /// 成功后 session_version 递增（使所有旧 JWT 失效）。
   Future<void> resetPassword({
-    required String rawToken,
+    required String email,
+    required String otp,
     required String newPassword,
   }) async {
-    // 校验密码复杂度
+    // 校验密码复杂度（快速失败，避免不必要的 DB 查询）
     _validatePasswordStrength(newPassword);
 
-    final tokenHash = _sha256Hex(rawToken);
-    final tokenRecord = await _tokenRepo.findByHash(tokenHash);
+    // 查询该邮箱最新一条有效 OTP 记录
+    final otpRecord = await _otpRepo.findLatestByEmail(email);
 
-    if (tokenRecord == null || tokenRecord.isUsed) {
-      throw ValidationException('RESET_TOKEN_INVALID', 'token 不存在或已使用');
+    if (otpRecord == null || otpRecord.isUsed) {
+      throw const ValidationException('OTP_INVALID', '验证码无效或已使用，请重新获取');
     }
-    if (tokenRecord.isExpired) {
-      throw ValidationException('RESET_TOKEN_EXPIRED', 'token 已过期（> 2 小时）');
+    if (otpRecord.isExpired) {
+      throw const ValidationException('OTP_EXPIRED', '验证码已过期，请重新获取');
+    }
+    if (otpRecord.isExhausted) {
+      throw const ValidationException(
+        'RESET_PASSWORD_EXHAUSTED',
+        '验证码已失效（验证次数过多），请重新获取',
+      );
+    }
+
+    // 验证 OTP 哈希是否匹配
+    final inputHash = _sha256Hex(otp);
+    if (inputHash != otpRecord.codeHash) {
+      // 累加失败次数（异步，不阻塞响应）
+      await _otpRepo.incrementFailed(otpRecord.id);
+      throw const ValidationException('OTP_INVALID', '验证码错误');
     }
 
     // 取出用户当前密码哈希，校验新密码不与旧密码相同
     final userResult = await _db.execute(
       Sql.named('SELECT password_hash FROM users WHERE id = @id LIMIT 1'),
-      parameters: {'id': tokenRecord.userId},
+      parameters: {'id': otpRecord.userId},
     );
     if (userResult.isEmpty) {
-      // 用户已被删除 — token 视为无效
-      throw ValidationException('RESET_TOKEN_INVALID', 'token 不存在或已使用');
+      throw const ValidationException('OTP_INVALID', '验证码无效或已使用，请重新获取');
     }
 
     final currentHash = userResult.first.toColumnMap()['password_hash'] as String;
     final newHash = _bcryptHash(newPassword);
 
-    // 检查是否与旧密码相同（简化：仅比对 bcrypt hash，实际应使用 bcrypt.verify）
     if (_isSamePassword(newPassword, currentHash)) {
-      throw ValidationException('PASSWORD_SAME_AS_OLD', '新密码不能与旧密码相同');
+      throw const ValidationException('PASSWORD_SAME_AS_OLD', '新密码不能与旧密码相同');
     }
 
-    // 更新密码 + session_version 递增（事务保证原子性）
+    // 更新密码 + session_version 递增 + 标记 OTP 已使用（事务保证原子性）
     await _db.runTx((session) async {
       await session.execute(
         Sql.named('''
@@ -129,21 +155,21 @@ class AuthService {
         '''),
         parameters: {
           'newHash': newHash,
-          'userId': tokenRecord.userId,
+          'userId': otpRecord.userId,
         },
       );
-      // 标记 token 已使用（防止二次提交）
-      await _tokenRepo.markUsed(tokenRecord.id);
+      // 标记 OTP 已使用（防止二次提交）
+      await _otpRepo.markUsed(otpRecord.id);
     });
   }
 
   // ─── 私有辅助方法 ─────────────────────────────────────────────────────
 
-  /// 生成 32 字节 URL-safe Base64 随机 token
-  String _generateSecureToken() {
+  /// 生成 6 位随机数字 OTP（cryptographically secure）
+  String _generateOtp() {
     final random = Random.secure();
-    final bytes = List<int>.generate(32, (_) => random.nextInt(256));
-    return base64Url.encode(bytes);
+    final code = random.nextInt(900000) + 100000; // 100000–999999
+    return code.toString();
   }
 
   /// SHA-256 hex 摘要
