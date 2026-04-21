@@ -10,6 +10,7 @@ import 'package:propos_backend/core/middleware/rate_limit_middleware.dart';
 import 'package:propos_backend/core/middleware/auth_middleware.dart';
 import 'package:propos_backend/core/middleware/rbac_middleware.dart';
 import 'package:propos_backend/core/middleware/audit_middleware.dart';
+import 'package:propos_backend/core/middleware/cors_middleware.dart';
 import 'package:propos_backend/router/app_router.dart';
 
 Future<void> main() async {
@@ -32,6 +33,12 @@ Future<void> main() async {
 
   await Database.init(config);
 
+  // 解析 CORS 白名单并在通配符时打印警告
+  final corsOrigins = parseCorsOrigins(config.corsOrigins);
+  if (corsOrigins.contains('*')) {
+    stderr.writeln('[WARN] CORS_ORIGINS=* 将允许所有来源跨域访问，请确认这是预期行为');
+  }
+
   final router = buildRouter();
 
   // Pipeline 顺序：errorHandler → logMiddleware → rateLimitMiddleware
@@ -39,6 +46,7 @@ Future<void> main() async {
   // errorHandler 必须在最外层，捕获后续所有中间件和路由抛出的异常
   final pipeline = const Pipeline()
       .addMiddleware(errorHandler())
+      .addMiddleware(corsMiddleware(corsOrigins)) // CORS 必须在 auth 之前，OPTIONS 预检不携带 JWT
       .addMiddleware(logMiddleware())
       .addMiddleware(rateLimitMiddleware())
       .addMiddleware(authMiddleware(config.jwtSecret))

@@ -15,6 +15,7 @@ class AppConfig {
   final String corsOrigins;
   final String logLevel;
   final int maxUploadSizeMb;
+
   // 邮件相关（可选，未配置时退化为控制台打印）
   final String smtpHost;
   final int smtpPort;
@@ -24,6 +25,11 @@ class AppConfig {
 
   /// Admin Web 基础 URL，用于拼接密码重置链接
   final String adminWebBaseUrl;
+
+  /// 数据库 SSL 模式：require（默认）/ verify-full / disable
+  /// 生产环境建议设为 verify-full，本地开发可设为 disable
+  final String dbSslMode;
+
 
   AppConfig._({
     required this.databaseUrl,
@@ -41,6 +47,8 @@ class AppConfig {
     required this.smtpPassword,
     required this.smtpFrom,
     required this.adminWebBaseUrl,
+    required this.dbSslMode,
+
   });
 
   static AppConfig load({String? Function(String)? get}) {
@@ -86,15 +94,33 @@ class AppConfig {
       fileStoragePath: fileStoragePath,
       encryptionKey: encryptionKey,
       appPort: appPort,
-      corsOrigins: lookup('CORS_ORIGINS') ?? '*',
+      // 默认为空字符串（不发 CORS 头）；生产环境按实际前端域名配置
+      corsOrigins: lookup('CORS_ORIGINS') ?? '',
       logLevel: lookup('LOG_LEVEL') ?? 'info',
       maxUploadSizeMb: int.tryParse(lookup('MAX_UPLOAD_SIZE_MB') ?? '') ?? 50,
+
       smtpHost: lookup('SMTP_HOST') ?? '',
       smtpPort: int.tryParse(lookup('SMTP_PORT') ?? '') ?? 465,
       smtpUser: lookup('SMTP_USER') ?? '',
       smtpPassword: lookup('SMTP_PASSWORD') ?? '',
       smtpFrom: lookup('SMTP_FROM') ?? 'noreply@propos.internal',
       adminWebBaseUrl: lookup('ADMIN_WEB_BASE_URL') ?? 'http://localhost:5173',
+
+      dbSslMode: _validatedSslMode(lookup('DB_SSL_MODE') ?? 'require'),
+
     );
+  }
+
+  /// 校验并标准化 DB_SSL_MODE 值。
+  /// 只接受 require / verify-full / disable，其余值拒绝启动。
+  static String _validatedSslMode(String raw) {
+    const allowed = {'require', 'verify-full', 'disable'};
+    final value = raw.trim().toLowerCase();
+    if (!allowed.contains(value)) {
+      throw StateError(
+        'DB_SSL_MODE 值无效: "$raw"，允许的值为: require / verify-full / disable',
+      );
+    }
+    return value;
   }
 }

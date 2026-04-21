@@ -10,12 +10,19 @@ Middleware errorHandler() {
       try {
         return await innerHandler(request);
       } on AppException catch (e) {
+        // RateLimitException 需要附加 Retry-After 头
+        final extraHeaders = e is RateLimitException
+            ? {'retry-after': e.retryAfterSeconds.toString()}
+            : const <String, String>{};
         return Response(
           e.statusCode,
           body: jsonEncode({
             'error': {'code': e.code, 'message': e.message},
           }),
-          headers: {'content-type': 'application/json; charset=utf-8'},
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            ...extraHeaders,
+          },
         );
       } catch (e, st) {
         // 生产环境不暴露堆栈，仅写 stderr

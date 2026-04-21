@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'package:shelf/shelf.dart';
+import '../errors/app_exception.dart';
 
 /// IP 粒度、内存滑动窗口限流中间件。
 /// 默认：每 IP 60 秒内最多 120 次请求（包含健康检查）。
-/// 超限返回 429，不记录敏感信息。
+/// 超限抛出 AppException（由全局 errorHandler 统一转为 429 响应），不记录敏感信息。
 ///
 /// 注意：多进程/多实例部署时请替换为 Redis 计数器；
 /// 当前实现仅适用于单进程开发 / 测试环境。
@@ -24,19 +24,10 @@ Middleware rateLimitMiddleware({
       bucket.removeWhere((t) => now.difference(t) > window);
 
       if (bucket.length >= maxRequests) {
-        return Response(
-          429,
-          body: jsonEncode({
-            'error': {
-              'code': 'RATE_LIMIT_EXCEEDED',
-              'message': '请求过于频繁，请稍后再试',
-            },
-          }),
-          headers: {
-            'content-type': 'application/json; charset=utf-8',
-            // 告知客户端最早何时可以重试（秒数）
-            'retry-after': window.inSeconds.toString(),
-          },
+        // 通过 AppException 抛出，由全局 errorHandler 统一序列化为 JSON 响应信封
+        // Retry-After 头由 errorHandler 的 extraHeaders 机制附加
+        throw RateLimitException(
+          retryAfterSeconds: window.inSeconds,
         );
       }
 

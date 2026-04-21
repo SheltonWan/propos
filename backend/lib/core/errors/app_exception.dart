@@ -54,3 +54,13 @@ class InvalidStateTransitionException extends AppException {
   const InvalidStateTransitionException(String message)
       : super('INVALID_STATE_TRANSITION', message, 422);
 }
+
+/// 快捷子类 — 429 限流
+/// 携带 [retryAfterSeconds] 以便 errorHandler 附加 Retry-After 响应头
+class RateLimitException extends AppException {
+  /// 客户端应等待秒数后再重试
+  final int retryAfterSeconds;
+
+  const RateLimitException({this.retryAfterSeconds = 60})
+      : super('RATE_LIMIT_EXCEEDED', '请求过于频繁，请稍后再试', 429);
+}
