@@ -45,8 +45,12 @@ class ForgotPasswordCubit extends Cubit<ForgotPasswordState> {
       );
       emit(const ForgotPasswordState.success());
     } catch (e) {
+      // 失败时保留 email，使 UI 停留在第二步而非退回步骤 1
       emit(
-        ForgotPasswordState.error(e is ApiException ? e.message : '操作失败，请稍后再试'),
+        ForgotPasswordState.error(
+          e is ApiException ? e.message : '操作失败，请稍后再试',
+          email: email,
+        ),
       );
     }
   }

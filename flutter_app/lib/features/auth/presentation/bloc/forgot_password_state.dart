@@ -13,5 +13,7 @@ abstract class ForgotPasswordState with _$ForgotPasswordState {
 
   /// 密码重置成功（展示成功提示）
   const factory ForgotPasswordState.success() = ForgotPasswordStateSuccess;
-  const factory ForgotPasswordState.error(String message) = ForgotPasswordStateError;
+  /// [email] 非 null 时表示错误发生在第二步（保持停留在 OTP 输入界面）。
+  const factory ForgotPasswordState.error(String message, {String? email}) =
+      ForgotPasswordStateError;
 }

@@ -14,11 +14,14 @@ import 'api_paths.dart';
 class ApiClient {
   final Dio _dio;
   final FlutterSecureStorage _storage;
+  /// 当 token 刷新失败、会话已失效时回调（由调用方注入，通常触发强制登出）。
+  final void Function()? _onSessionExpired;
 
   // Token refresh lock to prevent concurrent refresh attempts.
   Completer<void>? _refreshCompleter;
 
-  ApiClient(this._dio, this._storage) {
+  ApiClient(this._dio, this._storage, {void Function()? onSessionExpired})
+      : _onSessionExpired = onSessionExpired {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: _onRequest,
       onError: _onError,
@@ -125,9 +128,10 @@ class ApiClient {
         options.headers['Authorization'] = 'Bearer $token';
         final response = await _dio.fetch<dynamic>(options);
         return handler.resolve(response);
-      } on DioException catch (_) {
-        // Refresh failed — clear tokens and let error propagate
+      } catch (_) {
+        // Refresh failed（含 DioException 与 ApiException）— 清除令牌并通知会话过期
         await _storage.deleteAll();
+        _onSessionExpired?.call();
       }
     }
 

@@ -76,4 +76,11 @@ class AuthCubit extends Cubit<AuthState> {
     }
     emit(const AuthState.initial());
   }
+
+  /// 强制注销（不请求网络），用于 token 刷新失败后由基础设施层触发。
+  ///
+  /// 与 [logout] 的区别：不调用后端注销接口（令牌已失效）。
+  void forceLogout() {
+    emit(const AuthState.initial());
+  }
 }

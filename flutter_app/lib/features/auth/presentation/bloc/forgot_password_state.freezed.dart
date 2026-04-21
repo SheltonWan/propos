@@ -131,14 +131,14 @@ return error(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  initial,TResult Function()?  loading,TResult Function( String email)?  codeSent,TResult Function()?  success,TResult Function( String message)?  error,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  initial,TResult Function()?  loading,TResult Function( String email)?  codeSent,TResult Function()?  success,TResult Function( String message,  String? email)?  error,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case ForgotPasswordStateInitial() when initial != null:
 return initial();case ForgotPasswordStateLoading() when loading != null:
 return loading();case ForgotPasswordStateCodeSent() when codeSent != null:
 return codeSent(_that.email);case ForgotPasswordStateSuccess() when success != null:
 return success();case ForgotPasswordStateError() when error != null:
-return error(_that.message);case _:
+return error(_that.message,_that.email);case _:
   return orElse();
 
 }
@@ -156,14 +156,14 @@ return error(_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  initial,required TResult Function()  loading,required TResult Function( String email)  codeSent,required TResult Function()  success,required TResult Function( String message)  error,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  initial,required TResult Function()  loading,required TResult Function( String email)  codeSent,required TResult Function()  success,required TResult Function( String message,  String? email)  error,}) {final _that = this;
 switch (_that) {
 case ForgotPasswordStateInitial():
 return initial();case ForgotPasswordStateLoading():
 return loading();case ForgotPasswordStateCodeSent():
 return codeSent(_that.email);case ForgotPasswordStateSuccess():
 return success();case ForgotPasswordStateError():
-return error(_that.message);case _:
+return error(_that.message,_that.email);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -180,14 +180,14 @@ return error(_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  initial,TResult? Function()?  loading,TResult? Function( String email)?  codeSent,TResult? Function()?  success,TResult? Function( String message)?  error,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  initial,TResult? Function()?  loading,TResult? Function( String email)?  codeSent,TResult? Function()?  success,TResult? Function( String message,  String? email)?  error,}) {final _that = this;
 switch (_that) {
 case ForgotPasswordStateInitial() when initial != null:
 return initial();case ForgotPasswordStateLoading() when loading != null:
 return loading();case ForgotPasswordStateCodeSent() when codeSent != null:
 return codeSent(_that.email);case ForgotPasswordStateSuccess() when success != null:
 return success();case ForgotPasswordStateError() when error != null:
-return error(_that.message);case _:
+return error(_that.message,_that.email);case _:
   return null;
 
 }
@@ -361,10 +361,11 @@ String toString() {
 
 
 class ForgotPasswordStateError implements ForgotPasswordState {
-  const ForgotPasswordStateError(this.message);
+  const ForgotPasswordStateError(this.message, {this.email});
   
 
  final  String message;
+ final  String? email;
 
 /// Create a copy of ForgotPasswordState
 /// with the given fields replaced by the non-null parameter values.
@@ -376,16 +377,16 @@ $ForgotPasswordStateErrorCopyWith<ForgotPasswordStateError> get copyWith => _$Fo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ForgotPasswordStateError&&(identical(other.message, message) || other.message == message));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ForgotPasswordStateError&&(identical(other.message, message) || other.message == message)&&(identical(other.email, email) || other.email == email));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,message);
+int get hashCode => Object.hash(runtimeType,message,email);
 
 @override
 String toString() {
-  return 'ForgotPasswordState.error(message: $message)';
+  return 'ForgotPasswordState.error(message: $message, email: $email)';
 }
 
 
@@ -396,7 +397,7 @@ abstract mixin class $ForgotPasswordStateErrorCopyWith<$Res> implements $ForgotP
   factory $ForgotPasswordStateErrorCopyWith(ForgotPasswordStateError value, $Res Function(ForgotPasswordStateError) _then) = _$ForgotPasswordStateErrorCopyWithImpl;
 @useResult
 $Res call({
- String message
+ String message, String? email
 });
 
 
@@ -413,10 +414,11 @@ class _$ForgotPasswordStateErrorCopyWithImpl<$Res>
 
 /// Create a copy of ForgotPasswordState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? message = null,Object? email = freezed,}) {
   return _then(ForgotPasswordStateError(
 null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
-as String,
+as String,email: freezed == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
