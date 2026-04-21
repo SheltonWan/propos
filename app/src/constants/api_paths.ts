@@ -4,6 +4,8 @@ export const AUTH_REFRESH = '/api/auth/refresh'
 export const AUTH_LOGOUT = '/api/auth/logout'
 export const AUTH_ME = '/api/auth/me'
 export const AUTH_CHANGE_PASSWORD = '/api/auth/change-password'
+export const AUTH_FORGOT_PASSWORD = '/api/auth/forgot-password'
+export const AUTH_RESET_PASSWORD = '/api/auth/reset-password'
 
 // ─── 用户管理 ─────────────────────────────────────────────────────────────
 export const USERS = '/api/users'

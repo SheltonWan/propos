@@ -9,6 +9,8 @@ abstract final class ApiPaths {
   static const authLogout = '/api/auth/logout';
   static const authMe = '/api/auth/me';
   static const authChangePassword = '/api/auth/change-password';
+  static const authForgotPassword = '/api/auth/forgot-password';
+  static const authResetPassword = '/api/auth/reset-password';
 
   // ── Users ──
   static const users = '/api/users';

@@ -76,6 +76,13 @@
       }
     },
     {
+      "path": "pages/auth/forgot-password",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "忘记密码"
+      }
+    },
+    {
       "path": "pages/assets/floor-plan",
       "style": {
         "navigationStyle": "custom",

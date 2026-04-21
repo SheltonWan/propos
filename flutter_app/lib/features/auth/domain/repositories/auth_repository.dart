@@ -26,4 +26,7 @@ abstract class AuthRepository {
 
   /// Retrieve the stored access token (if any).
   Future<String?> getAccessToken();
+
+  /// 发送忘记密码邮件。无论邮箱是否存在均静默成功（防枚举）。
+  Future<void> forgotPassword({required String email});
 }

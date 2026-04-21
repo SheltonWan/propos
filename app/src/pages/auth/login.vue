@@ -68,7 +68,7 @@
             </view>
 
             <!-- Forgot password -->
-            <view class="login__forgot">
+            <view class="login__forgot" @tap="handleForgotPassword">
               <text class="login__forgot-text">忘记密码？</text>
             </view>
 
@@ -139,6 +139,10 @@ async function handleLogin() {
   } finally {
     loading.value = false
   }
+}
+
+function handleForgotPassword() {
+  uni.navigateTo({ url: '/pages/auth/forgot-password' })
 }
 </script>
 

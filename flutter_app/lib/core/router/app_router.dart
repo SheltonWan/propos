@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/bloc/auth_cubit.dart';
 import '../../features/auth/presentation/bloc/auth_state.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
+import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../shared/widgets/main_shell.dart';
 import '../di/injection.dart';
 import 'route_paths.dart';
@@ -37,6 +38,10 @@ GoRouter buildAppRouter() => GoRouter(
     GoRoute(
       path: RoutePaths.changePassword,
       builder: (_, _) => const _ChangePasswordPlaceholderPage(),
+    ),
+    GoRoute(
+      path: RoutePaths.forgotPassword,
+      builder: (_, _) => const ForgotPasswordPage(),
     ),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
@@ -103,10 +108,11 @@ String? _authGuard(BuildContext context, GoRouterState state) {
   final authState = getIt<AuthCubit>().state;
   final loc = state.matchedLocation;
   final isLoginRoute = loc == RoutePaths.login;
+  final isForgotPasswordRoute = loc == RoutePaths.forgotPassword;
   final isChangePasswordRoute = loc == RoutePaths.changePassword;
 
   if (authState is! AuthStateAuthenticated) {
-    if (!isLoginRoute) return RoutePaths.login;
+    if (!isLoginRoute && !isForgotPasswordRoute) return RoutePaths.login;
     return null;
   }
 

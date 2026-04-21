@@ -2,7 +2,7 @@
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
 import { useThemeStore } from '@/stores/theme'
 
-const PUBLIC_PAGES = ['/pages/auth/login', '/pages/auth/change-password']
+const PUBLIC_PAGES = ['/pages/auth/login', '/pages/auth/change-password', '/pages/auth/forgot-password']
 const themeStore = useThemeStore()
 
 function hideNativeTabBar() {

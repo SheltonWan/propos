@@ -1,6 +1,6 @@
 import { apiPost, apiGet, setTokens, clearTokens } from '../client'
 import type { LoginResponse, TokenResponse, CurrentUser } from '@/types/auth'
-import { AUTH_LOGIN, AUTH_ME, AUTH_LOGOUT, AUTH_CHANGE_PASSWORD } from '@/constants/api_paths'
+import { AUTH_LOGIN, AUTH_ME, AUTH_LOGOUT, AUTH_CHANGE_PASSWORD, AUTH_FORGOT_PASSWORD } from '@/constants/api_paths'
 
 export function login(email: string, password: string): Promise<LoginResponse> {
   return apiPost<LoginResponse>(AUTH_LOGIN, { email, password })
@@ -19,6 +19,11 @@ export function changePassword(oldPassword: string, newPassword: string): Promis
     old_password: oldPassword,
     new_password: newPassword,
   })
+}
+
+/// 发送忘记密码邮件。后端防枚举，无论邮箱是否存在均返回 200。
+export function forgotPassword(email: string): Promise<{ message: string }> {
+  return apiPost<{ message: string }>(AUTH_FORGOT_PASSWORD, { email })
 }
 
 export { setTokens, clearTokens }

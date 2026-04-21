@@ -97,4 +97,12 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<String?> getAccessToken() async {
     return _storage.read(key: 'access_token');
   }
+
+  @override
+  Future<void> forgotPassword({required String email}) async {
+    await _apiClient.apiPost<void>(
+      ApiPaths.authForgotPassword,
+      data: {'email': email},
+    );
+  }
 }

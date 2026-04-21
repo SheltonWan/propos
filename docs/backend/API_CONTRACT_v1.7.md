@@ -334,6 +334,58 @@
 
 ---
 
+### 1.13 `POST /api/auth/forgot-password` — 申请密码重置邮件
+
+**权限**: 公共
+
+> 安全说明：不论该邮箱是否存在于系统中，响应均为 200，防止用户名枚举攻击。
+> 同一邮箱 5 分钟内最多申请 3 次，超出时后端静默忽略（仍返回 200，不暴露限频信息）。
+
+**Request Body** — `ForgotPasswordRequest`
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `email` | string | 是 | 申请重置的账号邮箱 |
+
+**Response 200**
+
+```json
+{ "data": { "message": "若该邮箱已注册，重置链接将在几分钟内发送" } }
+```
+
+---
+
+### 1.14 `POST /api/auth/reset-password` — 通过 token 重置密码
+
+**权限**: 公共
+
+> token 来自邮件链接中的 `token` 查询参数，有效期 2 小时，使用一次后立即失效。
+> 重置成功后 `session_version` 递增，所有已登录会话的 JWT 全部失效。
+
+**Request Body** — `ResetPasswordRequest`
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `token` | string | 是 | 邮件链接中的原始 token（32 字节随机串，后端将做 SHA-256 比对） |
+| `new_password` | string | 是 | 新密码（≥8位，含大小写+数字，≠旧密码） |
+
+**Response 200**
+
+```json
+{ "data": { "message": "密码已重置，请使用新密码登录" } }
+```
+
+**错误码**
+
+| 错误码 | 说明 |
+|--------|------|
+| `RESET_TOKEN_INVALID` | token 不存在或已使用 |
+| `RESET_TOKEN_EXPIRED` | token 已超过 2 小时有效期 |
+| `PASSWORD_TOO_WEAK` | 新密码不符合复杂度要求 |
+| `PASSWORD_SAME_AS_OLD` | 新密码不能与旧密码相同 |
+
+---
+
 ## 一-A、组织架构管理
 
 ### 1A.1 `GET /api/departments` — 部门树列表

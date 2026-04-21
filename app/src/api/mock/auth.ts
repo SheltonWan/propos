@@ -6,6 +6,7 @@ import {
   AUTH_LOGOUT,
   AUTH_REFRESH,
   AUTH_CHANGE_PASSWORD,
+  AUTH_FORGOT_PASSWORD,
 } from '@/constants/api_paths'
 
 const MOCK_USER: CurrentUser = {
@@ -89,5 +90,11 @@ export const authMocks: MockHandler[] = [
     method: 'POST',
     url: AUTH_CHANGE_PASSWORD,
     handler: () => ({ delay: 500, data: null }),
+  },
+  {
+    method: 'POST',
+    url: AUTH_FORGOT_PASSWORD,
+    // 防枚举：模拟时任何邮箱均返回成功
+    handler: () => ({ delay: 600, data: { message: '如该邮箱已注册，重置链接已发送' } }),
   },
 ]

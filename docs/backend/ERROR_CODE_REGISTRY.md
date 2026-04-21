@@ -60,7 +60,9 @@
 | `BOUND_CONTRACT_REQUIRED` | 400 | `POST /api/users` | 二房东角色必须绑定主合同 |
 | `CONTRACT_NOT_SUBLEASE_MASTER` | 400 | `POST /api/users` | 绑定的合同不是二房东主合同 |
 | `INVALID_OLD_PASSWORD` | 400 | `POST /api/auth/change-password` | 旧密码不正确 |
-| `PASSWORD_SAME_AS_OLD` | 400 | `POST /api/auth/change-password` | 新密码不能与旧密码相同 |
+| `PASSWORD_SAME_AS_OLD` | 400 | `POST /api/auth/change-password`、`POST /api/auth/reset-password` | 新密码不能与旧密码相同 |
+| `RESET_TOKEN_INVALID` | 400 | `POST /api/auth/reset-password` | token 不存在或已使用 |
+| `RESET_TOKEN_EXPIRED` | 400 | `POST /api/auth/reset-password` | token 已超过 2 小时有效期 |
 
 ---
 
@@ -258,6 +260,8 @@ class ErrorCodes {
   static const contractNotSubleaseMaster = 'CONTRACT_NOT_SUBLEASE_MASTER';
   static const invalidOldPassword = 'INVALID_OLD_PASSWORD';
   static const passwordSameAsOld = 'PASSWORD_SAME_AS_OLD';
+  static const resetTokenInvalid = 'RESET_TOKEN_INVALID';
+  static const resetTokenExpired = 'RESET_TOKEN_EXPIRED';
 
   // ── 组织架构 ──
   static const maxDepthExceeded = 'MAX_DEPTH_EXCEEDED';

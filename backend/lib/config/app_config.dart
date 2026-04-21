@@ -15,6 +15,15 @@ class AppConfig {
   final String corsOrigins;
   final String logLevel;
   final int maxUploadSizeMb;
+  // 邮件相关（可选，未配置时退化为控制台打印）
+  final String smtpHost;
+  final int smtpPort;
+  final String smtpUser;
+  final String smtpPassword;
+  final String smtpFrom;
+
+  /// Admin Web 基础 URL，用于拼接密码重置链接
+  final String adminWebBaseUrl;
 
   AppConfig._({
     required this.databaseUrl,
@@ -26,6 +35,12 @@ class AppConfig {
     required this.corsOrigins,
     required this.logLevel,
     required this.maxUploadSizeMb,
+    required this.smtpHost,
+    required this.smtpPort,
+    required this.smtpUser,
+    required this.smtpPassword,
+    required this.smtpFrom,
+    required this.adminWebBaseUrl,
   });
 
   static AppConfig load({String? Function(String)? get}) {
@@ -74,6 +89,12 @@ class AppConfig {
       corsOrigins: lookup('CORS_ORIGINS') ?? '*',
       logLevel: lookup('LOG_LEVEL') ?? 'info',
       maxUploadSizeMb: int.tryParse(lookup('MAX_UPLOAD_SIZE_MB') ?? '') ?? 50,
+      smtpHost: lookup('SMTP_HOST') ?? '',
+      smtpPort: int.tryParse(lookup('SMTP_PORT') ?? '') ?? 465,
+      smtpUser: lookup('SMTP_USER') ?? '',
+      smtpPassword: lookup('SMTP_PASSWORD') ?? '',
+      smtpFrom: lookup('SMTP_FROM') ?? 'noreply@propos.internal',
+      adminWebBaseUrl: lookup('ADMIN_WEB_BASE_URL') ?? 'http://localhost:5173',
     );
   }
 }

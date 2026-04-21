@@ -2,24 +2,16 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import router from '@/router'
 import { ApiError } from '@/types/api'
-import { apiGet, apiPost } from '@/api/client'
-import { API_AUTH_LOGIN, API_AUTH_ME } from '@/constants/api_paths'
-
-export interface AuthTokens {
-  accessToken: string
-  refreshToken: string
-}
+import { apiGet } from '@/api/client'
+import { login as apiLogin, clearTokens } from '@/api/modules/auth'
+import { API_AUTH_ME } from '@/constants/api_paths'
 
 export interface UserProfile {
   id: string
   name: string
+  email: string
   role: string
   departmentId: string | null
-}
-
-export interface LoginPayload {
-  username: string
-  password: string
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -30,13 +22,13 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => !!profile.value)
   const role = computed(() => profile.value?.role ?? null)
 
-  async function login(payload: LoginPayload): Promise<void> {
+  async function login(email: string, password: string): Promise<void> {
     loading.value = true
     error.value = null
     try {
-      const res = await apiPost<AuthTokens>(API_AUTH_LOGIN, payload)
-      localStorage.setItem('access_token', res.accessToken)
-      localStorage.setItem('refresh_token', res.refreshToken)
+      const res = await apiLogin(email, password)
+      localStorage.setItem('access_token', res.access_token)
+      localStorage.setItem('refresh_token', res.refresh_token)
       await fetchMe()
       const redirect = (router.currentRoute.value.query.redirect as string) || '/dashboard'
       await router.replace(redirect)
@@ -65,8 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function logout(): void {
     profile.value = null
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
+    clearTokens()
     router.replace('/login')
   }
 

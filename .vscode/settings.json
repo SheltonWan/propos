@@ -18,7 +18,7 @@
   "search.exclude": {
     "pdfdocs/**": true,
     "app/**": false,
-    "app/node_modules/**": true
+    "app/node_modules/**": false
   },
   "files.exclude": {
     "pdfdocs/**": true,

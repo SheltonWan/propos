@@ -25,6 +25,8 @@
 | PATCH | /api/users/:id/role | 变更角色 | super_admin |
 | PATCH | /api/users/:id/department | 变更员工所属部门 | super_admin |
 | POST | /api/auth/change-password | 修改密码（需提供旧密码，触发 `session_version` 递增） | 已登录 |
+| POST | /api/auth/forgot-password | 申请密码重置（发送邮件重置链接，不论邮箱是否存在均返回 200） | 公共 |
+| POST | /api/auth/reset-password | 通过邮件 token 重置密码（无需旧密码，token 有效期 2 小时） | 公共 |
 
 ### 认证接口备注
 
@@ -33,6 +35,8 @@
 3. 主合同冻结或改密后，旧 token 应因 `session_version` 失效。
 4. 密码复杂度：最少 8 位，必须含大小写字母 + 数字，禁止与用户名相同（v1.7）。
 5. `POST /api/auth/change-password` 成功后返回新的 access token 和 refresh token（旧会话立即失效）。
+6. `POST /api/auth/forgot-password`：防枚举攻击，不论该邮箱是否在系统中存在均返回 200；同一邮箱 5 分钟内最多申请 3 次，超限静默忽略。
+7. `POST /api/auth/reset-password`：token 由后端生成（32 字节随机串），SHA-256 哈希后存表；重置成功后 `session_version` 递增，旧 token 不可二次使用；二房东账号不支持自助重置（由管理员重置）。
 
 ---
 

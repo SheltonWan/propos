@@ -105,6 +105,14 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
+                // 忘记密码入口（不在已知密码流程内）
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => context.push(RoutePaths.forgotPassword),
+                    child: const Text('忘记密码？'),
+                  ),
+                ),
                 // 错误内联展示（PAGE_SPEC §3.1：BlocBuilder 显示错误文本）
                 BlocBuilder<AuthCubit, AuthState>(
                   builder: (context, state) => switch (state) {

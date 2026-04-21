@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { CurrentUser, LoginResponse } from '@/types/auth'
 import { ApiError } from '@/types/api'
-import { login as apiLogin, fetchMe as apiFetchMe, logout as apiLogout, setTokens, clearTokens } from '@/api/modules/auth'
+import { login as apiLogin, fetchMe as apiFetchMe, logout as apiLogout, forgotPassword as apiForgotPassword, setTokens, clearTokens } from '@/api/modules/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   // ─── State ─────────────────────────────────────────────────────────────
@@ -57,6 +57,20 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function forgotPassword(email: string) {
+    loading.value = true
+    error.value = null
+    try {
+      await apiForgotPassword(email.trim().toLowerCase())
+      // 防枚举：无论邮箱是否存在均视为成功，调用方直接展示"已发送"提示
+    } catch (e) {
+      error.value = e instanceof ApiError ? e.message : '操作失败，请重试'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   function hasPermission(perm: string): boolean {
     return permissions.value.includes(perm as never)
   }
@@ -71,6 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     fetchMe,
     logout,
+    forgotPassword,
     hasPermission,
   }
 })
