@@ -90,8 +90,10 @@ const sidebarWidth = computed(() =>
 
 const activeMenu = computed(() => '/' + route.path.split('/')[1])
 
-function handleCommand(cmd: string) {
-  if (cmd === 'logout') authStore.logout()
+async function handleCommand(cmd: string) {
+  if (cmd === 'logout') {
+    await authStore.logout()
+  }
 }
 </script>
 

@@ -194,4 +194,4 @@ export async function apiDelete<T = void>(url: string): Promise<T> {
   return res.data.data
 }
 
-export { setTokens, clearTokens }
+export { getRefreshToken, setTokens, clearTokens }

@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import router from '@/router'
 import { ApiError } from '@/types/api'
 import { apiGet } from '@/api/client'
-import { login as apiLogin, clearTokens } from '@/api/modules/auth'
+import { login as apiLogin, logout as apiLogout, clearTokens } from '@/api/modules/auth'
 import { API_AUTH_ME } from '@/constants/api_paths'
 
 export interface UserProfile {
@@ -49,16 +49,30 @@ export const useAuthStore = defineStore('auth', () => {
       profile.value = await apiGet<UserProfile>(API_AUTH_ME)
     } catch (e) {
       error.value = e instanceof ApiError ? e.message : '获取用户信息失败'
-      logout()
+      await logout(false)
     } finally {
       loading.value = false
     }
   }
 
-  function logout(): void {
-    profile.value = null
-    clearTokens()
-    router.replace('/login')
+  async function logout(revokeSession = true): Promise<void> {
+    const refreshToken = localStorage.getItem('refresh_token')
+
+    loading.value = true
+    error.value = null
+
+    try {
+      if (revokeSession && refreshToken) {
+        await apiLogout(refreshToken)
+      }
+    } catch (e) {
+      error.value = e instanceof ApiError ? e.message : '退出登录失败，请重试'
+    } finally {
+      profile.value = null
+      clearTokens()
+      loading.value = false
+      await router.replace('/login')
+    }
   }
 
   return { profile, loading, error, isLoggedIn, role, login, fetchMe, logout }

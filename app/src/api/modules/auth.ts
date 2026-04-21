@@ -1,4 +1,4 @@
-import { apiPost, apiGet, setTokens, clearTokens } from '../client'
+import { apiPost, apiGet, getRefreshToken, setTokens, clearTokens } from '../client'
 import type { LoginResponse, TokenResponse, CurrentUser } from '@/types/auth'
 import { AUTH_LOGIN, AUTH_ME, AUTH_LOGOUT, AUTH_CHANGE_PASSWORD, AUTH_FORGOT_PASSWORD, AUTH_RESET_PASSWORD } from '@/constants/api_paths'
 
@@ -11,7 +11,8 @@ export function fetchMe(): Promise<CurrentUser> {
 }
 
 export function logout(): Promise<void> {
-  return apiPost<void>(AUTH_LOGOUT).finally(() => clearTokens())
+  const refreshToken = getRefreshToken()
+  return apiPost<void>(AUTH_LOGOUT, { refresh_token: refreshToken }).finally(() => clearTokens())
 }
 
 export function changePassword(oldPassword: string, newPassword: string): Promise<void> {
