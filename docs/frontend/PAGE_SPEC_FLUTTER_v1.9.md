@@ -373,12 +373,19 @@ DashboardView
 
 #### Flutter Widget 树：
 
+> 指标卡片按角色自适应：SA/OM/RV 显示 NOI + 收款率；LS/FS 显示收款率 + WALE面积；PI 显示在租合同；MS 显示空置房源。
+
 ```
 DashboardPage
 └── BlocProvider(create: getIt<DashboardCubit>()..fetch())
     └── Scaffold(
+          // 深色渐变 Header，个性化问候
           appBar: AppBar(
-            title: Text("PropOS"),
+            title: Column(crossAxisAlignment: start, children: [
+              Text("你好，${user.name}", style: titleMedium),
+              Text(DateFormat('M月d日 E').format(DateTime.now().toLocal()),
+                   style: bodySmall.copyWith(color: onPrimary.withOpacity(0.7))),
+            ]),
             actions: [
               // 通知铃铛
               BlocBuilder<NotificationCubit, NotificationState>(
@@ -391,6 +398,15 @@ DashboardPage
                   ),
                 ),
               ),
+              // 头像按钮（→ /profile，仅展示，个人中心不在 Phase 1 正式页面范围）
+              GestureDetector(
+                onTap: () => ctx.push('/profile'),
+                child: CircleAvatar(
+                  radius: 16,
+                  child: Text(user.name[0]),
+                ),
+              ),
+              SizedBox(width: 8),
             ],
           ),
           body: BlocBuilder<DashboardCubit, DashboardState>(
@@ -408,47 +424,82 @@ _DashboardContent
 └── RefreshIndicator(onRefresh: cubit.fetch)
     └── ListView(
           children: [
-            // — 核心指标卡片 —
-            Padding(padding: 16)
-            └── Wrap(spacing: 12, runSpacing: 12,
-                  children: [
-                    MetricCard("总面积", "${data.totalArea} m²"),
-                    MetricCard("出租率", "${data.occupancyRate}%"),
-                    MetricCard("NOI", "¥${data.noi}", onTap: → /dashboard/noi-detail),
-                    MetricCard("WALE", "${data.wale} 年", onTap: → /dashboard/wale-detail),
+            // — 核心指标卡片（角色自适应 2×2 Grid）—
+            Padding(padding: EdgeInsets.fromLTRB(16, 0, 16, 16))
+            └── GridView.count(crossAxisCount: 2, shrinkWrap: true,
+                  crossAxisSpacing: 12, mainAxisSpacing: 12,
+                  children: _buildAdaptiveMetrics(data, role),
+                  // 卡片① 综合出租率 → /assets
+                  // 卡片② NOI(SA/OM/RV) | 收款率(LS/FS) | 在租合同(PI) | 空置房源(MS)
+                  // 卡片③ WALE收入加权（副标题显示面积加权值）→ /wale
+                  // 卡片④ 收款率(SA/OM/RV) | WALE面积(LS/FS/PI) | 空置房源(MS)
+                ),
+
+            // — 三业态概览（垂直面板，非横向滚动）—
+            SizedBox(height: 8),
+            Padding(padding: horizontal 16)
+            └── _SectionHeader("三业态概览", trailing: TextButton("全部资产", → /assets)),
+            Padding(padding: horizontal 16)
+            └── Card(child: Column(children: data.typeStats.map((t) =>
+                  _PropertyTypeRow(
+                    icon: t.icon,
+                    name: t.name,
+                    total: t.total,
+                    occupied: t.occupied,
+                    vacant: t.vacant,
+                    rate: t.rate,
+                    onTap: () => ctx.push('/assets?type=${t.type}'),
+                  ),
+                ))),
+
+            // — 运营预警（聚合计数卡片，非逐条列表）—
+            SizedBox(height: 16),
+            Padding(padding: horizontal 16)
+            └── _AlertRadarCard(
+                  alerts: [
+                    AlertItem(id: 'contracts', label: '合同即将到期',
+                      count: data.alerts.expiringContracts, unit: '份',
+                      severity: AlertSeverity.danger, path: '/contracts'),
+                    AlertItem(id: 'overdue', label: '逾期账单',
+                      count: data.alerts.overdueInvoices, unit: '条',
+                      severity: AlertSeverity.danger, path: '/finance/invoices'),
+                    AlertItem(id: 'workorders', label: '超时工单',
+                      count: data.alerts.overdueWorkOrders, unit: '个',
+                      severity: AlertSeverity.warning, path: '/work-orders'),
                   ],
                 ),
 
-            // — 业态出租率 —
+            // — 快捷操作（角色过滤，最多8项，3列网格）—
             SizedBox(height: 16),
             Padding(padding: horizontal 16)
-            └── Row(children: data.typeStats.map((t) =>
-                  Expanded(child: _OccupancyMiniCard(type: t.type, rate: t.rate))
-                )),
+            └── _SectionHeader("快捷操作"),
+            Padding(padding: horizontal 16)
+            └── GridView.count(crossAxisCount: 3, shrinkWrap: true,
+                  childAspectRatio: 0.9,
+                  children: _buildFilteredActions(context, role),
+                  // 候选项（按 permission 过滤）：
+                  // 新建合同(contracts.write) | 提交报修(workorders.write)
+                  // 录入收款(finance.write)   | 查看账单(finance.read)
+                  // 资产查询(assets.read)     | KPI考核(kpi.view)
+                  // 租客管理(contracts.read)  | 二房东(sublease.read)
+                ),
 
-            // — 到期预警 —
+            // — 待办任务（角色过滤）—
             SizedBox(height: 16),
-            _SectionHeader("到期预警"),
-            ...data.expiringContracts.map((c) =>
-              ListTile(
-                title: Text(c.contractNumber),
-                subtitle: Text("${c.tenantName} · 到期: ${formatDate(c.endDate)}"),
-                trailing: StatusTag(status: c.status),
-                onTap: () => ctx.push('/contracts/${c.id}'),
-              ),
-            ),
-
-            // — 逾期账单 —
-            _SectionHeader("逾期账单"),
-            ...data.overdueInvoices.map((inv) =>
-              ListTile(
-                title: Text(inv.invoiceNumber),
-                subtitle: Text("${inv.tenantName} · ¥${inv.amount}"),
-                trailing: Text("逾期 ${inv.overdueDays} 天",
-                  style: TextStyle(color: colorScheme.error)),
-                onTap: () => ctx.push('/finance/invoices'),
-              ),
-            ),
+            Padding(padding: horizontal 16)
+            └── _SectionHeader("待办任务",
+                  trailing: TextButton("查看全部", → /approvals)),
+            Padding(padding: horizontal 16)
+            └── Column(children: _buildFilteredTasks(data, role).map((t) =>
+                  _TaskItem(
+                    type: t.type,      // contract | work-order | finance | sublease
+                    title: t.title,
+                    time: t.time,
+                    status: t.status,
+                    urgent: t.urgent,
+                    onTap: () => ctx.push(t.path),
+                  ),
+                )),
           ],
         )
 ```

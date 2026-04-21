@@ -722,9 +722,9 @@ dashboard/index.vue
     ├── ── 核心指标（2×2 网格，L1 概览层，RBAC 自适应）──
     │   view.metric-grid
     │   ├── MetricCard("综合出租率", "89.2%", trend: "↑2.1%")           ← 全角色可见
-    │   ├── MetricCard("当月 NOI / 收款率 / 在租合同")                   ← SA/OM/RV=NOI, LS/FS=收款率, MS=在租合同, PI=在租合同
-    │   ├── MetricCard("WALE(收入)", "3.2 年")                          ← 全角色可见
-    │   └── MetricCard("收款率 / WALE(面积) / 空置房源")                 ← SA/OM/RV=收款率, LS/FS=WALE(面积), MS/PI=空置数
+    │   ├── MetricCard("当月 NOI / 收款率 / 在租合同 / 空置房源")         ← SA/OM/RV=NOI, LS/FS=收款率, PI=在租合同, MS=空置房源
+    │   ├── MetricCard("WALE(收入加权)", "3.2年", subtitle="面积加权 X.X 年")  ← 全角色可见，双值合一卡片，→ /wale
+    │   └── MetricCard("收款率 / WALE(面积) / 空置房源")                 ← SA/OM/RV=收款率, LS/FS=WALE(面积), PI=WALE(面积), MS=空置房源
     │   注: 每角色始终显示 4 个卡片，通过 RBAC 规则自适应填充
     │   注: 具备对应数据权限的角色可点击 NOI / WALE 卡片进入移动分析页；无权限角色只显示摘要不显示跳转 affordance
     │
@@ -748,7 +748,10 @@ dashboard/index.vue
     │   ├── ActionCard("录入收款" → /pages/finance/invoices)           [finance.write]
     │   ├── ActionCard("查看账单" → /pages/finance/invoices)           [finance.read]
     │   ├── ActionCard("资产查询" → /pages/assets/index)               [assets.read]
-    │   └── ActionCard("KPI 考核" → /pages/finance/kpi)               [kpi.view]
+    │   ├── ActionCard("KPI 考核" → /pages/finance/kpi)               [kpi.view]
+    │   ├── ActionCard("租客管理" → /pages/contracts/tenants)          [contracts.read]
+    │   └── ActionCard("二房东" → /pages/subleases/index)              [sublease.read]
+    │   注: 最多 8 项，3列网格，按当前用户权限过滤后展示
     │
     └── ── 待办任务（5 条，按权限过滤）──
         wd-card(title="待办任务")
