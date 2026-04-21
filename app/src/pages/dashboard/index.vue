@@ -1,41 +1,49 @@
 <template>
+  <!-- theme-guard-ignore-next -->
   <page-meta
     :background-text-style="pageMetaTextStyle"
-    :background-color="pageMetaBackgroundColor" <!-- theme-guard-ignore-line -->
-    :background-color-top="pageMetaBackgroundColor"
+    :background-color="pageMetaBackgroundColor"
+    :background-color-top="pageMetaTopBackgroundColor"
     :background-color-bottom="pageMetaBackgroundColor"
-    :root-background-color="pageMetaRootBackgroundColor" <!-- theme-guard-ignore-line -->
+    :root-background-color="pageMetaRootBackgroundColor"
     :page-style="pageMetaPageStyle"
   />
-  <AppShell with-tabbar>
+  <AppShell with-tabbar :header-background="headerDarkColor">
     <template #header>
-      <!-- Dashboard 深色渐变 Header，参考 PAGE_WIREFRAMES v1.8 §3.2 -->
-      <view class="dash-header">
-        <view class="dash-header__left">
-          <text class="dash-header__greeting">你好，{{ displayName }}</text>
-          <text class="dash-header__date">{{ dateStr }}</text>
-        </view>
-        <view class="dash-header__right">
+      <!-- Dashboard 深色 Header，对齐 React Home.tsx PageHeader variant="dark" -->
+      <PageHeader
+        variant="dark"
+        :title="`你好，${displayName}`"
+        :subtitle="dateStr"
+        :back="false"
+        :border="false"
+      >
+        <template #actions>
+          <!-- 铃铛：未读角标 -->
           <view
-            class="dash-header__bell"
-            hover-class="dash-header__btn--pressed"
+            class="dash-action-btn"
+            hover-class="dash-action-btn--pressed"
             :hover-start-time="20"
             :hover-stay-time="80"
             @tap="handleNotifications"
           >
-            <image class="dash-header__bell-icon" src="/static/icons/bell.svg" mode="aspectFit" />
+            <image class="dash-action-icon" src="/static/icons/bell.svg" mode="aspectFit" />
+            <view v-if="unreadCount > 0" class="dash-badge">
+              <text class="dash-badge__text">{{ unreadCount > 99 ? '99+' : unreadCount }}</text>
+            </view>
           </view>
+          <!-- 头像：SVG 图标 -->
           <view
-            class="dash-header__avatar"
-            hover-class="dash-header__btn--pressed"
+            class="dash-avatar"
+            hover-class="dash-action-btn--pressed"
             :hover-start-time="20"
             :hover-stay-time="80"
             @tap="handleUserMenu"
           >
-            <image class="dash-header__avatar-icon" src="/static/icons/person.svg" mode="aspectFit" />
+            <image class="dash-action-icon" src="/static/icons/person.svg" mode="aspectFit" />
           </view>
-        </view>
-      </view>
+        </template>
+      </PageHeader>
     </template>
 
     <view class="dashboard">
@@ -49,17 +57,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import dayjs from 'dayjs'
 import AppCard from '@/components/base/AppCard.vue'
 import AppShell from '@/components/base/AppShell.vue'
+import PageHeader from '@/components/base/PageHeader.vue'
 import { usePageThemeMeta } from '@/composables/usePageThemeMeta'
+import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/theme'
 
-const { pageMetaBackgroundColor, pageMetaRootBackgroundColor, pageMetaPageStyle, pageMetaTextStyle } = usePageThemeMeta()
+const themeStore = useThemeStore()
+const { activeTheme } = storeToRefs(themeStore)
+// Dashboard Header 专用深色背景：使用 --color-card-dark（由主题系统注入）
+// 而非 --color-background-dark，对齐 React PageHeader variant="dark"
+const headerDarkColor = computed(() => activeTheme.value.vars['--color-card-dark'] ?? '#001d3d')
+const { pageMetaBackgroundColor, pageMetaTopBackgroundColor, pageMetaRootBackgroundColor, pageMetaPageStyle } = usePageThemeMeta(undefined, headerDarkColor)
+// Dashboard 顶部始终为深色 Header，状态栏文字固定为浅色（白色图标）
+const pageMetaTextStyle = 'light' as const
 const authStore = useAuthStore()
 
 const displayName = computed(() => authStore.user?.name ?? '用户')
+// TODO: 接入通知 store 后替换为真实未读数
+const unreadCount = ref(0)
 
 const dateStr = computed(() => {
   const now = dayjs()
@@ -98,73 +118,60 @@ function handleUserMenu() {
 </script>
 
 <style lang="scss" scoped>
-// ─── Dashboard 顶部 Header ─────────────────────────────────────────────────
-.dash-header {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  padding: 24rpx $space-page-x 28rpx;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-background-dark) 100%);
-}
-
-.dash-header__left {
-  display: flex;
-  flex-direction: column;
-  gap: 4rpx;
-}
-
-.dash-header__greeting {
-  font-size: 34rpx;
-  font-weight: 700;
-  color: $color-on-dark-text;
-  line-height: 1.3;
-}
-
-.dash-header__date {
-  font-size: 22rpx;
-  color: $color-on-dark-text-muted;
-  line-height: 1.4;
-}
-
-.dash-header__right {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 24rpx;
-}
-
-.dash-header__bell,
-.dash-header__avatar {
+// ─── Dashboard Header 操作按钮（对齐 React Home.tsx actions） ──────────────
+.dash-action-btn {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 72rpx;
   height: 72rpx;
   border-radius: 50%;
+  background: $color-on-dark-overlay-sm;
   transition: opacity 0.15s;
 }
 
-.dash-header__btn--pressed {
+.dash-action-btn--pressed {
   opacity: 0.6;
 }
 
-.dash-header__bell {
-  background: $color-on-dark-overlay-sm;
-}
-
-.dash-header__bell-icon {
+.dash-action-icon {
   width: 40rpx;
   height: 40rpx;
 }
 
-.dash-header__avatar {
+// 未读角标（红点 + 数字）
+.dash-badge {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  min-width: 32rpx;
+  height: 32rpx;
+  padding: 0 8rpx;
+  background: var(--color-danger);
+  border-radius: 999rpx;
+  border: 3rpx solid $color-background-dark;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dash-badge__text {
+  font-size: 18rpx;
+  font-weight: 700;
+  color: $color-on-dark-text;
+  line-height: 1;
+}
+
+// 头像圆圈（SVG 图标）
+.dash-avatar {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
   background: $color-on-dark-overlay-md;
-}
-
-.dash-header__avatar-icon {
-  width: 40rpx;
-  height: 40rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 // ─── Dashboard 主体 ────────────────────────────────────────────────────────

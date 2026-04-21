@@ -160,7 +160,44 @@ onMounted(() => {
   }
 
   &--dark {
-    background: $color-background-dark;
+    // 对齐 React PageHeader variant="dark"：使用品牌深蓝色 #001d3d
+    background: $color-card-dark;
+
+    // 深色背景下分隔线改用亮色透明描边，避免黑色线条不可见
+    &.has-border {
+      border-bottom-color: $color-border-dark;
+    }
+
+    // 深色变体文字改为亮色，对齐 React PageHeader variant="dark"
+    .page-header__title {
+      color: $color-on-dark-text;
+    }
+
+    .page-header__subtitle {
+      // 对齐 React text-white/60 = rgba(255,255,255,0.60)
+      color: rgba(255, 255, 255, 0.60);
+    }
+
+    .page-header__back-icon {
+      color: $color-on-dark-text;
+    }
+
+    // dark 变体按压态对齐 React active:bg-white/10
+    .page-header__back--pressed {
+      background: rgba(255, 255, 255, 0.10);
+      transform: scale(0.94);
+    }
+
+    // 深色背景下骨架屏改用亮色渐变，避免黑色 rgba 不可见
+    .page-header__title-skeleton,
+    .page-header__extra-skeleton {
+      background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.08) 0%,
+        rgba(255, 255, 255, 0.18) 50%,
+        rgba(255, 255, 255, 0.08) 100%
+      );
+    }
   }
 }
 
@@ -186,8 +223,9 @@ onMounted(() => {
     background v-bind(headerStandardDuration) ease;
 }
 
+// light 变体按压态对齐 React active:bg-muted = #ececf0
 .page-header__back--pressed {
-  background: $color-primary-soft;
+  background: $color-muted;
   transform: scale(0.94);
 }
 
@@ -214,6 +252,10 @@ onMounted(() => {
 
 .page-header__actions {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 24rpx;
 }
 
 .page-header__title-skeleton,

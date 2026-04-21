@@ -5,7 +5,11 @@ import { useThemeStore } from '@/stores/theme'
 
 type PageBackgroundStyleSource = string | Ref<string | undefined> | ComputedRef<string | undefined> | undefined
 
-export function usePageThemeMeta(backgroundStyle?: PageBackgroundStyleSource) {
+export function usePageThemeMeta(
+  backgroundStyle?: PageBackgroundStyleSource,
+  /** 可选：覆盖状态栏顶部颜色（用于深色 Header 页面，如 Dashboard） */
+  topBackgroundColor?: PageBackgroundStyleSource,
+) {
   const themeStore = useThemeStore()
   const { activeTheme } = storeToRefs(themeStore)
 
@@ -14,6 +18,13 @@ export function usePageThemeMeta(backgroundStyle?: PageBackgroundStyleSource) {
     ?? activeTheme.value.vars['--color-background']
     ?? '#ffffff'
   ))
+
+  const pageMetaTopBackgroundColor = computed(() => {
+    const override = unref(topBackgroundColor)?.trim()
+    return (override && override.length > 0)
+      ? override
+      : pageMetaBackgroundColor.value
+  })
 
   const pageMetaTextStyle = computed<'dark' | 'light'>(() => (
     activeTheme.value.id === 'dark' ? 'light' : 'dark'
@@ -36,6 +47,7 @@ export function usePageThemeMeta(backgroundStyle?: PageBackgroundStyleSource) {
 
   return {
     pageMetaBackgroundColor,
+    pageMetaTopBackgroundColor,
     pageMetaRootBackgroundColor: pageMetaBackgroundColor,
     pageMetaTextStyle,
     pageMetaPageStyle,

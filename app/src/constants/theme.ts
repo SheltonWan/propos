@@ -19,6 +19,8 @@ interface ThemePalette {
   foreground: string
   backgroundDark: string
   foregroundDark: string
+  /** Dashboard 深色 Header 专用背景色（对齐 React --card-dark） */
+  cardDark: string
   muted: string
   mutedForeground: string
   mutedDark: string
@@ -67,6 +69,8 @@ function buildThemeVars(palette: ThemePalette): Record<string, string> {
     '--color-foreground': palette.foreground,
     '--color-background-dark': palette.backgroundDark,
     '--color-foreground-dark': palette.foregroundDark,
+    // Dashboard 深色 Header 专用背景色，覆盖 uni.scss 静态默认值
+    '--color-card-dark': palette.cardDark,
     '--color-muted': palette.muted,
     '--color-muted-foreground': palette.mutedForeground,
     '--color-muted-dark': palette.mutedDark,
@@ -91,6 +95,12 @@ function buildThemeVars(palette: ThemePalette): Record<string, string> {
     '--color-destructive-border-soft': withAlpha(palette.destructive, 0.15),
     '--color-surface-overlay': SURFACE_OVERLAY_COLOR,
     '--color-handle': HANDLE_COLOR,
+    // wot-design-uni 组件变量：直接写入实际色值，不依赖 var() 二次引用链，
+    // 确保小程序端 AppShell 内联样式更新时 wd-button 等组件颜色同步变化
+    '--wot-color-theme': palette.primary,
+    '--wot-color-success': palette.success,
+    '--wot-color-warning': palette.warning,
+    '--wot-color-danger': palette.destructive,
   }
 }
 
@@ -108,6 +118,7 @@ export const THEME_PRESETS: ThemePreset[] = [
       foreground: '#1d1d1f',
       backgroundDark: '#1c1c1e',
       foregroundDark: '#f5f5f7',
+      cardDark: '#001d3d',
       muted: '#ececf0',
       mutedForeground: '#717182',
       mutedDark: '#2c2c2e',
@@ -131,6 +142,7 @@ export const THEME_PRESETS: ThemePreset[] = [
       foreground: '#064e3b',
       backgroundDark: '#064e3b',
       foregroundDark: '#d1fae5',
+      cardDark: '#064e3b',
       muted: '#d1fae5',
       mutedForeground: '#047857',
       mutedDark: '#065f46',
@@ -154,6 +166,7 @@ export const THEME_PRESETS: ThemePreset[] = [
       foreground: '#4c1d95',
       backgroundDark: '#4c1d95',
       foregroundDark: '#ede9fe',
+      cardDark: '#4c1d95',
       muted: '#ede9fe',
       mutedForeground: '#6d28d9',
       mutedDark: '#5b21b6',
@@ -177,6 +190,7 @@ export const THEME_PRESETS: ThemePreset[] = [
       foreground: '#881337',
       backgroundDark: '#881337',
       foregroundDark: '#ffe4e6',
+      cardDark: '#881337',
       muted: '#ffe4e6',
       mutedForeground: '#be123c',
       mutedDark: '#9f1239',
@@ -200,6 +214,7 @@ export const THEME_PRESETS: ThemePreset[] = [
       foreground: '#78350f',
       backgroundDark: '#78350f',
       foregroundDark: '#fef3c7',
+      cardDark: '#78350f',
       muted: '#fef3c7',
       mutedForeground: '#b45309',
       mutedDark: '#92400e',
@@ -223,6 +238,7 @@ export const THEME_PRESETS: ThemePreset[] = [
       foreground: '#f5f5f7',
       backgroundDark: '#000000',
       foregroundDark: '#ffffff',
+      cardDark: '#000000',
       muted: '#2c2c2e',
       mutedForeground: '#98989d',
       mutedDark: '#3a3a3c',

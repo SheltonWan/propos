@@ -75,6 +75,13 @@
               </view>
             </view>
 
+            <!-- 记住账号与密码 -->
+            <view class="login__remember">
+              <wd-checkbox v-model="rememberMe" size="small" custom-class="login__remember-checkbox">
+                记住账号与密码
+              </wd-checkbox>
+            </view>
+
             <!-- Forgot password -->
 
             <view class="login__forgot" @tap="handleForgotPassword">
@@ -112,6 +119,7 @@
 </template>
 
 <script setup lang="ts">
+import { onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 import LoginThemeSwitcher from '@/components/auth/LoginThemeSwitcher.vue'
 import AppShell from '@/components/base/AppShell.vue'
@@ -122,11 +130,31 @@ const authStore = useAuthStore()
 const loginShellBackground = 'linear-gradient(135deg, var(--color-primary-soft), var(--color-background) 50%, var(--color-muted-soft))'
 const { pageMetaBackgroundColor, pageMetaRootBackgroundColor, pageMetaPageStyle, pageMetaTextStyle } = usePageThemeMeta(loginShellBackground)
 
+// 本地存储 key 常量
+const REMEMBER_KEY_FLAG = 'login_remember_me'
+const REMEMBER_KEY_EMAIL = 'login_remembered_email'
+const REMEMBER_KEY_PWD = 'login_remembered_pwd'
+
 const email = ref('')
 const password = ref('')
 const showPwd = ref(false)
 const loading = ref(false)
 const errorMsg = ref('')
+const rememberMe = ref(false)
+
+// 用 onShow 恢复凭据：reLaunch / navigateTo / 返回 三种方式进入页面均可触发
+// onLoad 在部分平台 reLaunch 后不触发，onShow 更可靠
+onShow(() => {
+  const remembered = uni.getStorageSync(REMEMBER_KEY_FLAG)
+  if (remembered) {
+    rememberMe.value = true
+    email.value = uni.getStorageSync(REMEMBER_KEY_EMAIL) || ''
+    password.value = uni.getStorageSync(REMEMBER_KEY_PWD) || ''
+  }
+  else {
+    rememberMe.value = false
+  }
+})
 
 const canSubmit = computed(() => email.value.trim() !== '' && password.value !== '' && !loading.value)
 
@@ -138,6 +166,17 @@ async function handleLogin() {
   errorMsg.value = ''
   try {
     await authStore.login(email.value.trim(), password.value)
+    // 登录成功后根据勾选状态保存或清除凭据
+    if (rememberMe.value) {
+      uni.setStorageSync(REMEMBER_KEY_FLAG, true)
+      uni.setStorageSync(REMEMBER_KEY_EMAIL, email.value.trim())
+      uni.setStorageSync(REMEMBER_KEY_PWD, password.value)
+    }
+    else {
+      uni.removeStorageSync(REMEMBER_KEY_FLAG)
+      uni.removeStorageSync(REMEMBER_KEY_EMAIL)
+      uni.removeStorageSync(REMEMBER_KEY_PWD)
+    }
     uni.switchTab({ url: '/pages/dashboard/index' })
   }
   catch {
@@ -277,6 +316,16 @@ function handleForgotPassword() {
   flex-shrink: 0;
   padding: 12rpx;
   margin-right: -12rpx;
+}
+
+.login__remember {
+  display: flex;
+  align-items: center;
+
+  :deep(.login__remember-checkbox) {
+    font-size: 26rpx;
+    color: $color-muted-foreground;
+  }
 }
 
 .login__forgot {

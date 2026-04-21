@@ -96,6 +96,8 @@ const props = withDefaults(defineProps<{
   safeBottom?: boolean
   contentInset?: 'default' | 'none'
   backgroundStyle?: string
+  /** 覆盖安全区占位背景色，用于 PageHeader 颜色与页面背景不同的场景（如 Dashboard 深色 Header） */
+  headerBackground?: string
 }>(), {
   variant: 'light',
   state: 'default',
@@ -106,6 +108,7 @@ const props = withDefaults(defineProps<{
   safeBottom: true,
   contentInset: 'default',
   backgroundStyle: '',
+  headerBackground: '',
 })
 
 const { safeTop: safeTopRef, safeBottom: safeBottomRef } = useSafeArea()
@@ -134,8 +137,11 @@ const resolvedBackground = computed(() => {
  * Safe area 条状区域专用实色背景。
  * 始终从主题 store 解析为不含 var() 引用的色值，
  * 避免 App-plus inline style 中 CSS 自定义属性不可靠的问题。
+ * 若传入 headerBackground，则以该色覆盖（用于深色 Header 页面）。
  */
 const resolvedSafeAreaColor = computed(() => {
+  if (props.headerBackground)
+    return props.headerBackground
   const vars = themeStore.activeTheme.vars
   return props.variant === 'dark'
     ? (vars['--color-background-dark'] || '#1c1c1e')
