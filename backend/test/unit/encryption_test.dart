@@ -2,8 +2,8 @@ import 'package:test/test.dart';
 import 'package:propos_backend/shared/encryption.dart';
 
 void main() {
-  // 32 字节测试密钥（仅用于测试，不使用于生产）
-  const testKey = 'abcdefghijklmnopqrstuvwxyz012345';
+  // 64 字符十六进制测试密钥 = 32 字节 AES-256 密钥（仅用于测试，禁止用于生产）
+  const testKey = '6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435';
   late EncryptionService svc;
 
   setUp(() {
