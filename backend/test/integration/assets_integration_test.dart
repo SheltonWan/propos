@@ -196,6 +196,11 @@ void main() {
       );
     }
     if (floorId.isNotEmpty) {
+      // 先删除楼层图纸（FK 约束）
+      await db.execute(
+        Sql.named('DELETE FROM floor_plans WHERE floor_id = @id'),
+        parameters: {'id': floorId},
+      );
       await db.execute(
         Sql.named('DELETE FROM floors WHERE id = @id'),
         parameters: {'id': floorId},
@@ -207,7 +212,16 @@ void main() {
         parameters: {'id': buildingId},
       );
     }
-    // 删除测试账号
+    // 删除测试账号（先清理所有该用户上传的图纸记录，避免 FK 约束）
+    await db.execute(
+      Sql.named('''
+        DELETE FROM floor_plans
+        WHERE uploaded_by IN (
+          SELECT id FROM users WHERE email = @email
+        )
+      '''),
+      parameters: {'email': _testUserEmail},
+    );
     await db.execute(
       Sql.named('DELETE FROM users WHERE email = @email'),
       parameters: {'email': _testUserEmail},

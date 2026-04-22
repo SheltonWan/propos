@@ -142,7 +142,7 @@ class FloorRepository {
           u.unit_number,
           u.current_status::TEXT AS current_status,
           u.property_type::TEXT  AS property_type,
-          t.display_name         AS tenant_name,
+          t.name              AS tenant_name,
           c.end_date             AS contract_end_date
         FROM units u
         LEFT JOIN contracts c ON c.id = u.current_contract_id

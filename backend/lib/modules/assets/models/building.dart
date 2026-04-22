@@ -1,3 +1,10 @@
+/// PostgreSQL NUMERIC 列可能以 String 形式返回，统一兼容转换
+double? _pd(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  return double.parse(v.toString());
+}
+
 /// Building 楼栋数据模型 — 对应 buildings 表（migration 004 + 021）
 class Building {
   final String id;
@@ -33,8 +40,8 @@ class Building {
       name: map['name'] as String,
       propertyType: map['property_type'] as String,
       totalFloors: map['total_floors'] as int,
-      gfa: (map['gfa'] as num).toDouble(),
-      nla: (map['nla'] as num).toDouble(),
+      gfa: _pd(map['gfa'])!,
+      nla: _pd(map['nla'])!,
       address: map['address'] as String?,
       builtYear: map['built_year'] as int?,
       createdAt: map['created_at'] as DateTime,

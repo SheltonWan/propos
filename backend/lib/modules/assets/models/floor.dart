@@ -1,3 +1,10 @@
+/// PostgreSQL NUMERIC 列可能以 String 形式返回，统一兼容转换
+double? _pd(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  return double.parse(v.toString());
+}
+
 /// Floor 楼层数据模型 — 对应 floors 表（migration 004 + 021）
 /// building_name 为 JOIN 冗余字段，仅在列表/详情查询时填充
 class Floor {
@@ -40,7 +47,7 @@ class Floor {
       floorName: map['floor_name'] as String?,
       svgPath: map['svg_path'] as String?,
       pngPath: map['png_path'] as String?,
-      nla: (map['nla'] as num?)?.toDouble(),
+      nla: _pd(map['nla']),
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
     );

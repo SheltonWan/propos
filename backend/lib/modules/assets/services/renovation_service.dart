@@ -42,7 +42,7 @@ class RenovationService {
   Future<RenovationRecord> getRenovation(String id) async {
     final record = await RenovationRepository(_db).findById(id);
     if (record == null) {
-      throw const NotFoundException('NOT_FOUND', '改造记录不存在');
+      throw const NotFoundException('RENOVATION_NOT_FOUND', '改造记录不存在');
     }
     return record;
   }
@@ -105,7 +105,7 @@ class RenovationService {
       description: description,
     );
     if (updated == null) {
-      throw const NotFoundException('NOT_FOUND', '改造记录不存在');
+      throw const NotFoundException('RENOVATION_NOT_FOUND', '改造记录不存在');
     }
     return updated;
   }
@@ -123,7 +123,7 @@ class RenovationService {
     // 校验记录存在
     final record = await RenovationRepository(_db).findById(renovationId);
     if (record == null) {
-      throw const NotFoundException('NOT_FOUND', '改造记录不存在');
+      throw const NotFoundException('RENOVATION_NOT_FOUND', '改造记录不存在');
     }
     if (photoStage != 'before' && photoStage != 'after') {
       throw const ValidationException(

@@ -1,3 +1,10 @@
+/// PostgreSQL NUMERIC 列可能以 String 形式返回，统一兼容转换
+double? _pd(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  return double.parse(v.toString());
+}
+
 /// Unit 房源单元数据模型 — 对应 units 表（migration 004 + 021）
 /// building_name / floor_name 为 JOIN 冗余字段
 class Unit {
@@ -71,17 +78,17 @@ class Unit {
       floorName: map['floor_name'] as String?,
       unitNumber: map['unit_number'] as String,
       propertyType: map['property_type'] as String,
-      grossArea: (map['gross_area'] as num?)?.toDouble(),
-      netArea: (map['net_area'] as num?)?.toDouble(),
+      grossArea: _pd(map['gross_area']),
+      netArea: _pd(map['net_area']),
       orientation: map['orientation'] as String?,
-      ceilingHeight: (map['ceiling_height'] as num?)?.toDouble(),
+      ceilingHeight: _pd(map['ceiling_height']),
       decorationStatus: map['decoration_status'] as String,
       currentStatus: map['current_status'] as String,
       isLeasable: map['is_leasable'] as bool,
       extFields: (map['ext_fields'] as Map<String, dynamic>?) ?? {},
       currentContractId: map['current_contract_id'] as String?,
       qrCode: map['qr_code'] as String?,
-      marketRentReference: (map['market_rent_reference'] as num?)?.toDouble(),
+      marketRentReference: _pd(map['market_rent_reference']),
       predecessorUnitIds: (map['predecessor_unit_ids'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??

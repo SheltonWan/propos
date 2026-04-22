@@ -150,7 +150,13 @@ class UnitService {
     required List<int> fileBytes,
     bool dryRun = false,
   }) async {
-    final excel = Excel.decodeBytes(fileBytes);
+    // 捕获 Excel 解码异常，转为 400 业务错误
+    final Excel excel;
+    try {
+      excel = Excel.decodeBytes(fileBytes);
+    } catch (_) {
+      throw const ValidationException('INVALID_FILE_FORMAT', '文件格式不支持，请上传 .xlsx 格式文件');
+    }
     final sheet = excel.tables.values.first;
     final rows = sheet.rows;
     if (rows.isEmpty) {

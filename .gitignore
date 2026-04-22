@@ -3,6 +3,7 @@
 
 # ── 后端运行时配置（含密钥，严禁提交）────────────
 backend/.env
+backend/.local/
 
 # ── Dart / Flutter ───────────────────────────────
 .dart_tool/
@@ -34,3 +35,5 @@ app/dist/
 # ── Admin (Vue3) 构建产物 ─────────────────────────
 admin/dist/
 admin/.env.local
+
+

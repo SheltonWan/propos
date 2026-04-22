@@ -218,9 +218,7 @@ class UnitRepository {
           net_area              = COALESCE(@netArea, net_area),
           orientation           = COALESCE(@orientation, orientation),
           ceiling_height        = COALESCE(@ceilingHeight, ceiling_height),
-          decoration_status     = CASE WHEN @decorationStatus IS NOT NULL
-                                         THEN @decorationStatus::unit_decoration
-                                         ELSE decoration_status END,
+          decoration_status     = COALESCE(@decorationStatus::unit_decoration, decoration_status),
           is_leasable           = COALESCE(@isLeasable, is_leasable),
           ext_fields            = CASE WHEN @extFieldsSet THEN @extFields::JSONB ELSE ext_fields END,
           market_rent_reference = COALESCE(@marketRentRef, market_rent_reference),

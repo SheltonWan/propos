@@ -1,3 +1,10 @@
+/// PostgreSQL NUMERIC 列可能以 String 形式返回，统一兼容转换
+double? _pd(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  return double.parse(v.toString());
+}
+
 /// RenovationRecord 改造记录数据模型 — 对应 renovation_records 表（migration 004 + 021）
 /// unit_number 为 JOIN 冗余字段
 class RenovationRecord {
@@ -56,7 +63,7 @@ class RenovationRecord {
       startedAt: parseDate(map['started_at']),
       completedAt:
           map['completed_at'] != null ? parseDate(map['completed_at']) : null,
-      cost: (map['cost'] as num?)?.toDouble(),
+      cost: _pd(map['cost']),
       contractor: map['contractor'] as String?,
       description: map['description'] as String?,
       beforePhotoPaths: (map['before_photo_paths'] as List<dynamic>?)
