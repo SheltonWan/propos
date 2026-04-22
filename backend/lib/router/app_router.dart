@@ -11,6 +11,17 @@ import 'package:propos_backend/modules/auth/services/auth_service.dart';
 import 'package:propos_backend/modules/auth/services/login_service.dart';
 import 'package:propos_backend/shared/email_service.dart';
 
+// M1 资产模块
+import 'package:propos_backend/modules/assets/services/building_service.dart';
+import 'package:propos_backend/modules/assets/services/floor_service.dart';
+import 'package:propos_backend/modules/assets/services/unit_service.dart';
+import 'package:propos_backend/modules/assets/services/renovation_service.dart';
+import 'package:propos_backend/modules/assets/controllers/building_controller.dart';
+import 'package:propos_backend/modules/assets/controllers/floor_controller.dart';
+import 'package:propos_backend/modules/assets/controllers/floor_plan_controller.dart';
+import 'package:propos_backend/modules/assets/controllers/unit_controller.dart';
+import 'package:propos_backend/modules/assets/controllers/renovation_controller.dart';
+
 /// 应用路由注册表
 /// 各模块 Controller 就绪后在此挂载
 Router buildRouter({required Pool db, required AppConfig config}) {
@@ -42,10 +53,25 @@ Router buildRouter({required Pool db, required AppConfig config}) {
     final testHelperController = TestHelperController(userAuthRepo);
     router.mount('/api/', testHelperController.router.call);
   }
-  // ──────────────────────────────────────────────────────────────────────────
 
-  // TODO: M1 资产模块
-  // router.mount('/api/', assetsRouter);
+  // ── M1 资产模块 ──────────────────────────────────────────────────────────
+  final buildingService = BuildingService(db);
+  final floorService = FloorService(db, config.fileStoragePath);
+  final unitService = UnitService(db);
+  final renovationService = RenovationService(db, config.fileStoragePath);
+
+  final buildingController = BuildingController(buildingService);
+  final floorController = FloorController(floorService);
+  final floorPlanController = FloorPlanController(floorService);
+  final unitController = UnitController(unitService);
+  final renovationController = RenovationController(renovationService);
+
+  router.mount('/api/', buildingController.router.call);
+  router.mount('/api/', floorController.router.call);
+  router.mount('/api/', floorPlanController.router.call);
+  router.mount('/api/', unitController.router.call);
+  router.mount('/api/', renovationController.router.call);
+  // ──────────────────────────────────────────────────────────────────────────
 
   // TODO: M2 合同模块
   // router.mount('/api/', contractsRouter);
