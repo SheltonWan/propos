@@ -122,3 +122,85 @@ docker run -it -p 8080:8080 \
   -e APP_PORT=8080 \
   propos-backend
 ```
+
+---
+
+## 单元测试
+
+### 测试目录结构
+
+```
+test/
+├── config_state_error_test.dart      # 环境变量缺失时的启动失败断言
+├── unit/                             # 单元测试（无外部依赖）
+│   ├── auth_service_test.dart
+│   ├── auth_middleware_test.dart
+│   ├── auth_controller_test.dart
+│   ├── login_service_test.dart
+│   ├── building_service_test.dart
+│   ├── building_controller_test.dart
+│   ├── floor_service_test.dart
+│   ├── floor_controller_test.dart
+│   ├── unit_service_test.dart
+│   ├── unit_controller_test.dart
+│   ├── renovation_service_test.dart
+│   ├── renovation_controller_test.dart
+│   ├── email_service_test.dart
+│   ├── encryption_test.dart          # 证件号 AES-256 加解密验证
+│   └── helpers/                      # 共享 Mock / Stub 工厂
+└── integration/                      # 集成测试（需真实数据库连接）
+    ├── auth_integration_test.dart
+    └── assets_integration_test.dart
+
+packages/
+├── kpi_scorer/test/
+│   └── scorer_test.dart              # KPI 线性插值打分单元测试
+└── rent_escalation_engine/test/
+    └── calculator_test.dart          # 租金递增计算单元测试（6 种类型 + 混合分段）
+```
+
+### 运行单元测试
+
+```bash
+cd backend
+
+# 运行全部单元测试
+dart test test/unit/
+
+# 运行单个测试文件
+dart test test/unit/auth_service_test.dart
+
+# 运行启动配置测试
+dart test test/config_state_error_test.dart
+```
+
+### 运行核心计算包测试
+
+```bash
+# KPI 打分引擎
+cd packages/kpi_scorer
+dart test
+
+# 租金递增引擎
+cd ../../packages/rent_escalation_engine
+dart test
+```
+
+### 运行集成测试
+
+集成测试需要真实的 PostgreSQL 数据库连接，运行前确保 `.env` 已配置且数据库已完成迁移。
+
+```bash
+cd backend
+dart test test/integration/
+```
+
+### 测试规范
+
+| 规则 | 说明 |
+|------|------|
+| 单元测试无外部依赖 | 使用 Mock Repository/Service，不连接数据库或网络 |
+| BLoC/Cubit 必须有测试 | 每个 Cubit 对应一个 `*_cubit_test.dart`，使用 `bloc_test` 包 |
+| 核心计算强制覆盖 | `kpi_scorer` 和 `rent_escalation_engine` 所有公共函数必须有单元测试 |
+| 证件号加密验证 | `encryption_test.dart` 覆盖加密、解密、脱敏三个场景 |
+| 集成测试隔离 | 每个集成测试在事务中运行，结束后回滚，不污染测试数据库 |
