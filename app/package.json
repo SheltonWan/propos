@@ -20,6 +20,9 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
     "prepare": "husky"
   },
   "dependencies": {
@@ -43,6 +46,7 @@
     "@dcloudio/uni-stacktracey": "3.0.0-5000720260410001",
     "@dcloudio/vite-plugin-uni": "3.0.0-5000720260410001",
     "@pinia/testing": "^0.1.7",
+    "@playwright/test": "^1.59.1",
     "@vitejs/plugin-vue": "^5.2.4",
     "@vue/runtime-core": "3.4.21",
     "@vue/test-utils": "^2.4.6",

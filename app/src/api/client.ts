@@ -6,7 +6,7 @@ import { AUTH_REFRESH } from '@/constants/api_paths'
 import { ApiError } from '@/types/api'
 import { matchMock } from './mock/index'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL as string || ''
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || ''
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 type RetryRequestConfig = HttpRequestConfig & {
@@ -29,12 +29,14 @@ function asHttpData(data?: unknown): HttpData | undefined {
 }
 
 // ─── Mock（USE_MOCK=false 时不执行任何 mock 逻辑）────────────────────────────
-async function tryMock<T>(method: MockMethod, url: string, body?: unknown): Promise<{ hit: true, data: T } | { hit: false }> {
-  if (!USE_MOCK)
-    return { hit: false }
+async function tryMock<T>(
+  method: MockMethod,
+  url: string,
+  body?: unknown,
+): Promise<{ hit: true; data: T } | { hit: false }> {
+  if (!USE_MOCK) return { hit: false }
   const result = await matchMock<T>(method, url, body)
-  if (result !== null)
-    return { hit: true, data: result }
+  if (result !== null) return { hit: true, data: result }
   return { hit: false }
 }
 
@@ -90,7 +92,7 @@ function onRefreshed(cb: (token: string) => void) {
 }
 
 function notifySubscribers(token: string) {
-  refreshSubscribers.forEach(cb => cb(token))
+  refreshSubscribers.forEach((cb) => cb(token))
   refreshSubscribers = []
 }
 
@@ -99,7 +101,7 @@ http.interceptors.response.use(
   (response: HttpResponse) => {
     const data = response.data as Record<string, unknown>
     if (data && typeof data === 'object' && 'error' in data) {
-      const err = data.error as { code: string, message: string }
+      const err = data.error as { code: string; message: string }
       throw new ApiError(err.code, err.message, response.statusCode)
     }
     return response
@@ -112,32 +114,18 @@ http.interceptors.response.use(
     // 401 → 优先透传后台明确返回的业务错误（如 INVALID_CREDENTIALS），再尝试 refresh
     if (status === 401) {
       // 后台返回了具体错误信息时（如凭据无效、账号锁定），直接透传，不尝试刷新
+      // 但 token 过期错误（AUTH_TOKEN_EXPIRED / TOKEN_EXPIRED）仍需经过刷新流程
       if (errBody?.error) {
-        throw new ApiError(errBody.error.code, errBody.error.message, 401)
+        const code = errBody.error.code as string
+        const isTokenExpiry = code === 'AUTH_TOKEN_EXPIRED' || code === 'TOKEN_EXPIRED'
+        if (!isTokenExpiry) {
+          throw new ApiError(code, errBody.error.message, 401)
+        }
       }
       const refresh = getRefreshToken()
       if (refresh && !requestConfig.custom?.__retried) {
-        if (!isRefreshing) {
-          isRefreshing = true
-          try {
-            const res = await http.post<ApiResponse<{ access_token: string, refresh_token: string }>>(AUTH_REFRESH, {
-              refresh_token: refresh,
-            })
-            const { access_token, refresh_token } = res.data.data
-            setTokens(access_token, refresh_token)
-            isRefreshing = false
-            notifySubscribers(access_token)
-          }
-          catch {
-            isRefreshing = false
-            refreshSubscribers = []
-            clearTokens()
-            uni.reLaunch({ url: '/pages/auth/login' })
-            throw new ApiError('TOKEN_EXPIRED', '登录已过期，请重新登录', 401)
-          }
-        }
-        // 排队等待 refresh 完成
-        return new Promise<HttpResponse>((resolve) => {
+        // 先注册订阅再启动 refresh，避免第一个触发 refresh 的请求错过 notifySubscribers
+        const retryPromise = new Promise<HttpResponse>((resolve) => {
           onRefreshed((token) => {
             const retryConfig: RetryRequestConfig = {
               ...requestConfig,
@@ -147,6 +135,30 @@ http.interceptors.response.use(
             resolve(http.request(retryConfig))
           })
         })
+        if (!isRefreshing) {
+          isRefreshing = true
+          // 使用 .then()/.catch() 而非 await，确保 retryPromise 在 notifySubscribers 之前注册
+          // __retried:true 防止 refresh 请求本身递归进入 refresh 流程
+          http
+            .post<ApiResponse<{ access_token: string; refresh_token: string }>>(
+              AUTH_REFRESH,
+              { refresh_token: refresh },
+              { custom: { __retried: true } },
+            )
+            .then((res) => {
+              const { access_token, refresh_token } = res.data.data
+              setTokens(access_token, refresh_token)
+              isRefreshing = false
+              notifySubscribers(access_token)
+            })
+            .catch(() => {
+              isRefreshing = false
+              refreshSubscribers = []
+              clearTokens()
+              uni.reLaunch({ url: '/pages/auth/login' })
+            })
+        }
+        return retryPromise
       }
       throw new ApiError('UNAUTHORIZED', '请先登录', 401)
     }
@@ -161,32 +173,28 @@ http.interceptors.response.use(
 // ─── 公共方法（含 mock 拦截：匹配则返回 mock 数据，未匹配则 fallthrough 真实 HTTP）──
 export async function apiGet<T>(url: string, params?: Record<string, unknown>): Promise<T> {
   const mock = await tryMock<T>('GET', url, params)
-  if (mock.hit)
-    return mock.data
+  if (mock.hit) return mock.data
   const res = await http.get<ApiResponse<T>>(url, { params })
   return res.data.data
 }
 
 export async function apiPost<T>(url: string, data?: unknown): Promise<T> {
   const mock = await tryMock<T>('POST', url, data)
-  if (mock.hit)
-    return mock.data
+  if (mock.hit) return mock.data
   const res = await http.post<ApiResponse<T>>(url, asHttpData(data))
   return res.data.data
 }
 
 export async function apiPut<T>(url: string, data?: unknown): Promise<T> {
   const mock = await tryMock<T>('PUT', url, data)
-  if (mock.hit)
-    return mock.data
+  if (mock.hit) return mock.data
   const res = await http.put<ApiResponse<T>>(url, asHttpData(data))
   return res.data.data
 }
 
 export async function apiPatch<T>(url: string, data?: unknown): Promise<T> {
   const mock = await tryMock<T>('PATCH', url, data)
-  if (mock.hit)
-    return mock.data
+  if (mock.hit) return mock.data
   const patchConfig: PatchRequestConfig = {
     url,
     method: 'PATCH',
@@ -198,8 +206,7 @@ export async function apiPatch<T>(url: string, data?: unknown): Promise<T> {
 
 export async function apiDelete<T = void>(url: string): Promise<T> {
   const mock = await tryMock<T>('DELETE', url)
-  if (mock.hit)
-    return mock.data
+  if (mock.hit) return mock.data
   const res = await http.delete<ApiResponse<T>>(url)
   return res.data.data
 }
