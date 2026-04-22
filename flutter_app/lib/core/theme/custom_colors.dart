@@ -17,11 +17,19 @@ class CustomColors extends ThemeExtension<CustomColors> {
   /// Non-leasable / draft / cancelled
   final Color neutral;
 
+  /// Dashboard 专属 AppBar 背景色（深海蓝，与 uni-app --color-card-dark 保持一致）
+  final Color dashboardHeaderBg;
+
+  /// Dashboard AppBar 前景色（文字、图标）
+  final Color onDashboardHeader;
+
   const CustomColors({
     required this.success,
     required this.warning,
     required this.danger,
     required this.neutral,
+    required this.dashboardHeaderBg,
+    required this.onDashboardHeader,
   });
 
   @override
@@ -30,12 +38,16 @@ class CustomColors extends ThemeExtension<CustomColors> {
     Color? warning,
     Color? danger,
     Color? neutral,
+    Color? dashboardHeaderBg,
+    Color? onDashboardHeader,
   }) =>
       CustomColors(
         success: success ?? this.success,
         warning: warning ?? this.warning,
         danger: danger ?? this.danger,
         neutral: neutral ?? this.neutral,
+        dashboardHeaderBg: dashboardHeaderBg ?? this.dashboardHeaderBg,
+        onDashboardHeader: onDashboardHeader ?? this.onDashboardHeader,
       );
 
   @override
@@ -46,6 +58,10 @@ class CustomColors extends ThemeExtension<CustomColors> {
       warning: Color.lerp(warning, other.warning, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
       neutral: Color.lerp(neutral, other.neutral, t)!,
+      dashboardHeaderBg:
+          Color.lerp(dashboardHeaderBg, other.dashboardHeaderBg, t)!,
+      onDashboardHeader:
+          Color.lerp(onDashboardHeader, other.onDashboardHeader, t)!,
     );
   }
 }
@@ -56,4 +72,6 @@ const lightCustomColors = CustomColors(
   warning: Color(0xFFFAAD14),
   danger: Color(0xFFFF4D4F),
   neutral: Color(0xFF8C8C8C),
+  dashboardHeaderBg: Color(0xFF001D3D),
+  onDashboardHeader: Color(0xFFFFFFFF),
 );

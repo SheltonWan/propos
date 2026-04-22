@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/custom_colors.dart';
 import '../../features/auth/presentation/bloc/auth_cubit.dart';
 import '../../features/auth/presentation/bloc/auth_state.dart';
 import 'user_menu_button.dart';
@@ -99,9 +100,10 @@ class _DashboardAppBar extends StatelessWidget implements PreferredSizeWidget {
           AuthStateAuthenticated(:final user) => user.name,
           _ => '用户',
         };
+        final colors = Theme.of(context).extension<CustomColors>()!;
         return AppBar(
-          backgroundColor: const Color(0xFF001D3D),
-          foregroundColor: Colors.white,
+          backgroundColor: colors.dashboardHeaderBg,
+          foregroundColor: colors.onDashboardHeader,
           centerTitle: false,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,17 +111,17 @@ class _DashboardAppBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               Text(
                 '你好，$name',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: colors.onDashboardHeader,
                 ),
               ),
               Text(
                 _dateStr(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: Colors.white70,
+                  color: colors.onDashboardHeader.withValues(alpha: 0.7),
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -154,7 +156,7 @@ class _NotificationButton extends StatelessWidget {
             // TODO: 跳转通知中心
           },
           icon: const Icon(Icons.notifications_outlined),
-          color: Colors.white,
+          color: Theme.of(context).extension<CustomColors>()!.onDashboardHeader,
           tooltip: '通知',
         ),
         if (unreadCount > 0)
@@ -170,8 +172,8 @@ class _NotificationButton extends StatelessWidget {
               ),
               child: Text(
                 unreadCount > 99 ? '99+' : '$unreadCount',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onError,
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                 ),
@@ -205,11 +207,15 @@ class _DashboardAvatarButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: CircleAvatar(
               radius: 14,
-              backgroundColor: Colors.white24,
+              backgroundColor: Theme.of(context)
+                  .extension<CustomColors>()!
+                  .onDashboardHeader
+                  .withValues(alpha: 0.24),
               child: Text(
                 name.isEmpty ? '?' : name[0],
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color:
+                      Theme.of(context).extension<CustomColors>()!.onDashboardHeader,
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),

@@ -130,8 +130,10 @@ class ApiClient {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    // Attempt token refresh on 401
+    // Attempt token refresh on 401.
+    // extra['_isRetry'] 标志位防止 retry 请求再次触发刷新，避免死循环。
     if (err.response?.statusCode == 401 &&
+        err.requestOptions.extra['_isRetry'] != true &&
         err.requestOptions.path != ApiPaths.authRefresh &&
         err.requestOptions.path != ApiPaths.authLogin) {
       try {
@@ -140,6 +142,8 @@ class ApiClient {
         final token = await _storage.read(key: 'access_token');
         final options = err.requestOptions;
         options.headers['Authorization'] = 'Bearer $token';
+        // 标记为已重试，防止 retry 请求的 401 再次进入刷新逻辑
+        options.extra['_isRetry'] = true;
         final response = await _dio.fetch<dynamic>(options);
         return handler.resolve(response);
       } catch (_) {
