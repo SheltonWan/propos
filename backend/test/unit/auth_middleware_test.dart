@@ -15,19 +15,26 @@ void main() {
   late Handler handler;
 
   setUp(() {
-    final middleware = authMiddleware(testSecret, FakePool());
+    // 配置 FakePool，使 _verifySessionVersion 查询返回版本号 1
+    final fakePool = FakePool()
+      ..executeHandler = (_, __) => makeResult([
+            'session_version'
+          ], [
+            [1]
+          ]);
+    final middleware = authMiddleware(testSecret, fakePool);
     // 内层 handler：仅在验证通过后返回 200
     handler = middleware((_) async => Response.ok('ok'));
   });
 
-  /// 构造一个合法的 HS256 JWT
+  /// 构造一个合法的 HS256 JWT（含 session_version，与 FakePool 返回值对齐）
   String makeHS256Token({
     String sub = 'user-uuid-1',
     String role = 'admin',
     Duration? expiresIn,
   }) {
     return JWT(
-      {'sub': sub, 'role': role},
+      {'sub': sub, 'role': role, 'session_version': 1},
     ).sign(
       SecretKey(testSecret),
       algorithm: JWTAlgorithm.HS256,

@@ -209,7 +209,7 @@ void main() {
   group('POST /api/auth/login', () {
     test('缺少 email 字段 → 400 VALIDATION_ERROR', () async {
       final resp = await handler(
-        makeRequest('POST', '/api/auth/login', body: {'password': 'Pass1!'}),
+        makeRequest('POST', '/auth/login', body: {'password': 'Pass1!'}),
       );
       final json = await readJson(resp);
 
@@ -220,7 +220,7 @@ void main() {
     test('缺少 password 字段 → 400 VALIDATION_ERROR', () async {
       final resp = await handler(
         makeRequest(
-            'POST', '/api/auth/login', body: {'email': 'a@propos.com'}),
+            'POST', '/auth/login', body: {'email': 'a@propos.com'}),
       );
       final json = await readJson(resp);
 
@@ -234,7 +234,7 @@ void main() {
       final resp = await handler(
         makeRequest(
           'POST',
-          '/api/auth/login',
+          '/auth/login',
           body: {'email': 'test@propos.com', 'password': 'Pass1!'},
         ),
       );
@@ -249,7 +249,7 @@ void main() {
   group('POST /api/auth/refresh', () {
     test('缺少 refresh_token 字段 → 400 VALIDATION_ERROR', () async {
       final resp =
-          await handler(makeRequest('POST', '/api/auth/refresh', body: {}));
+          await handler(makeRequest('POST', '/auth/refresh', body: {}));
       final json = await readJson(resp);
 
       expect(resp.statusCode, 400);
@@ -262,7 +262,7 @@ void main() {
       final resp = await handler(
         makeRequest(
           'POST',
-          '/api/auth/refresh',
+          '/auth/refresh',
           body: {'refresh_token': 'valid-token-xyz'},
         ),
       );
@@ -279,7 +279,7 @@ void main() {
 
     test('缺少 refresh_token 字段 → 400 VALIDATION_ERROR', () async {
       final resp = await handler(
-        makeRequest('POST', '/api/auth/logout', body: {}, userId: authUserId),
+        makeRequest('POST', '/auth/logout', body: {}, userId: authUserId),
       );
       final json = await readJson(resp);
 
@@ -291,7 +291,7 @@ void main() {
       final resp = await handler(
         makeRequest(
           'POST',
-          '/api/auth/logout',
+          '/auth/logout',
           body: {'refresh_token': 'some-token'},
           userId: authUserId,
         ),
@@ -312,7 +312,7 @@ void main() {
       loginSvc.getMeResult = _fakeMeResponse;
 
       final resp = await handler(
-        makeRequest('GET', '/api/auth/me', userId: 'user-1'),
+        makeRequest('GET', '/auth/me', userId: 'user-1'),
       );
       final json = await readJson(resp);
 
@@ -330,7 +330,7 @@ void main() {
       final resp = await handler(
         makeRequest(
           'POST',
-          '/api/auth/change-password',
+          '/auth/change-password',
           body: {'new_password': 'NewPass1!'},
           userId: authUserId,
         ),
@@ -345,7 +345,7 @@ void main() {
       final resp = await handler(
         makeRequest(
           'POST',
-          '/api/auth/change-password',
+          '/auth/change-password',
           body: {'old_password': 'OldPass1!'},
           userId: authUserId,
         ),
@@ -362,7 +362,7 @@ void main() {
       final resp = await handler(
         makeRequest(
           'POST',
-          '/api/auth/change-password',
+          '/auth/change-password',
           body: {'old_password': 'OldPass1!', 'new_password': 'NewPass2!'},
           userId: authUserId,
         ),
@@ -378,7 +378,7 @@ void main() {
   group('POST /api/auth/forgot-password', () {
     test('缺少 email 字段 → 400 VALIDATION_ERROR', () async {
       final resp = await handler(
-        makeRequest('POST', '/api/auth/forgot-password', body: {}),
+        makeRequest('POST', '/auth/forgot-password', body: {}),
       );
       final json = await readJson(resp);
 
@@ -390,7 +390,7 @@ void main() {
       final resp = await handler(
         makeRequest(
           'POST',
-          '/api/auth/forgot-password',
+          '/auth/forgot-password',
           body: {'email': 'anyone@propos.com'},
         ),
       );
@@ -407,7 +407,7 @@ void main() {
       final resp = await handler(
         makeRequest(
           'POST',
-          '/api/auth/reset-password',
+          '/auth/reset-password',
           body: {'email': 'test@propos.com', 'new_password': 'NewPass1!'},
         ),
       );
@@ -421,7 +421,7 @@ void main() {
       final resp = await handler(
         makeRequest(
           'POST',
-          '/api/auth/reset-password',
+          '/auth/reset-password',
           body: {
             'email': 'test@propos.com',
             'otp': '123456',

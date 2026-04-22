@@ -109,8 +109,12 @@ http.interceptors.response.use(
     const errBody = error.data
     const requestConfig = error.config as RetryRequestConfig
 
-    // 401 → 尝试 refresh
+    // 401 → 优先透传后台明确返回的业务错误（如 INVALID_CREDENTIALS），再尝试 refresh
     if (status === 401) {
+      // 后台返回了具体错误信息时（如凭据无效、账号锁定），直接透传，不尝试刷新
+      if (errBody?.error) {
+        throw new ApiError(errBody.error.code, errBody.error.message, 401)
+      }
       const refresh = getRefreshToken()
       if (refresh && !requestConfig.custom?.__retried) {
         if (!isRefreshing) {

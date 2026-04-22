@@ -52,7 +52,7 @@ Future<void> main() async {
       .addMiddleware(rateLimitMiddleware())
       .addMiddleware(authMiddleware(config.jwtSecret, Database.pool))
       .addMiddleware(rbacMiddleware())
-      .addMiddleware(auditMiddleware())
+      .addMiddleware(auditMiddleware(Database.pool))
       .addHandler(router.call);
 
   final server = await shelf_io.serve(
