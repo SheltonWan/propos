@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:propos_app/core/api/api_exception.dart';
 import 'package:propos_app/features/auth/domain/entities/auth_tokens.dart';
@@ -356,6 +357,55 @@ void main() {
       seed: () => const AuthState.authenticated(testCurrentUser),
       act: (cubit) => cubit.logout(),
       expect: () => [const AuthState.initial()],
+    );
+
+    // ── forceLogout ──
+    // 基础设施层 token 刷新失败时调用，不请求网络，同步清除会话状态
+
+    // 已登录状态下强制注销 → 不调用 repository.logout() → 直接回到 initial
+    blocTest<AuthCubit, AuthState>(
+      'forceLogout emits [initial] without calling repository.logout',
+      build: () => AuthCubit(mockAuthRepository),
+      seed: () => const AuthState.authenticated(testCurrentUser),
+      act: (cubit) => cubit.forceLogout(),
+      expect: () => [const AuthState.initial()],
+      verify: (_) {
+        verifyNever(() => mockAuthRepository.logout());
+      },
+    );
+  });
+
+  // ── ACCOUNT_LOCKED 附带 lockedUntil ──
+  // 当后端携带 lockedUntil 时，Cubit 应在提示中格式化解锁时间，而非透传原始 message
+
+  group('AuthCubit – ACCOUNT_LOCKED with lockedUntil', () {
+    // lockedUntil 为 UTC 的确定时刻，期望文案包含本地时区 HH:mm
+    blocTest<AuthCubit, AuthState>(
+      'login formats unlock time when lockedUntil is provided',
+      build: () {
+        final lockedUntil = DateTime(2026, 4, 21, 16, 30).toUtc();
+        when(
+          () => mockAuthRepository.login(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+          ),
+        ).thenThrow(
+          ApiException(
+            code: 'ACCOUNT_LOCKED',
+            message: '账号已被锁定',
+            statusCode: 423,
+            lockedUntil: lockedUntil,
+          ),
+        );
+        return AuthCubit(mockAuthRepository);
+      },
+      act: (cubit) => cubit.login(email: 'test@propos.com', password: 'wrong'),
+      expect: () {
+        // 期望文案与 Cubit 中 DateFormat('HH:mm') 格式化结果一致
+        final lockedUntil = DateTime(2026, 4, 21, 16, 30).toUtc();
+        final unlockTime = DateFormat('HH:mm').format(lockedUntil.toLocal());
+        return [const AuthState.loading(), AuthState.error('账号已锁定，请于 $unlockTime 后重试')];
+      },
     );
   });
 }

@@ -18,16 +18,20 @@ class AuthCubit extends Cubit<AuthState> {
 
   /// Check if there is a persisted session.
   Future<void> checkAuth() async {
+    if (isClosed) return;
     emit(const AuthState.loading());
     try {
       final isLoggedIn = await _authRepository.isLoggedIn;
+      if (isClosed) return;
       if (!isLoggedIn) {
         emit(const AuthState.initial());
         return;
       }
       final currentUser = await _authRepository.getCurrentUser();
+      if (isClosed) return;
       emit(AuthState.authenticated(currentUser));
     } catch (e) {
+      if (isClosed) return;
       emit(const AuthState.initial());
     }
   }
@@ -37,6 +41,7 @@ class AuthCubit extends Cubit<AuthState> {
     required String email,
     required String password,
   }) async {
+    if (isClosed) return;
     emit(const AuthState.loading());
     try {
       final (_, loginUser) = await _authRepository.login(
@@ -44,6 +49,7 @@ class AuthCubit extends Cubit<AuthState> {
         password: password,
       );
       final currentUser = await _authRepository.getCurrentUser();
+      if (isClosed) return;
       // 将登录响应中的 mustChangePassword 标志透传至 CurrentUser
       emit(
         AuthState.authenticated(
@@ -53,6 +59,7 @@ class AuthCubit extends Cubit<AuthState> {
         ),
       );
     } catch (e) {
+      if (isClosed) return;
       if (e is ApiException) {
         // ACCOUNT_LOCKED 时在提示文本中附加解锁时间，方便用户了解何时可重试
         if (e.code == 'ACCOUNT_LOCKED' && e.lockedUntil != null) {
@@ -74,6 +81,7 @@ class AuthCubit extends Cubit<AuthState> {
     } catch (_) {
       // Best effort
     }
+    if (isClosed) return;
     emit(const AuthState.initial());
   }
 
@@ -81,6 +89,7 @@ class AuthCubit extends Cubit<AuthState> {
   ///
   /// 与 [logout] 的区别：不调用后端注销接口（令牌已失效）。
   void forceLogout() {
+    if (isClosed) return;
     emit(const AuthState.initial());
   }
 }

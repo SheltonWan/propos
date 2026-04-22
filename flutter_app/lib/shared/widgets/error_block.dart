@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Theme;
 
 /// Error block with a retry button.
 class ErrorBlock extends StatelessWidget {
@@ -21,7 +22,7 @@ class ErrorBlock extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.error_outline,
+              CupertinoIcons.exclamationmark_circle,
               size: 48,
               color: theme.colorScheme.error,
             ),
@@ -35,7 +36,7 @@ class ErrorBlock extends StatelessWidget {
             ),
             if (onRetry != null) ...[
               const SizedBox(height: 16),
-              FilledButton.tonal(
+              CupertinoButton(
                 onPressed: onRetry,
                 child: const Text('重试'),
               ),

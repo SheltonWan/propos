@@ -1,33 +1,31 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Scaffold, Theme;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/di/injection.dart';
+import '../../../../core/constants/business_rules.dart';
 import '../../../../core/router/route_paths.dart';
+import '../../../../shared/widgets/cupertino_text_form_field.dart';
 import '../bloc/auth_cubit.dart';
 import '../bloc/auth_state.dart';
-import '../widgets/login_brand_widget.dart';
-import '../widgets/login_form_widget.dart';
 
 // 安全存储 key 常量（记住账号与密码）
 const _kRememberFlag = 'login_remember_me';
 const _kRememberEmail = 'login_remembered_email';
 const _kRememberPwd = 'login_remembered_pwd';
 
-/// 登录页面——PAGE_SPEC_FLUTTER v1.9 §3.1。渐变背景 + 居中卡片布局。
+/// 登录页面（苹果风格）——PAGE_SPEC_FLUTTER v1.9 §3.1。渐变背景 + 居中 iOS 风格卡片。
 ///
-/// [LoginPage] 作为 BlocProvider 宿主（StatelessWidget），
-/// [_LoginView] 持有表单状态（StatefulWidget）。
+/// [AuthCubit] 由根级 [BlocProvider.value]（main.dart）统一提供，此页面无需再包装。
+/// - [BlocBuilder] 在表单下方内联展示错误文本（非 Snackbar）
+/// - [BlocConsumer] 仅包裹登录按钮，listener 处理导航及强制改密跳转
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => getIt<AuthCubit>(),
-      child: const _LoginView(),
-    );
+    return const _LoginView();
   }
 }
 
@@ -82,7 +80,11 @@ class _LoginViewState extends State<_LoginView> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [colorScheme.primaryContainer, colorScheme.surface, colorScheme.surfaceContainerHighest],
+            colors: [
+              colorScheme.primaryContainer,
+              colorScheme.surface,
+              colorScheme.surfaceContainerHighest,
+            ],
             stops: const [0.0, 0.5, 1.0],
           ),
         ),
@@ -90,30 +92,148 @@ class _LoginViewState extends State<_LoginView> {
           child: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: Card(
-                elevation: 2,
-                surfaceTintColor: colorScheme.surface,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const LoginBrandWidget(),
-                      const SizedBox(height: 32),
-                      LoginFormWidget(
-                        formKey: _formKey,
-                        emailController: _emailController,
-                        passwordController: _passwordController,
-                        obscurePassword: _obscurePassword,
-                        rememberMe: _rememberMe,
-                        onToggleObscure: () => setState(() => _obscurePassword = !_obscurePassword),
-                        onToggleRemember: () => setState(() => _rememberMe = !_rememberMe),
-                        onSubmit: _submit,
-                        onAuthStateChanged: _onAuthStateChanged,
+              child: Container(
+                // iOS 风格卡片：圆角 + 柔和阴影，无边框
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemBackground,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: CupertinoColors.systemGrey4.withValues(alpha: 0.6),
+                      blurRadius: 24,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 品牌区域：图标盒 + 标题 + 副标题
+                    _buildBrand(),
+                    const SizedBox(height: 32),
+                    // 表单区域
+                    Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 邮箱输入框
+                          CupertinoTextFormField(
+                            controller: _emailController,
+                            placeholder: '邮箱',
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            prefix: const Icon(
+                              CupertinoIcons.mail,
+                              size: 18,
+                              color: CupertinoColors.secondaryLabel,
+                            ),
+                            validator: _validateEmail,
+                          ),
+                          const SizedBox(height: 12),
+                          // 密码输入框（含明暗切换）
+                          CupertinoTextFormField(
+                            controller: _passwordController,
+                            placeholder: '密码',
+                            obscureText: _obscurePassword,
+                            textInputAction: TextInputAction.done,
+                            prefix: const Icon(
+                              CupertinoIcons.lock,
+                              size: 18,
+                              color: CupertinoColors.secondaryLabel,
+                            ),
+                            suffix: CupertinoButton(
+                              padding: EdgeInsets.zero,
+                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              child: Icon(
+                                _obscurePassword ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
+                                size: 18,
+                                color: CupertinoColors.secondaryLabel,
+                              ),
+                            ),
+                            validator: _validatePassword,
+                            onFieldSubmitted: (_) => _submit(),
+                          ),
+                          const SizedBox(height: 8),
+                          // 记住账号与密码
+                          Row(
+                            children: [
+                              CupertinoCheckbox(
+                                value: _rememberMe,
+                                onChanged: (v) => setState(() => _rememberMe = v ?? false),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () => setState(() => _rememberMe = !_rememberMe),
+                                child: const Text(
+                                  '记住账号与密码',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: CupertinoColors.secondaryLabel,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          // 忘记密码入口
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: CupertinoButton(
+                              padding: EdgeInsets.zero,
+                              onPressed: () => context.push(RoutePaths.forgotPassword),
+                              child: const Text('忘记密码？', style: TextStyle(fontSize: 13)),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    // 错误内联展示（PAGE_SPEC §3.1：BlocBuilder 显示错误文本，非 Snackbar）
+                    BlocBuilder<AuthCubit, AuthState>(
+                      builder: (context, state) => switch (state) {
+                        AuthStateError(:final message) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                CupertinoIcons.exclamationmark_triangle,
+                                size: 14,
+                                color: CupertinoColors.destructiveRed,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  message,
+                                  style: const TextStyle(
+                                    color: CupertinoColors.destructiveRed,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _ => const SizedBox.shrink(),
+                      },
+                    ),
+                    // 登录按钮：listener 处理导航，含 must_change_password 强制改密跳转
+                    BlocConsumer<AuthCubit, AuthState>(
+                      listener: _onAuthStateChanged,
+                      builder: (context, state) {
+                        final isLoading = state is AuthStateLoading;
+                        return SizedBox(
+                          width: double.infinity,
+                          child: CupertinoButton.filled(
+                            onPressed: isLoading ? null : _submit,
+                            child: isLoading
+                                ? const CupertinoActivityIndicator(color: CupertinoColors.white)
+                                : const Text('登 录'),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -123,7 +243,47 @@ class _LoginViewState extends State<_LoginView> {
     );
   }
 
-  /// 认证状态变化：登录成功后保存凭据，并按 mustChangePassword 决定跳转目标。
+  /// 品牌区域：图标盒（对齐 uni-app .login__icon-box）+ 标题 + 副标题。
+  Widget _buildBrand() {
+    return Column(
+      children: [
+        // iOS 风格图标盒：圆角方形 + 阴影
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: CupertinoTheme.of(context).primaryColor,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: CupertinoTheme.of(context).primaryColor.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(CupertinoIcons.building_2_fill, size: 32, color: CupertinoColors.white),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'PropOS',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+            color: CupertinoColors.label,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          '物业运营管理平台',
+          style: TextStyle(fontSize: 13, color: CupertinoColors.secondaryLabel),
+        ),
+      ],
+    );
+  }
+
+  /// 认证状态变化处理：登录成功后保存凭据，并按 mustChangePassword 决定跳转目标。
   void _onAuthStateChanged(BuildContext context, AuthState state) {
     if (state case AuthStateAuthenticated(:final user)) {
       _persistCredentials();
@@ -152,6 +312,18 @@ class _LoginViewState extends State<_LoginView> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     context.read<AuthCubit>().login(email: _emailController.text.trim(), password: _passwordController.text);
+  }
+
+  static String? _validateEmail(String? value) {
+    if (value == null || value.trim().isEmpty) return '请输入邮箱';
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value.trim())) return '请输入有效邮箱地址';
+    return null;
+  }
+
+  static String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) return '请输入密码';
+    if (value.length < BusinessRules.passwordMinLength) return '密码至少 ${BusinessRules.passwordMinLength} 位';
+    return null;
   }
 }
 

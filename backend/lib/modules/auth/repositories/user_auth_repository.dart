@@ -139,4 +139,23 @@ class UserAuthRepository {
       },
     );
   }
+
+  /// 仅供集成测试使用：按邮箱重置账号登录失败计数和锁定状态。
+  ///
+  /// ⚠️ 此方法只能由后端 TestHelperController 调用，
+  ///    且仅在 ALLOW_TEST_ENDPOINTS=true 时暴露。
+  Future<bool> resetAccountLockByEmail(String email) async {
+    final result = await _db.execute(
+      Sql.named('''
+        UPDATE users
+        SET failed_login_attempts = 0,
+            locked_until          = NULL,
+            updated_at            = NOW()
+        WHERE email = @email
+      '''),
+      parameters: {'email': email},
+    );
+    // affectedRows > 0 代表找到并更新了目标账号
+    return result.affectedRows > 0;
+  }
 }

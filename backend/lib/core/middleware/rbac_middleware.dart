@@ -401,6 +401,7 @@ const _publicPaths = {
   '/api/auth/refresh',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
+  '/api/test/reset-account-lock',
 };
 
 // ---------------------------------------------------------------------------
