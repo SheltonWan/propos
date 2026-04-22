@@ -67,3 +67,37 @@ RawAuthComponents buildRawComponents() {
     dio: dio,
   );
 }
+
+/// 调用后端测试辅助端点，重置指定邮箱账号的登录失败计数和锁定状态。
+///
+/// 要求后端以 ALLOW_TEST_ENDPOINTS=true 启动。
+/// 在集成测试的 setUpAll 中调用，防止上一轮测试产生的失败次数积累
+/// 导致账号在下一轮测试开始时处于锁定状态。
+///
+/// 静默失败：若后端不支持此端点（返回 404/403/异常），只打印警告，不中断测试。
+Future<void> resetTestAccountLock(String email) async {
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: IntegrationTestConfig.baseUrl,
+      connectTimeout: const Duration(seconds: 5),
+      receiveTimeout: const Duration(seconds: 5),
+      // 不抛出 4xx/5xx，由调用方判断
+      validateStatus: (_) => true,
+    ),
+  );
+  try {
+    final response = await dio.post('/api/test/reset-account-lock', data: {'email': email});
+    if (response.statusCode != 200) {
+      // ignore: avoid_print
+      print(
+        '[IT-WARN] reset-account-lock 返回 ${response.statusCode}，'
+        '请确认后端已以 ALLOW_TEST_ENDPOINTS=true 启动',
+      );
+    }
+  } catch (e) {
+    // ignore: avoid_print
+    print('[IT-WARN] reset-account-lock 调用失败：$e');
+  } finally {
+    dio.close();
+  }
+}

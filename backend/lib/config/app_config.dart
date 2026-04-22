@@ -30,6 +30,9 @@ class AppConfig {
   /// 生产环境建议设为 verify-full，本地开发可设为 disable
   final String dbSslMode;
 
+  /// 是否开放测试辅助端点（仅限非生产环境，由 ALLOW_TEST_ENDPOINTS=true 启用）
+  /// 生产部署时**绝对不能**设为 true
+  final bool allowTestEndpoints;
 
   AppConfig._({
     required this.databaseUrl,
@@ -48,7 +51,7 @@ class AppConfig {
     required this.smtpFrom,
     required this.adminWebBaseUrl,
     required this.dbSslMode,
-
+    required this.allowTestEndpoints,
   });
 
   static AppConfig load({String? Function(String)? get}) {
@@ -116,6 +119,9 @@ class AppConfig {
       adminWebBaseUrl: lookup('ADMIN_WEB_BASE_URL') ?? 'http://localhost:5173',
 
       dbSslMode: _validatedSslMode(lookup('DB_SSL_MODE') ?? 'require'),
+
+      // 测试辅助端点开关：仅接受显式 'true'，其他任何值均视为 false
+      allowTestEndpoints: lookup('ALLOW_TEST_ENDPOINTS')?.toLowerCase() == 'true',
 
     );
   }

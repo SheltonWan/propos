@@ -22,7 +22,7 @@ VALUES (
     'f0000000-0000-0000-0000-000000000001',  -- 与 scripts/seed.sql v_user_admin 保持一致
     '系统管理员',
     'admin@propos.local',
-    '$2b$12$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',  -- 占位哈希
+    '$2a$12$LToWy/SegZcCpI2IV.jA2uXRjax6s2Z2YoA1pdLDvmfkdvgisWeYa',  -- bcrypt(Test1234!, cost=12)
     'super_admin',
     TRUE
 )

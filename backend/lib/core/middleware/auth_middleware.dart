@@ -23,7 +23,8 @@ Middleware authMiddleware(String jwtSecret, Pool db) {
           path == 'api/auth/login' ||
           path == 'api/auth/refresh' ||
           path == 'api/auth/forgot-password' ||
-          path == 'api/auth/reset-password') {
+          path == 'api/auth/reset-password' ||
+          path == 'api/test/reset-account-lock') {
         return innerHandler(request);
       }
 

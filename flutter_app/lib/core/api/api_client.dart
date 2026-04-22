@@ -160,6 +160,10 @@ class ApiClient {
     }
 
     _refreshCompleter = Completer<void>();
+    // 预先绑定 no-op 错误监听器，防止当无并发请求等待时 completeError 触发
+    // Zone unhandled exception（会误判整个测试失败）。
+    // 并发等待者通过 await _refreshCompleter!.future 仍可独立接收并处理错误。
+    _refreshCompleter!.future.ignore();
     try {
       final refreshToken = await _storage.read(key: 'refresh_token');
       if (refreshToken == null) {

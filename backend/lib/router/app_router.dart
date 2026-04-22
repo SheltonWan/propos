@@ -3,6 +3,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:propos_backend/config/app_config.dart';
 import 'package:propos_backend/modules/auth/controllers/auth_controller.dart';
+import 'package:propos_backend/modules/auth/controllers/test_helper_controller.dart';
 import 'package:propos_backend/modules/auth/repositories/password_reset_otp_repository.dart';
 import 'package:propos_backend/modules/auth/repositories/user_auth_repository.dart';
 import 'package:propos_backend/modules/auth/repositories/refresh_token_repository.dart';
@@ -35,6 +36,12 @@ Router buildRouter({required Pool db, required AppConfig config}) {
   final authController = AuthController(authService, loginService);
 
   router.mount('/api/', authController.router.call);
+
+  // ── 测试辅助端点（仅限非生产环境）────────────────────────────────────────
+  if (config.allowTestEndpoints) {
+    final testHelperController = TestHelperController(userAuthRepo);
+    router.mount('/api/', testHelperController.router.call);
+  }
   // ──────────────────────────────────────────────────────────────────────────
 
   // TODO: M1 资产模块

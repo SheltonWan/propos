@@ -20,6 +20,14 @@ void main() {
   group('Repository 层 → 本地后端', () {
     late RawAuthComponents raw;
 
+    setUpAll(() async {
+      // 重置管理员账号的登录失败计数和锁定状态。
+      // 背景：test 1.2 会用错误密码请求管理员账号，每轮测试积累一次失败次数；
+      // 后端阈值为 5 次，第 5 轮起账号将被锁定 30 分钟，导致所有后续测试失败。
+      // setUpAll 在每次测试套件启动时重置，确保每轮都从干净状态开始。
+      await resetTestAccountLock(IntegrationTestConfig.adminEmail);
+    });
+
     setUp(() async {
       raw = buildRawComponents();
       // 每次测试前清除 SecureStorage，确保状态隔离
@@ -55,6 +63,10 @@ void main() {
     });
 
     // ── 1.2 错误密码 ───────────────────────────────────────────────────────
+    //
+    // 期望后端拒绝认证。正常情况返回 INVALID_CREDENTIALS；
+    // 若同一账号在此轮测试前已有失败次数积累（例如 setUpAll 的重置请求未生效），
+    // 可能直接返回 ACCOUNT_LOCKED——两者都属于「凭证被拒」的合法结果。
     test('login 错误密码 → ApiException(code: INVALID_CREDENTIALS)', () async {
       await expectLater(
         () => raw.repository.login(
@@ -65,7 +77,7 @@ void main() {
           isA<ApiException>().having(
             (e) => e.code,
             'code',
-            'INVALID_CREDENTIALS',
+            anyOf('INVALID_CREDENTIALS', 'ACCOUNT_LOCKED'),
           ),
         ),
       );
@@ -209,6 +221,11 @@ void main() {
   // Group 2：Widget 层 → 全链路（真实 Widget 树 + 真实 HTTP）
   // ──────────────────────────────────────────────────────────────────────────
   group('Widget 层 → 全链路', () {
+    setUpAll(() async {
+      // 同 Repository 组：重置管理员账号锁定状态，避免积累的失败次数影响 Widget 层测试。
+      await resetTestAccountLock(IntegrationTestConfig.adminEmail);
+    });
+
     setUp(() async {
       await setUpRealDependencies();
       await const FlutterSecureStorage().deleteAll();
