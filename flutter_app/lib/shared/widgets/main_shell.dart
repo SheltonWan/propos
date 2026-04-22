@@ -1,7 +1,8 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart'
-    show BottomNavigationBarItem, kToolbarHeight, Scaffold, Theme;
+    show BottomNavigationBarItem, Colors, kToolbarHeight, Scaffold, Theme;
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -31,11 +32,14 @@ class MainShell extends StatelessWidget {
           ? const _DashboardNavBar() : _StandardNavBar(title: _tabTitles[index]),
       body: navigationShell,
       // 使用 iOS 原生 CupertinoTabBar 替代 Material NavigationBar
+      // iconSize: 24 对齐 Apple HIG 推荐的 TabBar 图标尺寸（约 25pt），
+      // Flutter 默认 30pt 在 50pt 高 TabBar 中视觉偏大
       bottomNavigationBar: CupertinoTabBar(
         currentIndex: index,
         onTap: (i) => navigationShell.goBranch(i, initialLocation: i == index),
         activeColor: CupertinoTheme.of(context).primaryColor,
         inactiveColor: CupertinoColors.inactiveGray,
+        iconSize: 24,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(CupertinoIcons.house),
@@ -116,9 +120,16 @@ class _DashboardNavBar extends StatelessWidget implements PreferredSizeWidget {
           _ => '用户',
         };
         final colors = Theme.of(context).extension<CustomColors>()!;
-        return Container(
-          height: kToolbarHeight + topPadding,
-          color: colors.dashboardHeaderBg,
+        // 深色 Header 背景下需将状态栏图标/文字切换为浅色，否则与背景色不适配
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarBrightness: Brightness.dark, // iOS：深色背景 → 浅色状态栏文字
+            statusBarIconBrightness: Brightness.light, // Android：浅色状态栏图标
+            statusBarColor: Colors.transparent, // Android 状态栏透明
+          ),
+          child: Container(
+            height: kToolbarHeight + topPadding,
+            color: colors.dashboardHeaderBg,
           padding: EdgeInsets.only(top: topPadding),
           child: Row(
             children: [
@@ -151,6 +162,7 @@ class _DashboardNavBar extends StatelessWidget implements PreferredSizeWidget {
               _DashboardAvatarButton(colors: colors),
               const SizedBox(width: 8),
             ],
+          ),
           ),
         );
       },
@@ -255,14 +267,15 @@ class _DashboardAvatarButton extends StatelessWidget {
           CupertinoActionSheetAction(
             isDestructiveAction: true,
             onPressed: () {
-              Navigator.of(context).pop();
+              // showCupertinoModalPopup 默认 useRootNavigator: true，须用根 Navigator 关闭
+              Navigator.of(context, rootNavigator: true).pop();
               _showLogoutDialog(context);
             },
             child: const Text('退出登录'),
           ),
         ],
         cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
           child: const Text('取消'),
         ),
       ),

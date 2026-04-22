@@ -15,25 +15,32 @@ const _kRememberFlag = 'login_remember_me';
 const _kRememberEmail = 'login_remembered_email';
 const _kRememberPwd = 'login_remembered_pwd';
 
-/// 登录页面（苹果风格）。
+/// 登录页面（苹果风格）——PAGE_SPEC_FLUTTER v1.9 §3.1。渐变背景 + 居中 iOS 风格卡片。
 ///
-/// Widget 树结构遵循 PAGE_SPEC_FLUTTER v1.9 §3.1：
-/// - 渐变背景 + 居中 iOS 风格卡片
+/// [AuthCubit] 由根级 [BlocProvider.value]（main.dart）统一提供，此页面无需再包装。
 /// - [BlocBuilder] 在表单下方内联展示错误文本（非 Snackbar）
 /// - [BlocConsumer] 仅包裹登录按钮，listener 处理导航及强制改密跳转
-class LoginPage extends StatefulWidget {
+class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  Widget build(BuildContext context) {
+    return const _LoginView();
+  }
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginView extends StatefulWidget {
+  const _LoginView();
+
+  @override
+  State<_LoginView> createState() => _LoginViewState();
+}
+
+class _LoginViewState extends State<_LoginView> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _storage = const FlutterSecureStorage();
-
   bool _obscurePassword = true;
   bool _rememberMe = false;
 
@@ -45,18 +52,15 @@ class _LoginPageState extends State<LoginPage> {
 
   /// 从安全存储恢复上次记住的凭据。
   Future<void> _loadSavedCredentials() async {
-    final remembered = await _storage.read(key: _kRememberFlag);
-    if (remembered == 'true' && mounted) {
-      final email = await _storage.read(key: _kRememberEmail);
-      final pwd = await _storage.read(key: _kRememberPwd);
-      if (mounted) {
-        setState(() {
-          _rememberMe = true;
-          _emailController.text = email ?? '';
-          _passwordController.text = pwd ?? '';
-        });
-      }
-    }
+    if (await _storage.read(key: _kRememberFlag) != 'true') return;
+    final email = await _storage.read(key: _kRememberEmail);
+    final pwd = await _storage.read(key: _kRememberPwd);
+    if (!mounted) return;
+    setState(() {
+      _rememberMe = true;
+      _emailController.text = email ?? '';
+      _passwordController.text = pwd ?? '';
+    });
   }
 
   @override
@@ -68,8 +72,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: Container(
         // 渐变背景：对齐 uni-app 的 linear-gradient(135deg, primary-soft, background, muted-soft)
@@ -78,9 +81,9 @@ class _LoginPageState extends State<LoginPage> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              scheme.primaryContainer,
-              scheme.surface,
-              scheme.surfaceContainerHighest,
+              colorScheme.primaryContainer,
+              colorScheme.surface,
+              colorScheme.surfaceContainerHighest,
             ],
             stops: const [0.0, 0.5, 1.0],
           ),
@@ -282,16 +285,9 @@ class _LoginPageState extends State<LoginPage> {
 
   /// 认证状态变化处理：登录成功后保存凭据，并按 mustChangePassword 决定跳转目标。
   void _onAuthStateChanged(BuildContext context, AuthState state) {
-    switch (state) {
-      case AuthStateAuthenticated(:final user):
-        _persistCredentials();
-        if (user.mustChangePassword) {
-          context.go(RoutePaths.changePassword);
-        } else {
-          context.go(RoutePaths.dashboard);
-        }
-      case _:
-        break;
+    if (state case AuthStateAuthenticated(:final user)) {
+      _persistCredentials();
+      context.go(user.mustChangePassword ? RoutePaths.changePassword : RoutePaths.dashboard);
     }
   }
 
@@ -301,7 +297,6 @@ class _LoginPageState extends State<LoginPage> {
   /// 否则导航触发 dispose() 后 Controller 已销毁，读取将得到空值。
   Future<void> _persistCredentials() async {
     if (_rememberMe) {
-      // 在任何 await 之前同步读取，防止 dispose 后 Controller 已销毁
       final email = _emailController.text.trim();
       final pwd = _passwordController.text;
       await _storage.write(key: _kRememberFlag, value: 'true');
@@ -316,24 +311,18 @@ class _LoginPageState extends State<LoginPage> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    context.read<AuthCubit>().login(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
+    context.read<AuthCubit>().login(email: _emailController.text.trim(), password: _passwordController.text);
   }
 
-  String? _validateEmail(String? value) {
+  static String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) return '请输入邮箱';
-    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-    if (!emailRegex.hasMatch(value.trim())) return '请输入有效邮箱地址';
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value.trim())) return '请输入有效邮箱地址';
     return null;
   }
 
-  String? _validatePassword(String? value) {
+  static String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) return '请输入密码';
-    if (value.length < BusinessRules.passwordMinLength) {
-      return '密码至少 ${BusinessRules.passwordMinLength} 位';
-    }
+    if (value.length < BusinessRules.passwordMinLength) return '密码至少 ${BusinessRules.passwordMinLength} 位';
     return null;
   }
 }

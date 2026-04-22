@@ -70,6 +70,8 @@ class _ProposAppState extends State<ProposApp> {
   void initState() {
     super.initState();
     _router = buildAppRouter();
+    // checkAuth 在这里调用，而不是在 BlocProvider.create 里，防止 BlocProvider 占用并 close get_it 单例
+    getIt<AuthCubit>().checkAuth();
   }
 
   @override
@@ -80,8 +82,10 @@ class _ProposAppState extends State<ProposApp> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<AuthCubit>(
-      create: (_) => getIt<AuthCubit>()..checkAuth(),
+    // 使用 BlocProvider.value 而非 BlocProvider(create:)，
+    // 确保 get_it 单例的生命周期由 get_it 管理，而不是由 BlocProvider 调用 close()。
+    return BlocProvider<AuthCubit>.value(
+      value: getIt<AuthCubit>(),
       child: MaterialApp.router(
         title: 'PropOS',
         theme: buildAppTheme(),

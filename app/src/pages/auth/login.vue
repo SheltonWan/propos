@@ -47,6 +47,7 @@
                   placeholder-class="login__placeholder"
                   class="login__input"
                   :disabled="loading"
+                  data-testid="login-email"
                 >
               </view>
             </view>
@@ -67,6 +68,7 @@
                   class="login__input login__input--pwd"
                   :disabled="loading"
                   confirm-type="done"
+                  data-testid="login-password"
                   @confirm="handleLogin"
                 >
                 <view class="login__eye-btn" @tap="showPwd = !showPwd">
@@ -89,7 +91,7 @@
             </view>
 
             <!-- Submit -->
-            <view class="login__btn-wrap">
+            <view class="login__btn-wrap" data-testid="login-submit">
               <wd-button
                 type="primary"
                 block
@@ -103,7 +105,7 @@
             </view>
 
             <!-- Error alert -->
-            <view v-if="errorMsg" class="login__error">
+            <view v-if="errorMsg" class="login__error" data-testid="login-error">
               <wd-icon name="warning" size="32rpx" custom-class="login__error-icon" />
               <text class="login__error-text">
                 {{ errorMsg }}

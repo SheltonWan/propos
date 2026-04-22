@@ -18,6 +18,10 @@
         :back="false"
         :border="false"
       >
+        <template #title>
+          <!-- data-testid 供集成测试定位问候语 -->
+          <text class="page-header__title" data-testid="dashboard-greeting">你好，{{ displayName }}</text>
+        </template>
         <template #actions>
           <!-- 铃铛：未读角标 -->
           <view
@@ -38,6 +42,7 @@
             hover-class="dash-action-btn--pressed"
             :hover-start-time="20"
             :hover-stay-time="80"
+            data-testid="dashboard-avatar"
             @tap="handleUserMenu"
           >
             <image class="dash-action-icon" src="/static/icons/person.svg" mode="aspectFit" />
@@ -103,7 +108,7 @@ function handleUserMenu() {
         uni.showModal({
           title: '退出登录',
           content: '确定要退出当前账号吗？',
-          confirmText: '退出',
+          confirmText: '确定',
           confirmColor: '#e53935', // theme-guard-ignore-line
           success(modal) {
             if (modal.confirm) {

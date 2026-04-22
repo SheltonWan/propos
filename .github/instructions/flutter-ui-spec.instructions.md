@@ -41,6 +41,8 @@ Flutter 移动端采用 `go_router` + `StatefulShellRoute`（5 个 Tab 保持独
 | 页面 | 路径 | 是否 Tab |
 |------|------|:--------:|
 | 登录 | `/login` | — |
+| 忘记密码 | `/forgot-password` | — |
+| 修改密码 | `/change-password` | — |
 | 首页 | `/dashboard` | ✅ |
 | NOI 分析 | `/dashboard/noi-detail` | — |
 | WALE 分析 | `/dashboard/wale-detail` | — |

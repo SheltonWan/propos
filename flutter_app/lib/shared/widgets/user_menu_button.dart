@@ -53,14 +53,15 @@ class UserMenuButton extends StatelessWidget {
           CupertinoActionSheetAction(
             isDestructiveAction: true,
             onPressed: () {
-              Navigator.of(context).pop();
+              // showCupertinoModalPopup 默认 useRootNavigator: true，须用根 Navigator 关闭
+              Navigator.of(context, rootNavigator: true).pop();
               _showLogoutDialog(context);
             },
             child: const Text('退出登录'),
           ),
         ],
         cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
           child: const Text('取消'),
         ),
       ),

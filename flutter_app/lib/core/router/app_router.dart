@@ -17,10 +17,18 @@ import 'route_paths.dart';
 /// Auth 状态变更通知器，供 GoRouter.refreshListenable 使用。
 ///
 /// 订阅 [AuthCubit] 的状态流，每次状态变化时触发路由守卫重新评估。
-/// 由于 AuthCubit 是应用级单例，此订阅与应用生命周期相同，无需显式取消。
+/// 持有 [StreamSubscription] 引用，在 [dispose] 时取消，防止内存泄漏。
 class _AuthRouterNotifier extends ChangeNotifier {
+  late final StreamSubscription<void> _sub;
+
   _AuthRouterNotifier(Stream<AuthState> stream) {
-    stream.listen((_) => notifyListeners());
+    _sub = stream.listen((_) => notifyListeners());
+  }
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    super.dispose();
   }
 }
 
