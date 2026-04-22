@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Scaffold;
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/bloc/auth_cubit.dart';
@@ -35,15 +36,17 @@ GoRouter buildAppRouter() => GoRouter(
       routes: [
         GoRoute(
           path: RoutePaths.login,
-          builder: (_, _) => const LoginPage(),
+      pageBuilder: (_, state) => CupertinoPage(key: state.pageKey, child: const LoginPage()),
         ),
     GoRoute(
       path: RoutePaths.changePassword,
-      builder: (_, _) => const _ChangePasswordPlaceholderPage(),
+      pageBuilder: (_, state) =>
+          CupertinoPage(key: state.pageKey, child: const _ChangePasswordPlaceholderPage()),
     ),
     GoRoute(
       path: RoutePaths.forgotPassword,
-      builder: (_, _) => const ForgotPasswordPage(),
+      pageBuilder: (_, state) =>
+          CupertinoPage(key: state.pageKey, child: const ForgotPasswordPage()),
     ),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
@@ -140,7 +143,13 @@ class _PlaceholderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(child: Text('$title 模块开发中…', style: Theme.of(context).textTheme.titleMedium,
+    return Center(
+      child: Text(
+        '$title 模块开发中…',
+        style: const TextStyle(
+          fontSize: 15,
+          color: CupertinoColors.secondaryLabel,
+        ),
       ),
     );
   }
@@ -153,7 +162,10 @@ class _ChangePasswordPlaceholderPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('修改密码')),
+      appBar: CupertinoNavigationBar(
+        middle: const Text('修改密码'),
+        leading: CupertinoNavigationBarBackButton(onPressed: () => context.pop()),
+      ),
       body: const Center(child: Text('修改密码页开发中…')),
     );
   }

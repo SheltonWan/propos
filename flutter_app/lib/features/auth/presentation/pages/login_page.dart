@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Scaffold, Theme;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/business_rules.dart';
 import '../../../../core/router/route_paths.dart';
+import '../../../../shared/widgets/cupertino_text_form_field.dart';
 import '../bloc/auth_cubit.dart';
 import '../bloc/auth_state.dart';
 
@@ -13,10 +15,10 @@ const _kRememberFlag = 'login_remember_me';
 const _kRememberEmail = 'login_remembered_email';
 const _kRememberPwd = 'login_remembered_pwd';
 
-/// 登录页面——对齐 uni-app 设计风格。
+/// 登录页面（苹果风格）。
 ///
 /// Widget 树结构遵循 PAGE_SPEC_FLUTTER v1.9 §3.1：
-/// - 渐变背景 + 居中卡片布局
+/// - 渐变背景 + 居中 iOS 风格卡片
 /// - [BlocBuilder] 在表单下方内联展示错误文本（非 Snackbar）
 /// - [BlocConsumer] 仅包裹登录按钮，listener 处理导航及强制改密跳转
 class LoginPage extends StatefulWidget {
@@ -66,8 +68,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       body: Container(
@@ -77,9 +78,9 @@ class _LoginPageState extends State<LoginPage> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              colorScheme.primaryContainer,
-              colorScheme.surface,
-              colorScheme.surfaceContainerHighest,
+              scheme.primaryContainer,
+              scheme.surface,
+              scheme.surfaceContainerHighest,
             ],
             stops: const [0.0, 0.5, 1.0],
           ),
@@ -88,148 +89,148 @@ class _LoginPageState extends State<LoginPage> {
           child: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: Card(
-                elevation: 2,
-                surfaceTintColor: colorScheme.surface,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 品牌区域：图标盒 + 标题 + 副标题
-                      _buildBrand(colorScheme, theme),
-                      const SizedBox(height: 32),
-                      // 表单区域
-                      Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // 邮箱输入框
-                            TextFormField(
-                              controller: _emailController,
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: '邮箱',
-                                prefixIcon: Icon(Icons.mail_outline),
-                              ),
-                              validator: _validateEmail,
+              child: Container(
+                // iOS 风格卡片：圆角 + 柔和阴影，无边框
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemBackground,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: CupertinoColors.systemGrey4.withValues(alpha: 0.6),
+                      blurRadius: 24,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 品牌区域：图标盒 + 标题 + 副标题
+                    _buildBrand(),
+                    const SizedBox(height: 32),
+                    // 表单区域
+                    Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 邮箱输入框
+                          CupertinoTextFormField(
+                            controller: _emailController,
+                            placeholder: '邮箱',
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            prefix: const Icon(
+                              CupertinoIcons.mail,
+                              size: 18,
+                              color: CupertinoColors.secondaryLabel,
                             ),
-                            const SizedBox(height: 16),
-                            // 密码输入框（含明暗切换）
-                            TextFormField(
-                              controller: _passwordController,
-                              obscureText: _obscurePassword,
-                              textInputAction: TextInputAction.done,
-                              decoration: InputDecoration(
-                                labelText: '密码',
-                                prefixIcon: const Icon(Icons.lock_outline),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined,
-                                  ),
-                                  onPressed: () =>
-                                      setState(() => _obscurePassword = !_obscurePassword),
-                                ),
-                              ),
-                              validator: _validatePassword,
-                              onFieldSubmitted: (_) => _submit(),
+                            validator: _validateEmail,
+                          ),
+                          const SizedBox(height: 12),
+                          // 密码输入框（含明暗切换）
+                          CupertinoTextFormField(
+                            controller: _passwordController,
+                            placeholder: '密码',
+                            obscureText: _obscurePassword,
+                            textInputAction: TextInputAction.done,
+                            prefix: const Icon(
+                              CupertinoIcons.lock,
+                              size: 18,
+                              color: CupertinoColors.secondaryLabel,
                             ),
-                            const SizedBox(height: 4),
-                            // 记住账号与密码
-                            Row(
-                              children: [
-                                SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: Checkbox(
-                                    value: _rememberMe,
-                                    onChanged: (v) => setState(() => _rememberMe = v ?? false),
-                                    visualDensity: VisualDensity.compact,
-                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                GestureDetector(
-                                  onTap: () => setState(() => _rememberMe = !_rememberMe),
-                                  child: Text(
-                                    '记住账号与密码',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            // 忘记密码入口
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () => context.push(RoutePaths.forgotPassword),
-                                child: const Text('忘记密码？'),
+                            suffix: CupertinoButton(
+                              padding: EdgeInsets.zero,
+                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              child: Icon(
+                                _obscurePassword ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
+                                size: 18,
+                                color: CupertinoColors.secondaryLabel,
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                      // 错误内联展示（PAGE_SPEC §3.1：BlocBuilder 显示错误文本，非 Snackbar）
-                      BlocBuilder<AuthCubit, AuthState>(
-                        builder: (context, state) => switch (state) {
-                          AuthStateError(:final message) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  Icons.warning_amber_rounded,
-                                  size: 16,
-                                  color: colorScheme.error,
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    message,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.error,
-                                    ),
+                            validator: _validatePassword,
+                            onFieldSubmitted: (_) => _submit(),
+                          ),
+                          const SizedBox(height: 8),
+                          // 记住账号与密码
+                          Row(
+                            children: [
+                              CupertinoCheckbox(
+                                value: _rememberMe,
+                                onChanged: (v) => setState(() => _rememberMe = v ?? false),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () => setState(() => _rememberMe = !_rememberMe),
+                                child: const Text(
+                                  '记住账号与密码',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: CupertinoColors.secondaryLabel,
                                   ),
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                          // 忘记密码入口
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: CupertinoButton(
+                              padding: EdgeInsets.zero,
+                              onPressed: () => context.push(RoutePaths.forgotPassword),
+                              child: const Text('忘记密码？', style: TextStyle(fontSize: 13)),
                             ),
                           ),
-                          _ => const SizedBox.shrink(),
-                        },
+                        ],
                       ),
-                      // 登录按钮：listener 处理导航，含 must_change_password 强制改密跳转
-                      BlocConsumer<AuthCubit, AuthState>(
-                        listener: _onAuthStateChanged,
-                        builder: (context, state) {
-                          final isLoading = state is AuthStateLoading;
-                          return SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: FilledButton(
-                              onPressed: isLoading ? null : _submit,
-                              child: isLoading
-                                  ? SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: colorScheme.onPrimary,
-                                      ),
-                                    )
-                                  : const Text('登 录'),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                    ),
+                    // 错误内联展示（PAGE_SPEC §3.1：BlocBuilder 显示错误文本，非 Snackbar）
+                    BlocBuilder<AuthCubit, AuthState>(
+                      builder: (context, state) => switch (state) {
+                        AuthStateError(:final message) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                CupertinoIcons.exclamationmark_triangle,
+                                size: 14,
+                                color: CupertinoColors.destructiveRed,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  message,
+                                  style: const TextStyle(
+                                    color: CupertinoColors.destructiveRed,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _ => const SizedBox.shrink(),
+                      },
+                    ),
+                    // 登录按钮：listener 处理导航，含 must_change_password 强制改密跳转
+                    BlocConsumer<AuthCubit, AuthState>(
+                      listener: _onAuthStateChanged,
+                      builder: (context, state) {
+                        final isLoading = state is AuthStateLoading;
+                        return SizedBox(
+                          width: double.infinity,
+                          child: CupertinoButton.filled(
+                            onPressed: isLoading ? null : _submit,
+                            child: isLoading
+                                ? const CupertinoActivityIndicator(color: CupertinoColors.white)
+                                : const Text('登 录'),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -240,39 +241,40 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   /// 品牌区域：图标盒（对齐 uni-app .login__icon-box）+ 标题 + 副标题。
-  Widget _buildBrand(ColorScheme colorScheme, ThemeData theme) {
+  Widget _buildBrand() {
     return Column(
       children: [
-        // Primary 色背景方形图标盒，内嵌楼宇图标
+        // iOS 风格图标盒：圆角方形 + 阴影
         Container(
           width: 64,
           height: 64,
           decoration: BoxDecoration(
-            color: colorScheme.primary,
+            color: CupertinoTheme.of(context).primaryColor,
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: colorScheme.primary.withAlpha(77),
+                color: CupertinoTheme.of(context).primaryColor.withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: Icon(Icons.apartment, size: 32, color: colorScheme.onPrimary),
+          child: const Icon(CupertinoIcons.building_2_fill, size: 32, color: CupertinoColors.white),
         ),
         const SizedBox(height: 16),
-        Text(
+        const Text(
           'PropOS',
-          style: theme.textTheme.headlineMedium?.copyWith(
+          style: TextStyle(
+            fontSize: 26,
             fontWeight: FontWeight.bold,
-            color: colorScheme.onSurface,
-            letterSpacing: 1,
+            color: CupertinoColors.label,
+            letterSpacing: 0.5,
           ),
         ),
         const SizedBox(height: 4),
-        Text(
+        const Text(
           '物业运营管理平台',
-          style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+          style: TextStyle(fontSize: 13, color: CupertinoColors.secondaryLabel),
         ),
       ],
     );
@@ -335,3 +337,4 @@ class _LoginPageState extends State<LoginPage> {
     return null;
   }
 }
+

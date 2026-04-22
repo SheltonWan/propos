@@ -124,7 +124,7 @@ core/
     api_exception.dart    # ApiException(code, message, statusCode)
   constants/              # business_rules.dart / ui_constants.dart
   theme/
-    app_theme.dart        # Material 3 ColorScheme + Typography
+    app_theme.dart        # Material 3 ColorScheme + Typography + cupertinoOverrideTheme
   router/
     app_router.dart       # go_router 路由表 + 守卫
     route_paths.dart      # 路由路径常量
@@ -145,6 +145,7 @@ features/
       widgets/            # 子 Widget（≤ 100 行）
 shared/
   widgets/                # 全局共享 Widget
+    cupertino_text_form_field.dart  # iOS 风格表单输入框（FormField<String> 封装，支持 validator）
   utils/                  # 工具函数
 ```
 
@@ -191,6 +192,20 @@ styles/
 ```
 
 Flutter 前端分层规则：
+- **UI 组件体系**：使用 **苹果 Cupertino 设计语言**（`package:flutter/cupertino.dart`），以下 Material 组件已替换为 Cupertino 等价物：
+  - `NavigationBar` → `CupertinoTabBar`（置于 `Scaffold.bottomNavigationBar`）
+  - `AppBar` → `CupertinoNavigationBar`（实现 `PreferredSizeWidget`，置于 `Scaffold.appBar`）
+  - `FilledButton` → `CupertinoButton.filled`
+  - `TextButton` → `CupertinoButton`
+  - `TextFormField` → `CupertinoTextFormField`（`shared/widgets/` 封装）
+  - `Checkbox` → `CupertinoCheckbox`
+  - `CircularProgressIndicator` → `CupertinoActivityIndicator`
+  - `AlertDialog` → `showCupertinoDialog` + `CupertinoAlertDialog`
+  - `PopupMenuButton` → `showCupertinoModalPopup` + `CupertinoActionSheet`
+  - `Card` → `Container` + `BoxDecoration`（圆角 + 阴影）
+  - `Icons.xxx` → `CupertinoIcons.xxx`
+- `MaterialApp.router` 保留（`go_router` 和 BLoC 覆盖层兼容性要求），`ThemeData.cupertinoOverrideTheme` 注入 Cupertino 主色
+- 非 Tab 页面路由使用 `CupertinoPage`（`pageBuilder:` 参数），提供 iOS 右滑返回动画
 - BLoC/Cubit 状态必须为 `@freezed` sealed union 四态：initial / loading / loaded / error
 - BLoC 通过构造函数注入 domain 层 Repository 接口，禁止直接实例化
 - 错误处理统一：`catch (e) { emit(XxxState.error(e is ApiException ? e.message : '操作失败，请重试')); }`
@@ -214,7 +229,7 @@ uni-app 前端分层规则：
 - 详细规范见 `.github/instructions/uniapp.instructions.md`（`applyTo: app/src/**`）
 
 **UI 色彩规范**：
-- Flutter：通过 `Theme.of(context).colorScheme.*` 获取颜色，禁止 `Colors.green` / `Color(0xFF...)` 硬编码；语义色通过 `ThemeExtension<CustomColors>` 扩展
+- Flutter：优先使用 `CupertinoTheme.of(context).primaryColor` 获取主色；渐变/错误等通过 `Theme.of(context).colorScheme.*` 获取；禁止 `Colors.green` / `Color(0xFF...)` 硬编码；语义色通过 `ThemeExtension<CustomColors>` 扩展
 - admin（Element Plus）：状态 Tag 使用 `type="success" / "warning" / "danger" / "info"`
 - 状态色语义映射（严格遵守）：
 

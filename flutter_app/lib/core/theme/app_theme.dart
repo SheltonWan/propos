@@ -1,11 +1,13 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import 'custom_colors.dart';
 
-/// Build the global Material 3 [ThemeData] for the PropOS app.
+/// 构建 PropOS 应用全局 [ThemeData]（苹果风格）。
 ///
-/// Seed color: Apple Blue `#0071E3`.
-/// Semantic colors available via `Theme.of(context).extension<CustomColors>()!`.
+/// 种子色：Apple Blue `#0071E3`。
+/// 语义色通过 `Theme.of(context).extension<CustomColors>()!` 访问。
+/// [cupertinoOverrideTheme] 确保 [CupertinoButton.filled] / [CupertinoActivityIndicator] 等控件颜色一致。
 ThemeData buildAppTheme() => ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
@@ -13,9 +15,10 @@ ThemeData buildAppTheme() => ThemeData(
         brightness: Brightness.light,
       ),
       extensions: const <ThemeExtension<dynamic>>[lightCustomColors],
-      appBarTheme: const AppBarTheme(centerTitle: true),
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      ),
+  // 注入 Cupertino 主题令牌，与 MaterialApp 共用根组件时对 Cupertino 控件生效
+  cupertinoOverrideTheme: const CupertinoThemeData(
+    primaryColor: Color(0xFF0071E3),
+    primaryContrastingColor: CupertinoColors.white,
+  ),
+  appBarTheme: const AppBarTheme(centerTitle: true),
     );

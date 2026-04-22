@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 /// Empty state widget displayed when a list has no data.
@@ -8,7 +9,7 @@ class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
     this.message = '暂无数据',
-    this.icon = Icons.inbox_outlined,
+    this.icon = CupertinoIcons.tray,
   });
 
   @override

@@ -1,5 +1,7 @@
 import 'package:clock/clock.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart'
+    show BottomNavigationBarItem, kToolbarHeight, Scaffold, Theme;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,15 +10,15 @@ import '../../features/auth/presentation/bloc/auth_cubit.dart';
 import '../../features/auth/presentation/bloc/auth_state.dart';
 import 'user_menu_button.dart';
 
-/// 应用主壳体，提供底部导航栏和顶部 AppBar（含用户菜单）。
+/// 应用主壳体，提供底部 Tab 导航和顶部导航栏（苹果风格）。
 ///
 /// Tab 级页面不应包含自己的 Scaffold，由此 Shell 统一提供。
 /// 子页面（通过 push 导航的详情页）应包含自己的 Scaffold 和返回按钮。
-/// Dashboard Tab（index 0）使用深色专属 [_DashboardAppBar]；其余 Tab 使用标准 AppBar。
+/// Dashboard Tab（index 0）使用专属深色 [_DashboardNavBar]；其余 Tab 使用 [CupertinoNavigationBar]。
 class MainShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
-  /// 各 Tab 对应的 AppBar 标题，与 branches 顺序一致。
+  /// 各 Tab 对应的标题，与 branches 顺序一致。
   static const _tabTitles = ['首页', '资产', '合同', '工单', '财务'];
 
   const MainShell({super.key, required this.navigationShell});
@@ -26,40 +28,36 @@ class MainShell extends StatelessWidget {
     final index = navigationShell.currentIndex;
     return Scaffold(
       appBar: index == 0
-          ? const _DashboardAppBar()
-          : AppBar(
-              title: Text(_tabTitles[index]),
-              actions: const [UserMenuButton()],
-            ),
+          ? const _DashboardNavBar() : _StandardNavBar(title: _tabTitles[index]),
       body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (i) =>
-            navigationShell.goBranch(i, initialLocation: i == index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
+      // 使用 iOS 原生 CupertinoTabBar 替代 Material NavigationBar
+      bottomNavigationBar: CupertinoTabBar(
+        currentIndex: index,
+        onTap: (i) => navigationShell.goBranch(i, initialLocation: i == index),
+        activeColor: CupertinoTheme.of(context).primaryColor,
+        inactiveColor: CupertinoColors.inactiveGray,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.house),
+            activeIcon: Icon(CupertinoIcons.house_fill),
             label: '首页',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.apartment_outlined),
-            selectedIcon: Icon(Icons.apartment),
+          BottomNavigationBarItem(icon: Icon(CupertinoIcons.building_2_fill),
             label: '资产',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.description_outlined),
-            selectedIcon: Icon(Icons.description),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.doc_text),
+            activeIcon: Icon(CupertinoIcons.doc_text_fill),
             label: '合同',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.build_outlined),
-            selectedIcon: Icon(Icons.build),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.wrench),
+            activeIcon: Icon(CupertinoIcons.wrench_fill),
             label: '工单',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_outlined),
-            selectedIcon: Icon(Icons.account_balance),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.chart_bar),
+            activeIcon: Icon(CupertinoIcons.chart_bar_fill),
             label: '财务',
           ),
         ],
@@ -68,12 +66,27 @@ class MainShell extends StatelessWidget {
   }
 }
 
-/// Dashboard 专属深色 AppBar。
+/// 非首页 Tab 使用的 [CupertinoNavigationBar] 包装。
+class _StandardNavBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+
+  const _StandardNavBar({required this.title});
+
+  @override
+  Size get preferredSize => const Size.fromHeight(44.0);
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoNavigationBar(middle: Text(title), trailing: const UserMenuButton());
+  }
+}
+
+/// Dashboard 专属深色导航栏（iOS 风格自定义实现）。
 ///
-/// 背景色对齐 uni-app `--color-card-dark`（#001D3D）。
-/// 显示问候语（你好，{姓名}）、当前日期，右侧提供通知铃铛和用户头像菜单。
-class _DashboardAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const _DashboardAppBar();
+/// 背景色对齐 [CustomColors.dashboardHeaderBg]（#001D3D）。
+/// 包含左侧问候语 + 日期，右侧通知铃铛和用户头像菜单。
+class _DashboardNavBar extends StatelessWidget implements PreferredSizeWidget {
+  const _DashboardNavBar();
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -94,6 +107,8 @@ class _DashboardAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 包含状态栏高度，使背景色延伸至状态栏
+    final topPadding = MediaQuery.paddingOf(context).top;
     return BlocBuilder<AuthCubit, AuthState>(
       builder: (context, state) {
         final name = switch (state) {
@@ -101,48 +116,53 @@ class _DashboardAppBar extends StatelessWidget implements PreferredSizeWidget {
           _ => '用户',
         };
         final colors = Theme.of(context).extension<CustomColors>()!;
-        return AppBar(
-          backgroundColor: colors.dashboardHeaderBg,
-          foregroundColor: colors.onDashboardHeader,
-          centerTitle: false,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+        return Container(
+          height: kToolbarHeight + topPadding,
+          color: colors.dashboardHeaderBg,
+          padding: EdgeInsets.only(top: topPadding),
+          child: Row(
             children: [
-              Text(
-                '你好，$name',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: colors.onDashboardHeader,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '你好，$name',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: colors.onDashboardHeader,
+                      ),
+                    ),
+                    Text(
+                      _dateStr(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.onDashboardHeader.withValues(alpha: 0.7),
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                _dateStr(),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.onDashboardHeader.withValues(alpha: 0.7),
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
+              _NotificationButton(fgColor: colors.onDashboardHeader),
+              _DashboardAvatarButton(colors: colors),
+              const SizedBox(width: 8),
             ],
           ),
-          actions: const [
-            _NotificationButton(),
-            _DashboardAvatarButton(),
-            SizedBox(width: 4),
-          ],
         );
       },
     );
   }
 }
 
-/// Dashboard AppBar 通知铃铛按钮。
-///
-/// 待接入通知 Store 后替换 unreadCount 为真实数据。
+/// 通知铃铛按钮（iOS 风格 [CupertinoButton]）。
 class _NotificationButton extends StatelessWidget {
-  const _NotificationButton();
+  final Color fgColor;
+
+  const _NotificationButton({required this.fgColor});
 
   @override
   Widget build(BuildContext context) {
@@ -151,13 +171,12 @@ class _NotificationButton extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        IconButton(
+        CupertinoButton(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           onPressed: () {
             // TODO: 跳转通知中心
           },
-          icon: const Icon(Icons.notifications_outlined),
-          color: Theme.of(context).extension<CustomColors>()!.onDashboardHeader,
-          tooltip: '通知',
+          child: Icon(CupertinoIcons.bell, color: fgColor, size: 22),
         ),
         if (unreadCount > 0)
           Positioned(
@@ -186,11 +205,13 @@ class _NotificationButton extends StatelessWidget {
   }
 }
 
-/// Dashboard AppBar 用户头像按钮（圆形，首字母）。
+/// Dashboard AppBar 用户头像按钮（圆形首字母）。
 ///
-/// 点击弹出菜单，提供「退出登录」入口，与 [UserMenuButton] 行为一致。
+/// 点击弹出 iOS [CupertinoActionSheet] 操作菜单，提供「退出登录」入口。
 class _DashboardAvatarButton extends StatelessWidget {
-  const _DashboardAvatarButton();
+  final CustomColors colors;
+
+  const _DashboardAvatarButton({required this.colors});
 
   @override
   Widget build(BuildContext context) {
@@ -200,76 +221,73 @@ class _DashboardAvatarButton extends StatelessWidget {
           AuthStateAuthenticated(:final user) => user.name,
           _ => '',
         };
-        return PopupMenuButton<_DashMenuAction>(
-          tooltip: '账户',
-          offset: const Offset(0, 48),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: CircleAvatar(
-              radius: 14,
-              backgroundColor: Theme.of(context)
-                  .extension<CustomColors>()!
-                  .onDashboardHeader
-                  .withValues(alpha: 0.24),
-              child: Text(
-                name.isEmpty ? '?' : name[0],
-                style: TextStyle(
-                  color:
-                      Theme.of(context).extension<CustomColors>()!.onDashboardHeader,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
+        return CupertinoButton(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          onPressed: () => _showMenu(context, name),
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: colors.onDashboardHeader.withValues(alpha: 0.24),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              name.isEmpty ? '?' : name[0],
+              style: TextStyle(
+                color: colors.onDashboardHeader,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
-          itemBuilder: (_) => [
-            if (name.isNotEmpty) ...[
-              PopupMenuItem<_DashMenuAction>(
-                enabled: false,
-                child: Text(
-                  name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              const PopupMenuDivider(),
-            ],
-            const PopupMenuItem<_DashMenuAction>(
-              value: _DashMenuAction.logout,
-              child: Row(
-                children: [
-                  Icon(Icons.logout, size: 18),
-                  SizedBox(width: 8),
-                  Text('退出登录'),
-                ],
-              ),
-            ),
-          ],
-          onSelected: (action) {
-            if (action == _DashMenuAction.logout) {
-              _showLogoutDialog(context);
-            }
-          },
         );
       },
     );
   }
 
-  /// 退出登录确认对话框，防止误操作。
-  void _showLogoutDialog(BuildContext context) {
-    showDialog<void>(
+  void _showMenu(BuildContext context, String name) {
+    showCupertinoModalPopup<void>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
+      builder: (_) => CupertinoActionSheet(
+        title: name.isNotEmpty ? Text(name) : null,
+        actions: [
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.of(context).pop();
+              _showLogoutDialog(context);
+            },
+            child: const Text('退出登录'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context) {
+    // 提前捕获 cubit 引用，防止 dialog 内 context 树中无 BLoC
+    final authCubit = context.read<AuthCubit>();
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (dialogCtx) => CupertinoAlertDialog(
         title: const Text('退出登录'),
         content: const Text('确认退出当前账户？'),
         actions: [
-          TextButton(
+          CupertinoDialogAction(
             onPressed: () => Navigator.of(dialogCtx).pop(),
             child: const Text('取消'),
           ),
-          FilledButton(
+          CupertinoDialogAction(
+            isDestructiveAction: true,
             onPressed: () {
               Navigator.of(dialogCtx).pop();
-              context.read<AuthCubit>().logout();
+              // 退出后 _AuthRouterNotifier 触发路由守卫重定向至登录页
+              authCubit.logout();
             },
             child: const Text('退出'),
           ),
@@ -279,4 +297,7 @@ class _DashboardAvatarButton extends StatelessWidget {
   }
 }
 
-enum _DashMenuAction { logout }
+/// 应用主壳体，提供底部 Tab 导航和顶部导航栏（苹果风格）。
+///
+/// Tab 级页面不应包含自己的 Scaffold，由此 Shell 统一提供。
+/// 子页面（通过 push 导航的详情页）应包含自己的 Scaffold 和返回按钮。
