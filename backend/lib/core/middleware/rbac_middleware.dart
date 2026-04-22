@@ -3,48 +3,449 @@ import '../request_context.dart';
 import '../errors/app_exception.dart';
 
 // ---------------------------------------------------------------------------
-// 1. Pipeline 级全局 RBAC 中间件（用于 bin/server.dart addMiddleware）
+// 常量角色集合（减少矩阵内重复字符串集合，编译期常量）
 // ---------------------------------------------------------------------------
 
-/// 全局 RBAC 中间件——基于 URL 前缀和 HTTP 方法进行权限核查。
+/// 全体内部员工角色（不含二房东）
+const _kAll = {
+  'super_admin',
+  'operations_manager',
+  'leasing_specialist',
+  'finance_staff',
+  'maintenance_staff',
+  'property_inspector',
+  'report_viewer',
+};
+
+/// 仅管理层（超管 + 运营）
+const _kMgmt = {'super_admin', 'operations_manager'};
+
+/// 有资产写入权限的角色
+const _kAssetWrite = {
+  'super_admin',
+  'operations_manager',
+  'leasing_specialist',
+};
+
+/// 有合同写入权限的角色
+const _kContractWrite = {
+  'super_admin',
+  'operations_manager',
+  'leasing_specialist',
+};
+
+/// 有财务写入权限的角色
+const _kFinanceWrite = {
+  'super_admin',
+  'operations_manager',
+  'finance_staff',
+};
+
+// ---------------------------------------------------------------------------
+// 路由权限矩阵（唯一权限源头，禁止在业务代码中散落 if-else 角色判断）
+//
+// 格式：路径前缀 → HTTP方法 → 允许角色集合（UserRole.value 字符串）
+//
+// 匹配规则：
+//   - 按 Map 插入顺序扫描，第一个匹配的前缀生效
+//   - 方法键 '*' 匹配任意 HTTP 方法（兜底）
+//   - 空集合 Set<String>{} 表示任何已认证角色均可访问
+//   - 路径越具体越靠前（防止宽泛前缀遮蔽具体规则）
+// ---------------------------------------------------------------------------
+const Map<String, Map<String, Set<String>>> _routePermissionMatrix = {
+  // ── 认证（/api/auth/me、logout、change-password 需已登录，无角色限制）──
+  '/api/auth': {'*': <String>{}},
+
+  // ── 用户管理 ──────────────────────────────────────────────────────────────
+  '/api/users': {
+    'GET': _kMgmt,
+    'POST': {'super_admin'},
+    'PATCH': {'super_admin'},
+    'DELETE': {'super_admin'},
+  },
+
+  // ── 组织架构 ──────────────────────────────────────────────────────────────
+  '/api/departments': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'property_inspector',
+      'report_viewer',
+    },
+    'POST': _kMgmt,
+    'PATCH': _kMgmt,
+    'DELETE': _kMgmt,
+  },
+  '/api/managed-scopes': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'property_inspector',
+      'report_viewer',
+    },
+    'PUT': _kMgmt,
+  },
+
+  // ── M1 资产（具体路径前缀先于宽泛前缀）────────────────────────────────────
+  '/api/floor-plans': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'property_inspector',
+      'report_viewer',
+    },
+    'PATCH': _kAssetWrite,
+  },
+  '/api/assets': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'property_inspector',
+      'report_viewer',
+    },
+  },
+  '/api/buildings': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'property_inspector',
+      'report_viewer',
+    },
+    'POST': _kAssetWrite,
+    'PATCH': _kAssetWrite,
+  },
+  '/api/floors': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'property_inspector',
+      'report_viewer',
+    },
+    'POST': _kAssetWrite,
+    'PATCH': _kAssetWrite,
+  },
+  '/api/units': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'property_inspector',
+      'report_viewer',
+    },
+    'POST': _kAssetWrite,
+    'PATCH': _kAssetWrite,
+    'DELETE': _kMgmt,
+  },
+  '/api/renovations': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'property_inspector',
+      'report_viewer',
+    },
+    'POST': _kAssetWrite,
+    'PATCH': _kAssetWrite,
+  },
+
+  // ── M2 合同 ───────────────────────────────────────────────────────────────
+  '/api/tenants': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'property_inspector',
+      'report_viewer',
+    },
+    'POST': _kContractWrite,
+    'PATCH': _kContractWrite,
+  },
+  '/api/escalation-templates': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'report_viewer',
+    },
+    'POST': _kContractWrite,
+    'PATCH': _kContractWrite,
+    'DELETE': _kMgmt,
+  },
+  '/api/contracts': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'property_inspector',
+      'report_viewer',
+    },
+    'POST': _kContractWrite,
+    'PATCH': _kContractWrite,
+  },
+  '/api/alerts': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'report_viewer',
+    },
+    'POST': _kContractWrite,
+    'PATCH': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+    },
+  },
+
+  // ── M2-A 押金 ──────────────────────────────────────────────────────────────
+  '/api/deposits': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'report_viewer',
+    },
+    'POST': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+    },
+    'PATCH': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+    },
+  },
+
+  // ── M3 财务 ───────────────────────────────────────────────────────────────
+  '/api/invoices': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'report_viewer',
+    },
+    'POST': _kFinanceWrite,
+    'PATCH': _kFinanceWrite,
+  },
+  '/api/payments': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'finance_staff',
+      'report_viewer',
+    },
+    'POST': _kFinanceWrite,
+    'PATCH': _kFinanceWrite,
+  },
+  '/api/expenses': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'finance_staff',
+      'report_viewer',
+    },
+    'POST': _kFinanceWrite,
+    'PATCH': _kFinanceWrite,
+    'DELETE': _kMgmt,
+  },
+  '/api/noi': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'finance_staff',
+      'report_viewer'
+    },
+    'POST': _kMgmt,
+  },
+  '/api/meter-readings': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'maintenance_staff',
+      'property_inspector',
+    },
+    'POST': {
+      'super_admin',
+      'operations_manager',
+      'finance_staff',
+      'maintenance_staff',
+      'property_inspector',
+    },
+    'PATCH': _kFinanceWrite,
+  },
+  '/api/turnover-reports': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'report_viewer',
+    },
+    'POST': _kContractWrite,
+    'PATCH': _kFinanceWrite,
+  },
+  '/api/kpi': {
+    'GET': _kAll,
+    'POST': _kMgmt,
+    'PATCH': _kMgmt,
+    'PUT': _kMgmt,
+    'DELETE': _kMgmt,
+  },
+
+  // ── M4 工单 ───────────────────────────────────────────────────────────────
+  '/api/workorders': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'maintenance_staff',
+      'property_inspector',
+      'report_viewer',
+    },
+    'POST': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'maintenance_staff',
+    },
+    'PATCH': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'maintenance_staff',
+    },
+  },
+
+  // ── M5 二房东（具体路径前缀先于宽泛前缀）──────────────────────────────────
+  '/api/subleases/portal': {
+    '*': {'sub_landlord'}, // 二房东自助填报专属入口
+  },
+  '/api/subleases': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'report_viewer',
+    },
+    'POST': _kContractWrite,
+    'PATCH': _kContractWrite,
+  },
+
+  // ── 文件代理 ──────────────────────────────────────────────────────────────
+  '/api/files': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'maintenance_staff',
+      'property_inspector',
+      'report_viewer',
+      'sub_landlord',
+    },
+    'POST': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'maintenance_staff',
+    },
+  },
+
+  // ── 报表导出 ──────────────────────────────────────────────────────────────
+  '/api/reports': {
+    'GET': {
+      'super_admin',
+      'operations_manager',
+      'leasing_specialist',
+      'finance_staff',
+      'report_viewer',
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// 公开路由白名单（不需要 JWT 认证，与 auth_middleware 保持一致）
+// ---------------------------------------------------------------------------
+const _publicPaths = {
+  '/health',
+  '/api/auth/login',
+  '/api/auth/refresh',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+};
+
+// ---------------------------------------------------------------------------
+// 1. Pipeline 级全局 RBAC 中间件
+// ---------------------------------------------------------------------------
+
+/// 全局 RBAC 中间件。
 ///
-/// 公开路由（`/health`、`/api/auth/*`）直接放行。
-/// 其余路由要求已登录，并按路由权限表检查最低权限。
-/// Day 7 会进一步完善权限矩阵覆盖所有业务路由。
+/// 以 [_routePermissionMatrix] 为唯一权限源，通过路径前缀 + HTTP 方法匹配
+/// 当前用户角色是否在允许集合中。所有角色判断由矩阵驱动，禁止散落 if-else。
+///
+/// 无权限时返回 403 + `FORBIDDEN` code。
 Middleware rbacMiddleware() {
   return (Handler inner) {
     return (Request request) async {
       final path = '/${request.url.path}';
       final method = request.method;
 
-      // 公开路由跳过 RBAC
-      if (_isPublicPath(path)) {
+      // 公开路由无需 RBAC
+      if (_publicPaths.contains(path)) {
         return inner(request);
       }
 
-      // 获取用户上下文（authMiddleware 已验证 JWT 并注入）
       final ctx = request.context[kRequestContextKey] as RequestContext?;
       if (ctx == null) {
         // 防御性拦截：auth 中间件应已拒绝未认证请求
         throw const UnauthorizedException();
       }
 
-      // 只读观察者限制：仅允许 GET 请求
-      if (ctx.role == UserRole.reportViewer && method != 'GET') {
-        throw const ForbiddenException();
-      }
-
-      // 二房东角色限制：只能访问自身外部填报路由
-      if (ctx.role == UserRole.subLandlord && !_isSubLandlordPath(path)) {
-        throw const ForbiddenException();
-      }
+      // 二房东账户完整性校验（属于账户配置约束，非矩阵 RBAC 逻辑）
       if (ctx.role == UserRole.subLandlord && ctx.boundContractId == null) {
         throw const ForbiddenException('SUBLEASE_SCOPE_MISSING', '二房东账户未绑定主合同');
       }
 
-      // 按路由权限表核查最低所需权限
-      final required = _lookupRequiredPermissions(path, method);
-      if (required != null && !_hasPermissions(ctx.role, required)) {
+      // 从矩阵解析允许角色集合
+      final allowedRoles = _resolveAllowedRoles(path, method);
+
+      // 路径不在矩阵中：对已认证用户放行（per-route 层自行控制）
+      if (allowedRoles == null) return inner(request);
+
+      // 空集合：任何已认证角色均可访问（如 /api/auth/me）
+      if (allowedRoles.isEmpty) return inner(request);
+
+      // 角色不在允许集合中：返回 403 FORBIDDEN
+      if (!allowedRoles.contains(ctx.role.value)) {
         throw const ForbiddenException();
       }
 
@@ -54,40 +455,37 @@ Middleware rbacMiddleware() {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Per-route 装饰器（用于 Controller 方法级精细权限控制）
+// 2. Per-route 角色守卫装饰器（Controller 方法级精细控制）
 // ---------------------------------------------------------------------------
 
-/// Per-route RBAC 和隐二房东数据隔离装饰器。
+/// 方法级 RBAC 角色守卫装饰器。
 ///
-/// 用法（Controller 注册路由时）：
+/// [allowedRoles] 为允许访问该 Handler 的角色 value 字符串集合。
+/// [subLandlordIsolated] 为 true 时额外校验二房东绑定合同。
+///
+/// 用法：
 /// ```dart
 /// router.get('/api/contracts',
-///   withRbac(['contracts.read'], contractController.list));
+///   withRbac({'super_admin', 'leasing_specialist'}, handler));
 /// router.get('/api/subleases',
-///   withRbac(['sublease.read'], subLeaseController.list,
-///     subLandlordIsolated: true));
+///   withRbac({'leasing_specialist'}, handler, subLandlordIsolated: true));
 /// ```
 Handler withRbac(
-  List<String> requiredPermissions,
+  Set<String> allowedRoles,
   Handler handler, {
   bool subLandlordIsolated = false,
 }) {
   return (Request request) async {
     final ctx = request.context[kRequestContextKey] as RequestContext?;
-    if (ctx == null) {
-      throw const UnauthorizedException();
-    }
+    if (ctx == null) throw const UnauthorizedException();
 
-    final allowed = _hasPermissions(ctx.role, requiredPermissions);
-    if (!allowed) {
+    if (!allowedRoles.contains(ctx.role.value)) {
       throw const ForbiddenException();
     }
 
-    // 二房东数据隔离检查
     if (subLandlordIsolated && ctx.role == UserRole.subLandlord) {
       if (ctx.boundContractId == null) {
-        throw const ForbiddenException(
-            'SUBLEASE_SCOPE_MISSING', '二房东账户缺少绑定合同');
+        throw const ForbiddenException('SUBLEASE_SCOPE_MISSING', '二房东账户缺少绑定合同');
       }
     }
 
@@ -96,286 +494,20 @@ Handler withRbac(
 }
 
 // ---------------------------------------------------------------------------
-// 内部辅助方法
+// 内部辅助
 // ---------------------------------------------------------------------------
 
-/// 判断路由是否属于公开不需鉴权的路径。
-/// 无需 Bearer Token 的公开端点，与 auth_middleware 白名单保持一致。
-/// Shelf 的 request.url.path 不含前导斜杠，此处 path 已在外部加了 '/'。
-bool _isPublicPath(String path) =>
-    path == '/health' ||
-    path == '/api/auth/login' ||
-    path == '/api/auth/refresh' ||
-    path == '/api/auth/forgot-password' ||
-    path == '/api/auth/reset-password';
-
-/// 二房东可访问的路径前缀
-bool _isSubLandlordPath(String path) =>
-    path.startsWith('/api/subleases/portal');
-
-/// 按路由前缀 + HTTP 方法查询路由所需最低权限列表。
-/// 返回 null 表示所有已登录用户均可访问（由 per-route 层进一步控制）。
-List<String>? _lookupRequiredPermissions(String path, String method) {
-  for (final rule in _routeTable) {
-    if (path.startsWith(rule.prefix)) {
-      return rule.methodPermissions[method] ?? rule.methodPermissions['*'];
-    }
+/// 按路径前缀 + 方法从 [_routePermissionMatrix] 中解析允许的角色集合。
+///
+/// 返回 null 表示路径不在矩阵中（调用方决定是否放行）。
+/// 返回空集合表示任何已认证角色均可访问。
+Set<String>? _resolveAllowedRoles(String path, String method) {
+  for (final entry in _routePermissionMatrix.entries) {
+    if (!path.startsWith(entry.key)) continue;
+    final methodMap = entry.value;
+    // 精确方法匹配，不存在时回退通配符 '*'
+    return methodMap[method] ?? methodMap['*'];
   }
-  return null; // 未进入表：不强制（per-route 层自行处理）
+  return null;
 }
-
-/// 路由权限規则表（按匹配顺序排列，越具体的前缀先列出）
-/// 这里定义的是最低入场门槛权限，具体 handler 可再用 withRbac 层叠加。
-final _routeTable = <_RouteRule>[
-  // ── 认证（/api/auth/me、logout、change-password 需已登录，无需特定权限） ──
-  _RouteRule('/api/auth', {'*': []}),
-
-  // ── 用户管理（仅 admin/super_admin） ──
-  _RouteRule('/api/users', {
-    'GET': ['users.read'],
-    'POST': ['users.write'],
-    'PATCH': ['users.write'],
-    'DELETE': ['users.write'],
-  }),
-
-  // ── 一-A 组织架构 ──
-  _RouteRule('/api/departments', {
-    'GET': ['org.read'],
-    'POST': ['org.manage'],
-    'PATCH': ['org.manage'],
-    'DELETE': ['org.manage'],
-  }),
-  _RouteRule('/api/managed-scopes', {
-    'GET': ['org.read'],
-    'PUT': ['org.manage'],
-  }),
-
-  // ── M1 资产 ──
-  // 顺序重要：更具体的前缀先列出（/api/floor-plans 先于 /api/floors）
-  _RouteRule('/api/floor-plans', {
-    'GET': ['assets.read'],
-    'PATCH': ['assets.write'],
-  }),
-  _RouteRule('/api/assets', {
-    'GET': ['assets.read'],
-  }),
-  _RouteRule('/api/buildings', {
-    'GET': ['assets.read'],
-    'POST': ['assets.write'],
-    'PATCH': ['assets.write'],
-  }),
-  _RouteRule('/api/floors', {
-    'GET': ['assets.read'],
-    'POST': ['assets.write'],
-    'PATCH': ['assets.write'],
-  }),
-  _RouteRule('/api/units', {
-    'GET': ['assets.read'],
-    'POST': ['assets.write'],
-    'PATCH': ['assets.write'],
-    'DELETE': ['assets.write'],
-  }),
-  _RouteRule('/api/renovations', {
-    'GET': ['assets.read'],
-    'POST': ['assets.write'],
-    'PATCH': ['assets.write'],
-  }),
-
-  // ── M2 合同 ──
-  _RouteRule('/api/tenants', {
-    'GET': ['contracts.read'],
-    'POST': ['contracts.write'],
-    'PATCH': ['contracts.write'],
-  }),
-  _RouteRule('/api/escalation-templates', {
-    'GET': ['contracts.read'],
-    'POST': ['contracts.write'],
-    'PATCH': ['contracts.write'],
-    'DELETE': ['contracts.write'],
-  }),
-  _RouteRule('/api/contracts', {
-    'GET': ['contracts.read'],
-    'POST': ['contracts.write'],
-    'PATCH': ['contracts.write'],
-  }),
-  _RouteRule('/api/alerts', {
-    'GET': ['alerts.read'],
-    'POST': ['alerts.write'],
-    'PATCH': ['alerts.read'], // 标记已读只需 alerts.read
-  }),
-
-  // ── M2-A 押金 ──
-  _RouteRule('/api/deposits', {
-    'GET': ['deposit.read'],
-    'POST': ['deposit.write'],
-    'PATCH': ['deposit.write'],
-  }),
-
-  // ── M3 财务 ──
-  _RouteRule('/api/invoices', {
-    'GET': ['finance.read'],
-    'POST': ['finance.write'],
-    'PATCH': ['finance.write'],
-  }),
-  _RouteRule('/api/payments', {
-    'GET': ['finance.read'],
-    'POST': ['finance.write'],
-    'PATCH': ['finance.write'],
-  }),
-  _RouteRule('/api/expenses', {
-    'GET': ['finance.read'],
-    'POST': ['finance.write'],
-    'PATCH': ['finance.write'],
-    'DELETE': ['finance.write'],
-  }),
-  _RouteRule('/api/noi', {
-    'GET': ['finance.read'],
-    'POST': ['finance.write'],
-  }),
-  // kpi.view 是查看权限（RBAC_MATRIX.md 定义的权限字符串）
-  _RouteRule('/api/kpi', {
-    'GET': ['kpi.view'],
-    'POST': ['kpi.manage'],
-    'PATCH': ['kpi.manage'],
-    'PUT': ['kpi.manage'],
-    'DELETE': ['kpi.manage'],
-  }),
-
-  // ── M4 工单 ──
-  _RouteRule('/api/workorders', {
-    'GET': ['workorders.read'],
-    'POST': ['workorders.write'],
-    'PATCH': ['workorders.write'],
-  }),
-
-  // ── M5 二房东 ──
-  _RouteRule('/api/subleases', {
-    'GET': ['sublease.read'],
-    'POST': ['sublease.write'],
-    'PATCH': ['sublease.write'],
-  }),
-
-  // ── 文件代理 / 报表 ──
-  _RouteRule('/api/files', {'GET': ['assets.read']}),
-  _RouteRule('/api/reports', {'GET': ['finance.read']}),
-];
-
-/// 路由权限规则数据类
-class _RouteRule {
-  final String prefix;
-
-  /// HTTP 方法 → 所需权限列表；键 `'*'` 匹配任意方法
-  final Map<String, List<String>> methodPermissions;
-
-  const _RouteRule(this.prefix, this.methodPermissions);
-}
-
-// ---------------------------------------------------------------------------
-// 权限矩阵（角色 → 权限字符串集合）
-// 与 docs/backend/RBAC_MATRIX.md 保持同步
-// ---------------------------------------------------------------------------
-bool _hasPermissions(UserRole role, List<String> required) {
-  final rolePermissions = _permissionMatrix[role] ?? {};
-  return required.every((p) => rolePermissions.contains(p));
-}
-
-const _permissionMatrix = <UserRole, Set<String>>{
-  UserRole.superAdmin: {
-    'org.read', 'org.manage',
-    'assets.read', 'assets.write',
-    'contracts.read', 'contracts.write',
-    'deposit.read', 'deposit.write',
-    'finance.read', 'finance.write',
-    'kpi.view', 'kpi.manage', 'kpi.appeal',
-    'meterReading.write', 'turnoverReview.approve',
-    'workorders.read', 'workorders.write',
-    'sublease.read', 'sublease.write',
-    'alerts.read', 'alerts.write',
-    'ops.read', 'ops.write',
-    'import.execute',
-    // Legacy aliases kept for backward-compat with existing middleware tests
-    'users.read', 'users.write', 'reports.read',
-  },
-  UserRole.operationsManager: {
-    'org.read',
-    'org.manage',
-    'assets.read', 'assets.write',
-    'contracts.read', 'contracts.write',
-    'deposit.read',
-    'finance.read',
-    'kpi.view',
-    'kpi.manage',
-    'kpi.appeal',
-    'meterReading.write',
-    'workorders.read', 'workorders.write',
-    'sublease.read', 'sublease.write',
-    'alerts.read',
-    'alerts.write',
-    'ops.read',
-    'import.execute',
-    'reports.read',
-  },
-  UserRole.leasingSpecialist: {
-    'org.read',
-    'assets.read',
-    'contracts.read', 'contracts.write',
-    'deposit.read',
-    'finance.read',
-    'kpi.view',
-    'kpi.appeal',
-    'meterReading.write',
-    'workorders.read',
-    'sublease.read',
-    'sublease.write',
-    'alerts.read',
-    'import.execute',
-    'reports.read',
-  },
-  UserRole.financeStaff: {
-    'org.read',
-    'assets.read',
-    'contracts.read',
-    'deposit.read',
-    'deposit.write',
-    'finance.read', 'finance.write',
-    'kpi.view',
-    'kpi.appeal',
-    'meterReading.write',
-    'turnoverReview.approve',
-    'sublease.read',
-    'alerts.read',
-    'import.execute',
-    'reports.read',
-  },
-  UserRole.maintenanceStaff: {
-    'kpi.view',
-    'kpi.appeal',
-    'meterReading.write',
-    'workorders.read',
-    'workorders.write',
-  },
-  UserRole.propertyInspector: {
-    'org.read',
-    'assets.read',
-    'contracts.read',
-    'kpi.view',
-    'kpi.appeal',
-    'meterReading.write',
-    'workorders.read',
-  },
-  UserRole.reportViewer: {
-    'org.read',
-    'assets.read',
-    'contracts.read',
-    'deposit.read',
-    'finance.read',
-    'kpi.view',
-    'sublease.read',
-    'alerts.read',
-    'reports.read',
-  },
-  UserRole.subLandlord: {
-    'sublease.portal',
-  },
-};
 
