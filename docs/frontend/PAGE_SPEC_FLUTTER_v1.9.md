@@ -48,6 +48,8 @@ MainShell
 | 页面 | go_router path | 模块 | TabBar |
 |------|---------------|------|:------:|
 | 登录 | `/login` | 认证 | — |
+| 忘记密码 | `/forgot-password` | 认证 | — |
+| 修改密码 | `/change-password` | 认证 | — |
 | 首页 | `/dashboard` | 概览 | ✅ Tab 1 |
 | NOI 分析 | `/dashboard/noi-detail` | 概览 | — |
 | WALE 分析 | `/dashboard/wale-detail` | 概览 | — |
@@ -266,47 +268,147 @@ LoginView
 LoginPage
 └── BlocProvider(create: getIt<AuthCubit>())
     └── Scaffold
-        └── SafeArea
-            └── Padding(padding: 24)
-                └── Column(mainAxisAlignment: center)
-                    ├── Image.asset('assets/logo.png', height: 80)
-                    ├── SizedBox(height: 32)
-                    ├── Text("PropOS", style: headlineLarge)
-                    ├── SizedBox(height: 48)
-                    ├── Form(key: _formKey)
-                    │   ├── TextFormField(
-                    │   │     decoration: InputDecoration(labelText: "用户名", prefixIcon: Icon(Icons.person)),
-                    │   │     validator: requiredValidator,
-                    │   │   )
-                    │   ├── SizedBox(height: 16)
-                    │   └── TextFormField(
-                    │         decoration: InputDecoration(labelText: "密码", prefixIcon: Icon(Icons.lock)),
-                    │         obscureText: true,
-                    │         validator: requiredValidator,
-                    │       )
-                    ├── SizedBox(height: 8)
-                    ├── BlocBuilder<AuthCubit, AuthState>(
-                    │     builder: (ctx, state) => switch (state) {
-                    │       AuthError(:final message) =>
-                    │         Container(padding: 8, child: Text(message, style: TextStyle(color: colorScheme.error))),
-                    │       _ => const SizedBox.shrink(),
-                    │     },
-                    │   )
-                    ├── SizedBox(height: 24)
-                    └── BlocConsumer<AuthCubit, AuthState>(
-                          listener: (ctx, state) {
-                            if (state is AuthLoaded) ctx.go('/dashboard');
-                          },
-                          builder: (ctx, state) => FilledButton(
-                            onPressed: state is AuthLoading ? null : () => _submit(ctx),
-                            child: state is AuthLoading
-                              ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                              : Text("登录"),
-                          ),
-                        )
+        └── Container(decoration: gradient(primaryContainer → surface → surfaceContainerHighest))
+            └── SafeArea
+                └── Center
+                    └── SingleChildScrollView(padding: horizontal 24, vertical 32)
+                        └── Card(elevation: 2, borderRadius: 16)
+                            └── Padding(horizontal: 24, vertical: 40)
+                                └── Column(mainAxisSize: min)
+                                    ├── _LoginBrandWidget            ← 拆分到 widgets/login_brand_widget.dart
+                                    │   └── Column
+                                    │       ├── Container(64×64, primary bg, borderRadius: 14)
+                                    │       │   └── Icon(Icons.apartment, size: 32)
+                                    │       ├── SizedBox(height: 16)
+                                    │       ├── Text("PropOS", style: headlineMedium bold)
+                                    │       └── Text("物业运营管理平台", style: bodySmall onSurfaceVariant)
+                                    ├── SizedBox(height: 32)
+                                    ├── Form(key: _formKey)
+                                    │   ├── TextFormField(
+                                    │   │     labelText: "邮箱",
+                                    │   │     prefixIcon: Icons.mail_outline,
+                                    │   │     keyboardType: emailAddress,
+                                    │   │     validator: emailValidator,
+                                    │   │   )
+                                    │   ├── SizedBox(height: 16)
+                                    │   ├── TextFormField(
+                                    │   │     labelText: "密码",
+                                    │   │     prefixIcon: Icons.lock_outline,
+                                    │   │     obscureText: _obscurePassword,
+                                    │   │     suffixIcon: IconButton(切换明暗),
+                                    │   │     validator: passwordValidator,
+                                    │   │     onFieldSubmitted: _submit,
+                                    │   │   )
+                                    │   ├── SizedBox(height: 4)
+                                    │   ├── Row                          ← 记住账号与密码
+                                    │   │   ├── Checkbox(value: _rememberMe, visualDensity: compact)
+                                    │   │   ├── SizedBox(width: 8)
+                                    │   │   └── GestureDetector(onTap: toggle)
+                                    │   │       └── Text("记住账号与密码", style: bodySmall onSurfaceVariant)
+                                    │   └── Align(alignment: centerRight)  ← 忘记密码
+                                    │       └── TextButton(
+                                    │             onPressed: context.push(RoutePaths.forgotPassword),
+                                    │             child: Text("忘记密码？"),
+                                    │           )
+                                    ├── BlocBuilder<AuthCubit, AuthState>(
+                                    │     builder: (ctx, state) => switch (state) {
+                                    │       AuthStateError(:final message) =>
+                                    │         Padding(bottom: 12, child: Row(
+                                    │           Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+                                    │           SizedBox(width: 6),
+                                    │           Expanded(child: Text(message, color: colorScheme.error)),
+                                    │         )),
+                                    │       _ => const SizedBox.shrink(),
+                                    │     },
+                                    │   )
+                                    └── BlocConsumer<AuthCubit, AuthState>(
+                                          listener: _onAuthStateChanged,  ← 成功后持久化凭据并导航
+                                          builder: (ctx, state) => SizedBox(width: ∞, height: 48,
+                                            child: FilledButton(
+                                              onPressed: state is AuthStateLoading ? null : _submit,
+                                              child: state is AuthStateLoading
+                                                ? SizedBox(20×20, CircularProgressIndicator(strokeWidth: 2))
+                                                : Text("登 录"),
+                                            ),
+                                          ),
+                                        )
 ```
 
-### 3.2 修改密码页
+#### 记住账号交互规则
+
+- 使用 `flutter_secure_storage` 持久化凭据（key：`login_remember_me` / `login_remembered_email` / `login_remembered_pwd`）
+- `initState` 时读取存储恢复输入框内容和 `_rememberMe` 状态
+- 登录成功后在 listener 中调用 `_persistCredentials()`：
+  - `_rememberMe == true`：写入邮箱和密码
+  - `_rememberMe == false`：删除全部存储 key
+- **安全注意**：`_persistCredentials()` 必须在第一个 `await` 之前同步读取 Controller 文本，防止导航触发 `dispose()` 后 Controller 已销毁
+
+#### 忘记密码交互规则
+
+- 触发：`context.push(RoutePaths.forgotPassword)` 进入忘记密码页（路由 `/forgot-password`）
+- 忘记密码页规格见 §3.3
+
+#### 首次登录强制改密规则
+
+`_onAuthStateChanged` listener 中：
+- `user.mustChangePassword == true` → `context.go(RoutePaths.changePassword)`，路由守卫阻止跳转其他页面
+- `user.mustChangePassword == false` → `context.go(RoutePaths.dashboard)`
+
+### 3.2 忘记密码页
+
+**Flutter**: `ForgotPasswordPage` — 路由 `/forgot-password`  
+**Cubit**: `ForgotPasswordCubit`  
+**API**: `POST /api/auth/forgot-password`（发送重置邮件）
+
+#### Flutter Widget 树：
+
+```
+ForgotPasswordPage
+└── Scaffold(appBar: AppBar(title: "忘记密码"))
+    └── SafeArea
+        └── Padding(padding: 24)
+            └── Column(crossAxisAlignment: stretch)
+                ├── Text("输入注册邮箱，我们将发送密码重置链接。", style: bodyMedium onSurfaceVariant)
+                ├── SizedBox(height: 24)
+                ├── Form(key: _formKey)
+                │   └── TextFormField(
+                │         labelText: "邮箱",
+                │         prefixIcon: Icons.mail_outline,
+                │         keyboardType: emailAddress,
+                │         validator: emailValidator,
+                │       )
+                ├── SizedBox(height: 16)
+                ├── BlocBuilder<ForgotPasswordCubit, ForgotPasswordState>(
+                │     builder: (ctx, state) => switch (state) {
+                │       ForgotPasswordError(:final message) =>
+                │         Text(message, style: TextStyle(color: colorScheme.error)),
+                │       ForgotPasswordSuccess() =>
+                │         Text("重置链接已发送，请检查邮箱。", style: TextStyle(color: customColors.success)),
+                │       _ => const SizedBox.shrink(),
+                │     },
+                │   )
+                ├── SizedBox(height: 24)
+                └── BlocConsumer<ForgotPasswordCubit, ForgotPasswordState>(
+                      listener: (ctx, state) { /* 成功后无需导航，提示已在 builder 中展示 */ },
+                      builder: (ctx, state) => SizedBox(width: ∞, height: 48,
+                        child: FilledButton(
+                          onPressed: state is ForgotPasswordLoading ? null : _submit,
+                          child: state is ForgotPasswordLoading
+                            ? SizedBox(20×20, CircularProgressIndicator(strokeWidth: 2))
+                            : Text("发送重置链接"),
+                        ),
+                      ),
+                    )
+```
+
+#### 交互规则
+
+- 发送成功后按钮保持禁用，页面内联提示"重置链接已发送"，不自动关闭页面
+- 用户可通过 AppBar 返回按钮（`context.pop()`）回到登录页
+
+---
+
+### 3.3 修改密码页
 
 **Admin**: `ChangePasswordView.vue`（用户下拉菜单触发 `ElDialog`）  
 **Flutter**: `ChangePasswordPage` — 路由 `/change-password`
@@ -2446,11 +2548,13 @@ DunningListPage
 
 ## 附录 A：页面清单与模块映射
 
-### A.1 Flutter 页面清单（21 个页面）
+### A.1 Flutter 页面清单（23 个页面）
 
 | 页面 | go_router path | 模块 | TabBar |
 |------|---------------|------|:------:|
 | 登录 | `/login` | 认证 | — |
+| 忘记密码 | `/forgot-password` | 认证 | — |
+| 修改密码 | `/change-password` | 认证 | — |
 | 首页 | `/dashboard` | 概览 | ✅ Tab 1 |
 | NOI 移动分析 | `/dashboard/noi-detail` | 概览 | — |
 | WALE 移动分析 | `/dashboard/wale-detail` | 概览 | — |
