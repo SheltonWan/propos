@@ -277,5 +277,242 @@ void main() {
         expect(await repository.getAccessToken(), null);
       });
     });
+
+    // ── login with refresh_token_expires_at ──
+    // 登录响应包含 refresh_token_expires_at 时应一并写入 storage
+
+    group('login with refresh_token_expires_at', () {
+      test('persists refresh_token_expires_at when present in response', () async {
+        const responseWithExpiry = <String, dynamic>{
+          'access_token': 'new-access',
+          'refresh_token': 'new-refresh',
+          'expires_in': 3600,
+          'refresh_token_expires_at': '2026-04-30T00:00:00Z',
+          'user': {
+            'id': 'user-1',
+            'name': '张三',
+            'email': 'zhangsan@propos.com',
+            'role': 'operations_manager',
+            'department_id': 'dept-1',
+            'must_change_password': false,
+          },
+        };
+
+        when(
+          () => mockApiClient.apiPost<Map<String, dynamic>>(
+            ApiPaths.authLogin,
+            data: any<Map<String, dynamic>>(named: 'data'),
+            fromJson: any(named: 'fromJson'),
+          ),
+        ).thenAnswer((_) async => responseWithExpiry);
+
+        await repository.login(email: 'zhangsan@propos.com', password: 'password123');
+
+        verify(
+          () => mockStorage.write(key: 'refresh_token_expires_at', value: '2026-04-30T00:00:00Z'),
+        ).called(1);
+      });
+
+      // 响应中无 refresh_token_expires_at → 不写 storage，不抛出异常
+      test('does not write refresh_token_expires_at when absent', () async {
+        when(
+          () => mockApiClient.apiPost<Map<String, dynamic>>(
+            ApiPaths.authLogin,
+            data: any<Map<String, dynamic>>(named: 'data'),
+            fromJson: any(named: 'fromJson'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'access_token': 'access',
+            'refresh_token': 'refresh',
+            'expires_in': 3600,
+            'user': {
+              'id': 'u1',
+              'name': '张三',
+              'email': 'z@propos.com',
+              'role': 'operations_manager',
+              'must_change_password': false,
+            },
+          },
+        );
+
+        await repository.login(email: 'z@propos.com', password: 'p');
+
+        verifyNever(
+          () => mockStorage.write(
+            key: 'refresh_token_expires_at',
+            value: any(named: 'value'),
+          ),
+        );
+      });
+    });
+
+    // ── isLoggedIn – 近期满期自动续期 ──
+    // refresh_token_expires_at 剩余不足 BusinessRules.refreshTokenWarnDays 天时
+    // 应静默调用 refreshToken；若续期失败则吞掉异常，仍返回 true
+
+    group('isLoggedIn – near expiry prolongs session', () {
+      // 剩余有效期 < 3 天 → 静默触发 refreshToken
+      test('calls refreshToken when refresh_token_expires_at is within warn window', () async {
+        when(() => mockStorage.read(key: 'access_token')).thenAnswer((_) async => 'valid-token');
+        final nearExpiry = DateTime.now().toUtc().add(const Duration(days: 2)).toIso8601String();
+        when(
+          () => mockStorage.read(key: 'refresh_token_expires_at'),
+        ).thenAnswer((_) async => nearExpiry);
+        when(() => mockStorage.read(key: 'refresh_token')).thenAnswer((_) async => 'old-refresh');
+        when(
+          () => mockApiClient.apiPost<Map<String, dynamic>>(
+            ApiPaths.authRefresh,
+            data: any<Map<String, dynamic>>(named: 'data'),
+            fromJson: any(named: 'fromJson'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'access_token': 'new-access',
+            'refresh_token': 'new-refresh',
+            'expires_in': 3600,
+          },
+        );
+
+        expect(await repository.isLoggedIn, true);
+
+        verify(
+          () => mockApiClient.apiPost<Map<String, dynamic>>(
+            ApiPaths.authRefresh,
+            data: any(named: 'data'),
+            fromJson: any(named: 'fromJson'),
+          ),
+        ).called(1);
+      });
+
+      // 剩余有效期 > 3 天 → 不触发 refreshToken
+      test('does not call refreshToken when refresh_token_expires_at is far away', () async {
+        when(() => mockStorage.read(key: 'access_token')).thenAnswer((_) async => 'valid-token');
+        final farExpiry = DateTime.now().toUtc().add(const Duration(days: 30)).toIso8601String();
+        when(
+          () => mockStorage.read(key: 'refresh_token_expires_at'),
+        ).thenAnswer((_) async => farExpiry);
+
+        expect(await repository.isLoggedIn, true);
+
+        verifyNever(
+          () => mockApiClient.apiPost<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+            fromJson: any(named: 'fromJson'),
+          ),
+        );
+      });
+
+      // refreshToken 续期本身失败 → 吞掉异常，isLoggedIn 仍返回 true
+      test('returns true even when silent refreshToken throws', () async {
+        when(() => mockStorage.read(key: 'access_token')).thenAnswer((_) async => 'valid-token');
+        final nearExpiry = DateTime.now().toUtc().add(const Duration(days: 1)).toIso8601String();
+        when(
+          () => mockStorage.read(key: 'refresh_token_expires_at'),
+        ).thenAnswer((_) async => nearExpiry);
+        when(() => mockStorage.read(key: 'refresh_token')).thenAnswer((_) async => 'stale-refresh');
+        when(
+          () => mockApiClient.apiPost<Map<String, dynamic>>(
+            ApiPaths.authRefresh,
+            data: any<Map<String, dynamic>>(named: 'data'),
+            fromJson: any(named: 'fromJson'),
+          ),
+        ).thenThrow(
+          const ApiException(code: 'INVALID_REFRESH_TOKEN', message: '刷新令牌无效', statusCode: 401),
+        );
+
+        // 续期失败不影响 isLoggedIn 判断
+        expect(await repository.isLoggedIn, true);
+      });
+    });
+
+    // ── forgotPassword ──
+    // 防枚举设计：POST /api/auth/forgot-password，后端无论邮箱是否存在均200
+
+    group('forgotPassword', () {
+      // 正常请求 → 调用 POST /api/auth/forgot-password，传入 email
+      test('calls apiPost with email payload', () async {
+        when(
+          () => mockApiClient.apiPost<void>(
+            ApiPaths.authForgotPassword,
+            data: any<Map<String, dynamic>>(named: 'data'),
+          ),
+        ).thenAnswer((_) async {});
+
+        await repository.forgotPassword(email: 'user@propos.com');
+
+        verify(
+          () => mockApiClient.apiPost<void>(
+            ApiPaths.authForgotPassword,
+            data: {'email': 'user@propos.com'},
+          ),
+        ).called(1);
+      });
+
+      // 接口抛出异常（限流等）→ 向上透传，由 Cubit 处理
+      test('propagates ApiException on failure', () async {
+        when(
+          () => mockApiClient.apiPost<void>(
+            ApiPaths.authForgotPassword,
+            data: any<Map<String, dynamic>>(named: 'data'),
+          ),
+        ).thenThrow(
+          const ApiException(code: 'RATE_LIMIT_EXCEEDED', message: '请求过于频繁', statusCode: 429),
+        );
+
+        await expectLater(
+          () => repository.forgotPassword(email: 'user@propos.com'),
+          throwsA(isA<ApiException>().having((e) => e.code, 'code', 'RATE_LIMIT_EXCEEDED')),
+        );
+      });
+    });
+
+    // ── resetPassword ──
+    // 提交 OTP 验证码 + 新密码完成密码重置
+
+    group('resetPassword', () {
+      // 正确 OTP → POST /api/auth/reset-password，携带 email + otp + new_password
+      test('calls apiPost with correct payload', () async {
+        when(
+          () => mockApiClient.apiPost<void>(
+            ApiPaths.authResetPassword,
+            data: any<Map<String, dynamic>>(named: 'data'),
+          ),
+        ).thenAnswer((_) async {});
+
+        await repository.resetPassword(
+          email: 'user@propos.com',
+          otp: '123456',
+          newPassword: 'NewPass@123',
+        );
+
+        verify(
+          () => mockApiClient.apiPost<void>(
+            ApiPaths.authResetPassword,
+            data: {'email': 'user@propos.com', 'otp': '123456', 'new_password': 'NewPass@123'},
+          ),
+        ).called(1);
+      });
+
+      // OTP 错误或已过期 → 服务端返回 INVALID_OTP → 向上透传
+      test('propagates ApiException when OTP is invalid', () async {
+        when(
+          () => mockApiClient.apiPost<void>(
+            ApiPaths.authResetPassword,
+            data: any<Map<String, dynamic>>(named: 'data'),
+          ),
+        ).thenThrow(const ApiException(code: 'INVALID_OTP', message: '验证码错误或已过期', statusCode: 400));
+
+        await expectLater(
+          () => repository.resetPassword(
+            email: 'user@propos.com',
+            otp: '000000',
+            newPassword: 'NewPass@123',
+          ),
+          throwsA(isA<ApiException>().having((e) => e.code, 'code', 'INVALID_OTP')),
+        );
+      });
+    });
   });
 }
