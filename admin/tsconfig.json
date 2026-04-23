@@ -9,7 +9,6 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client"],
     "strict": true,
     "noImplicitAny": true
   },

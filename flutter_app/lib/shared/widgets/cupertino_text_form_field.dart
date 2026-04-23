@@ -18,9 +18,8 @@ class CupertinoTextFormField extends FormField<String> {
     Widget? suffix,
     int? maxLength,
     void Function(String)? onFieldSubmitted,
-    AutovalidateMode? autovalidateMode,
+    super.autovalidateMode,
   }) : super(
-          autovalidateMode: autovalidateMode,
           // 忽略 FormField 传入的 value 参数，直接读取 controller，确保外部回填同步
           validator: validator != null ? (_) => validator(controller.text) : null,
           builder: (FormFieldState<String> field) {

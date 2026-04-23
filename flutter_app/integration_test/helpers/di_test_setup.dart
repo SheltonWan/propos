@@ -86,7 +86,7 @@ Future<void> resetTestAccountLock(String email) async {
     ),
   );
   try {
-    final response = await dio.post('/api/test/reset-account-lock', data: {'email': email});
+    final response = await dio.post<Map<String, dynamic>>('/api/test/reset-account-lock', data: {'email': email});
     if (response.statusCode != 200) {
       // ignore: avoid_print
       print(

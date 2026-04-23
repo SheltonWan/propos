@@ -379,8 +379,8 @@ void main() {
         verify(
           () => mockApiClient.apiPost<Map<String, dynamic>>(
             ApiPaths.authRefresh,
-            data: any(named: 'data'),
-            fromJson: any(named: 'fromJson'),
+            data: any<Map<String, dynamic>>(named: 'data'),
+            fromJson: any<Map<String, dynamic> Function(dynamic)>(named: 'fromJson'),
           ),
         ).called(1);
       });
@@ -397,9 +397,9 @@ void main() {
 
         verifyNever(
           () => mockApiClient.apiPost<Map<String, dynamic>>(
-            any(),
-            data: any(named: 'data'),
-            fromJson: any(named: 'fromJson'),
+            any<String>(),
+            data: any<Map<String, dynamic>>(named: 'data'),
+            fromJson: any<Map<String, dynamic> Function(dynamic)>(named: 'fromJson'),
           ),
         );
       });

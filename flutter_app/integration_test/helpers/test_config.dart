@@ -8,7 +8,7 @@
 ///     --dart-define=IT_ADMIN_PASSWORD=Test1234! \
 ///     --dart-define=IT_SUBLORD_EMAIL=dingsheng@external.com \
 ///     --dart-define=IT_SUBLORD_PASSWORD=Test1234! \
-///     -d <simulator_id>
+///     -d `<simulator_id>`
 abstract final class IntegrationTestConfig {
   /// 本地后端 Base URL
   static const String baseUrl = String.fromEnvironment(
