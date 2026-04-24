@@ -147,8 +147,8 @@ echo "输出  : $FLOORS_DIR/${PREFIX}_*.svg"
 echo ""
 
 mkdir -p "$FLOORS_DIR"
-# 清空旧的同前缀 SVG（避免上次残留）
-find "$FLOORS_DIR" -maxdepth 1 -name "${PREFIX}_*.svg" -delete 2>/dev/null || true
+# 清空旧的同前缀产物（SVG + JSON 骨架），避免上次残留
+find "$FLOORS_DIR" -maxdepth 1 \( -name "${PREFIX}_*.svg" -o -name "${PREFIX}_*.json" \) -delete 2>/dev/null || true
 
 # 跑切分脚本（过滤 DIMASSOC 噪音日志）
 python3 "$SPLIT_SCRIPT" "$DXF_PATH" "$FLOORS_DIR" --prefix "$PREFIX" 2>&1 \
