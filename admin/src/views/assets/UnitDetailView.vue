@@ -89,7 +89,12 @@
         <template #header>
           <div class="card-header">
             <span>当前租赁</span>
-            <el-button type="primary" link @click="goContract">查看合同详情 →</el-button>
+            <el-button
+              v-if="M2_CONTRACT_ENABLED"
+              type="primary"
+              link
+              @click="goContract"
+            >查看合同详情 →</el-button>
           </div>
         </template>
         <el-descriptions :column="3" border>
@@ -234,6 +239,7 @@ import dayjs from 'dayjs'
 import { Edit, Plus } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useUnitDetailStore } from '@/stores'
+import { M2_CONTRACT_ENABLED } from '@/constants/feature_flags'
 import type {
   DecorationStatus,
   Orientation,

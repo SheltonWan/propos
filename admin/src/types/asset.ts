@@ -161,13 +161,13 @@ export interface UnitListParams {
   is_leasable?: boolean
   include_archived?: boolean
   page?: number
-  page_size?: number
+  pageSize?: number
 }
 
 export interface RenovationListParams {
   unit_id?: string
   page?: number
-  page_size?: number
+  pageSize?: number
 }
 
 // ─── 改造记录新增请求 ──────────────────────────────────

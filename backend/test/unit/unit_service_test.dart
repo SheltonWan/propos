@@ -192,74 +192,165 @@ void main() {
   // ─── importUnits ─────────────────────────────────────────────────────────
 
   group('importUnits()', () {
-    test('只含标题行（无数据）→ total_rows=0 / valid_rows=0', () async {
+    /// 通用伪结果生成器：模拟 import_batches RETURNING 行
+    Result fakeBatchRow({
+      required int totalRecords,
+      required int successCount,
+      required int failureCount,
+      required String rollbackStatus,
+      required bool isDryRun,
+      List<Map<String, dynamic>>? errorDetails,
+    }) {
+      return makeResult(
+        [
+          'id',
+          'batch_name',
+          'data_type',
+          'total_records',
+          'success_count',
+          'failure_count',
+          'rollback_status',
+          'is_dry_run',
+          'error_details',
+          'source_file_path',
+          'created_by',
+          'created_at',
+        ],
+        [
+          [
+            'batch-id',
+            'units_test',
+            'units',
+            totalRecords,
+            successCount,
+            failureCount,
+            rollbackStatus,
+            isDryRun,
+            errorDetails,
+            null,
+            null,
+            DateTime.utc(2026, 1, 1),
+          ],
+        ],
+      );
+    }
+
+    test('只含标题行（无数据）→ total_records=0', () async {
+      pool.executeHandler = (q, p) => fakeBatchRow(
+            totalRecords: 0,
+            successCount: 0,
+            failureCount: 0,
+            rollbackStatus: 'committed',
+            isDryRun: false,
+          );
       final bytes = _makeExcel(emptyBody: true);
       final result = await svc.importUnits(fileBytes: bytes);
-      expect(result['total_rows'], 0);
-      expect(result['valid_rows'], 0);
+      expect(result['total_records'], 0);
+      expect(result['success_count'], 0);
     });
 
-    test('含一行必填字段缺失的行 → error_rows=1', () async {
+    test('含一行必填字段缺失的行 → failure_count>0 & rollback_status=rolled_back',
+        () async {
+      pool.executeHandler = (q, p) => fakeBatchRow(
+            totalRecords: 1,
+            successCount: 0,
+            failureCount: 1,
+            rollbackStatus: 'rolled_back',
+            isDryRun: false,
+            errorDetails: [
+              {'row': 2, 'field': 'floor_id', 'error': '楼层ID不能为空'},
+            ],
+          );
       final bytes = _makeExcel(rows: [
-        ['b-1', null, null, 'office'], // 缺少 floor_id 和 unit_number
+        ['b-1', null, null, 'office'],
       ]);
       final result = await svc.importUnits(fileBytes: bytes);
-      expect(result['error_rows'], greaterThan(0));
+      expect(result['failure_count'], greaterThan(0));
+      expect(result['rollback_status'], 'rolled_back');
     });
 
-    test('含无效 propertyType → error_rows > 0', () async {
+    test('含无效 propertyType → failure_count=1', () async {
+      pool.executeHandler = (q, p) => fakeBatchRow(
+            totalRecords: 1,
+            successCount: 0,
+            failureCount: 1,
+            rollbackStatus: 'rolled_back',
+            isDryRun: false,
+            errorDetails: [
+              {'row': 2, 'field': 'property_type', 'error': '无效业态值: shop'},
+            ],
+          );
       final bytes = _makeExcel(rows: [
-        ['b-1', 'f-1', '101', 'shop'], // 无效业态
+        ['b-1', 'f-1', '101', 'shop'],
       ]);
       final result = await svc.importUnits(fileBytes: bytes);
-      expect(result['error_rows'], 1);
-      expect((result['errors'] as List).first,
-          contains('无效业态值'));
+      expect(result['failure_count'], 1);
+      expect(result['error_details'], isA<List>());
     });
 
-    test('dry_run=true → valid_rows > 0 但不调用 bulkCreate', () async {
-      // 提供合法行，dryRun=true 不写 DB（pool.executeHandler 保持默认空返回）
+    test('dry_run=true → is_dry_run=true 且 success_count=有效行数', () async {
+      pool.executeHandler = (q, p) => fakeBatchRow(
+            totalRecords: 1,
+            successCount: 1,
+            failureCount: 0,
+            rollbackStatus: 'committed',
+            isDryRun: true,
+          );
       final bytes = _makeExcel(rows: [
         ['b-1', 'f-1', '101', 'office'],
       ]);
       final result = await svc.importUnits(fileBytes: bytes, dryRun: true);
-      expect(result['dry_run'], isTrue);
-      expect(result['valid_rows'], 1);
+      expect(result['is_dry_run'], isTrue);
+      expect(result['success_count'], 1);
     });
 
-    test('含合法行且 dryRun=false → bulkCreate 被调用（execute 至少调用一次）', () async {
-      var executeCalled = false;
-      pool.executeHandler = (q, p) {
-        executeCalled = true;
-        return makeResult([], []);
-      };
+    test('含合法行且 dryRun=false → 走事务路径（runTx 被调用）', () async {
+      // 事务内：bulkCreate 的 INSERT INTO units 与 import_batches 的 RETURNING
+      // 都通过同一 executeHandler 处理；这里返回带行的伪结果即可。
+      pool.executeHandler = (q, p) => fakeBatchRow(
+            totalRecords: 1,
+            successCount: 1,
+            failureCount: 0,
+            rollbackStatus: 'committed',
+            isDryRun: false,
+          );
       final bytes = _makeExcel(rows: [
         ['b-1', 'f-1', '101', 'retail'],
       ]);
       await svc.importUnits(fileBytes: bytes, dryRun: false);
-      expect(executeCalled, isTrue);
+      expect(pool.runTxCalled, isTrue);
     });
   });
 
   // ─── getOverview 统计 ─────────────────────────────────────────────────────
 
   group('getOverview()', () {
-    // 工具：第 1 次调用 → byType；第 2 次（及后续）→ wale
+    // 工具：按调用顺序派发
+    //   1) getOverviewStats   → byType
+    //   2) getWaleStats       → wale
+    //   3) countLeasableUnits → leasableCount
     Result Function(Object q, Object? p) dispatcher({
       required Result byType,
       Result? wale,
+      Result? leasableCount,
     }) {
       var callCount = 0;
       return (q, p) {
         callCount++;
         if (callCount == 1) return byType;
-        return wale ??
-            makeResult(
-              ['wale_income_weighted', 'wale_area_weighted'],
-              [
-                [0.0, 0.0],
-              ],
-            );
+        if (callCount == 2) {
+          return wale ??
+              makeResult(
+                ['wale_income_weighted', 'wale_area_weighted'],
+                [
+                  [0.0, 0.0],
+                ],
+              );
+        }
+        return leasableCount ??
+            makeResult(['cnt'], [
+              [0],
+            ]);
       };
     }
 
@@ -280,6 +371,9 @@ void main() {
             ['office', 10, 5, 3, 1, 1000.0, 600.0],
           ],
         ),
+        leasableCount: makeResult(['cnt'], [
+          [9],
+        ]),
       );
       final stats = await svc.getOverview();
       expect(stats.totalUnits, 10);
@@ -313,6 +407,9 @@ void main() {
             [2.5, 2.3],
           ],
         ),
+        leasableCount: makeResult(['cnt'], [
+          [28],
+        ]),
       );
       final stats = await svc.getOverview();
       expect(stats.totalUnits, 30);

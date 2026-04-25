@@ -35,11 +35,14 @@ class RenovationController {
 
   // ─── Handlers ────────────────────────────────────────────────────────────
 
-  /// GET /api/renovations?unit_id=&page=&page_size=
+  /// GET /api/renovations?unit_id=&page=&pageSize=
+  ///
+  /// 分页参数：`pageSize`（官方）；为兼容旧客户端同时接受 `page_size`。
   Future<Response> _list(Request request) async {
     final q = request.url.queryParameters;
     final page = int.tryParse(q['page'] ?? '1') ?? 1;
-    final pageSize = int.tryParse(q['page_size'] ?? '20') ?? 20;
+    final pageSize =
+        int.tryParse(q['pageSize'] ?? q['page_size'] ?? '20') ?? 20;
 
     final result = await _service.listRenovations(
       unitId: q['unit_id'],

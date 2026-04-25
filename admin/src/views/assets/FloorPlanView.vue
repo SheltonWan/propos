@@ -137,7 +137,11 @@
       <template #footer>
         <el-button @click="showDrawer = false">关闭</el-button>
         <el-button type="primary" @click="goUnitDetail">查看详情</el-button>
-        <el-button v-if="drawerUnit?.current_contract_id" type="success" @click="goContract">
+        <el-button
+          v-if="drawerUnit?.current_contract_id && M2_CONTRACT_ENABLED"
+          type="success"
+          @click="goContract"
+        >
           查看合同
         </el-button>
       </template>
@@ -149,11 +153,12 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
-import axios from 'axios'
 import { ZoomIn, ZoomOut, Refresh } from '@element-plus/icons-vue'
 import { useFloorMapStore, useFloorUnitDrawerStore } from '@/stores'
 import type { HeatmapUnit, PropertyType, UnitStatus } from '@/types/asset'
 import { API_FILES } from '@/constants/api_paths'
+import { M2_CONTRACT_ENABLED } from '@/constants/feature_flags'
+import { apiGetRaw } from '@/api/client'
 
 const store = useFloorMapStore()
 const drawerStore = useFloorUnitDrawerStore()
@@ -207,12 +212,9 @@ watch(
       return
     }
     try {
-      const token = localStorage.getItem('access_token')
-      const res = await axios.get<string>(url, {
-        responseType: 'text',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      svgContent.value = res.data
+      // 通过统一 axios 实例 + apiGetRaw 拉取 SVG 文本，复用鉴权 / refresh 拦截器
+      const text = await apiGetRaw<string>(url, { responseType: 'text' })
+      svgContent.value = text
       await nextTick()
       applyHeatmapStyles()
     } catch {

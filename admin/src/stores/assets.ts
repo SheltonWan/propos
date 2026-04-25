@@ -98,7 +98,7 @@ export const useAssetOverviewStore = defineStore('assetOverview', () => {
       list.value = buildings
       overview.value = stats
       // 后端 BuildingSummary 当前不含 occupancy_rate，前端拉一次单元列表（NLA 较大时上限 1000）做分组聚合
-      const unitsRes = await fetchUnits({ page: 1, page_size: 1000 })
+      const unitsRes = await fetchUnits({ page: 1, pageSize: 1000 })
       const grouped: Record<string, BuildingOccupancy> = {}
       for (const u of unitsRes.data) {
         if (!grouped[u.building_id]) {
@@ -194,7 +194,7 @@ export const useBuildingDetailStore = defineStore('buildingDetail', () => {
       const [building, floorList, unitsRes] = await Promise.all([
         fetchBuilding(buildingId),
         fetchFloors(buildingId),
-        fetchUnits({ building_id: buildingId, page: 1, page_size: 1000 }),
+        fetchUnits({ building_id: buildingId, page: 1, pageSize: 1000 }),
       ])
       item.value = building
       floors.value = floorList
@@ -286,7 +286,7 @@ export const useUnitDetailStore = defineStore('unitDetail', () => {
     try {
       const [unit, renovationsRes] = await Promise.all([
         fetchUnit(unitId),
-        fetchRenovations({ unit_id: unitId, page: 1, page_size: 50 }),
+        fetchRenovations({ unit_id: unitId, page: 1, pageSize: 50 }),
       ])
       item.value = unit
       renovations.value = renovationsRes.data

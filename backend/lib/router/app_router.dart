@@ -22,6 +22,10 @@ import 'package:propos_backend/modules/assets/controllers/floor_plan_controller.
 import 'package:propos_backend/modules/assets/controllers/unit_controller.dart';
 import 'package:propos_backend/modules/assets/controllers/renovation_controller.dart';
 
+// 通用文件代理
+import 'package:propos_backend/modules/files/services/file_service.dart';
+import 'package:propos_backend/modules/files/controllers/file_controller.dart';
+
 /// 应用路由注册表
 /// 各模块 Controller 就绪后在此挂载
 Router buildRouter({required Pool db, required AppConfig config}) {
@@ -71,6 +75,14 @@ Router buildRouter({required Pool db, required AppConfig config}) {
   router.mount('/api/', floorPlanController.router.call);
   router.mount('/api/', unitController.router.call);
   router.mount('/api/', renovationController.router.call);
+
+  // ── 通用文件代理 ─────────────────────────────────────────────────────────
+  final fileService = FileService(
+    config.fileStoragePath,
+    maxUploadSizeMb: config.maxUploadSizeMb,
+  );
+  final fileController = FileController(fileService);
+  router.mount('/api/', fileController.router.call);
   // ──────────────────────────────────────────────────────────────────────────
 
   // TODO: M2 合同模块

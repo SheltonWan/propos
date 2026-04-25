@@ -465,15 +465,23 @@ class FakeUnitService extends UnitService {
   Future<Map<String, dynamic>> importUnits({
     required List<int> fileBytes,
     bool dryRun = false,
+    String? userId,
   }) async {
     if (shouldThrow != null) throw shouldThrow!;
     return importResult ??
         {
-          'total_rows': 0,
-          'valid_rows': 0,
-          'error_rows': 0,
-          'errors': <dynamic>[],
-          'dry_run': dryRun,
+          'id': 'fake-batch-id',
+          'batch_name': 'units_fake',
+          'data_type': 'units',
+          'total_records': 0,
+          'success_count': 0,
+          'failure_count': 0,
+          'rollback_status': 'committed',
+          'is_dry_run': dryRun,
+          'error_details': null,
+          'source_file_path': null,
+          'created_by': userId,
+          'created_at': DateTime.utc(2026, 1, 1).toIso8601String(),
         };
   }
 

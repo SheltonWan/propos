@@ -46,6 +46,9 @@ class FakeSession implements Session {
 
 /// 支持事务语义的伪 TxSession，execute 为无操作返回空结果
 class FakeTxSession implements TxSession {
+  /// 可在测试中按需覆盖：拦截所有 execute 调用并返回指定结果
+  Result Function(Object query, Object? parameters)? executeHandler;
+
   @override
   bool get isOpen => true;
 
@@ -62,8 +65,12 @@ class FakeTxSession implements TxSession {
     bool ignoreRows = false,
     QueryMode? queryMode,
     Duration? timeout,
-  }) async =>
-      makeResult([], []);
+  }) async {
+    if (executeHandler != null) {
+      return executeHandler!(query, parameters);
+    }
+    return makeResult([], []);
+  }
 
   @override
   Future<void> rollback() async {}
@@ -110,7 +117,7 @@ class FakePool implements Pool<Object?> {
     SessionSettings? settings,
     Object? locality,
   }) async =>
-      fn(FakeTxSession());
+      fn(FakeTxSession()..executeHandler = executeHandler);
 
   @override
   Future<R> runTx<R>(
@@ -119,7 +126,7 @@ class FakePool implements Pool<Object?> {
     Object? locality,
   }) async {
     runTxCalled = true;
-    return fn(FakeTxSession());
+    return fn(FakeTxSession()..executeHandler = executeHandler);
   }
 
   @override

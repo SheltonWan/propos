@@ -18,6 +18,7 @@ import 'package:test/test.dart';
 import 'package:propos_backend/core/errors/app_exception.dart';
 import 'package:propos_backend/core/errors/error_handler.dart';
 import 'package:propos_backend/core/pagination.dart';
+import 'package:propos_backend/core/request_context.dart';
 import 'package:propos_backend/modules/assets/controllers/unit_controller.dart';
 import 'package:propos_backend/modules/assets/models/unit.dart';
 
@@ -58,6 +59,12 @@ Request makeImportReq({bool includeFile = true}) {
     Uri.parse('http://localhost/units/import'),
     body: sb.toString(),
     headers: {'content-type': 'multipart/form-data; boundary=$boundary'},
+    context: {
+      kRequestContextKey: RequestContext(
+        userId: '00000000-0000-0000-0000-000000000001',
+        role: UserRole.superAdmin,
+      ),
+    },
   );
 }
 
@@ -189,20 +196,28 @@ void main() {
       expect((json['error'] as Map)['code'], 'VALIDATION_ERROR');
     });
 
-    test('Service 正常处理 → 200 data 含 dry_run', () async {
+    test('Service 正常处理 → 200 data 含 is_dry_run', () async {
       svc.importResult = {
-        'total_rows': 1,
-        'valid_rows': 1,
-        'error_rows': 0,
-        'errors': <dynamic>[],
-        'dry_run': true,
+        'id': 'b1',
+        'batch_name': 'units_test',
+        'data_type': 'units',
+        'total_records': 1,
+        'success_count': 1,
+        'failure_count': 0,
+        'rollback_status': 'committed',
+        'is_dry_run': true,
+        'error_details': null,
+        'source_file_path': null,
+        'created_by': null,
+        'created_at': '2026-01-01T00:00:00.000Z',
       };
 
       final resp = await handler(makeImportReq(includeFile: true));
       final json = await readJson(resp);
 
       expect(resp.statusCode, 200);
-      expect((json['data'] as Map)['dry_run'], isTrue);
+      expect((json['data'] as Map)['is_dry_run'], isTrue);
+      expect((json['data'] as Map)['rollback_status'], 'committed');
     });
   });
 

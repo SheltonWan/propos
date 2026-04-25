@@ -251,11 +251,13 @@ class UnitRepository {
     return findById(id);
   }
 
-  /// 批量插入单元（导入时使用），返回成功插入数量
-  Future<int> bulkCreate(List<Map<String, dynamic>> rows) async {
-    var count = 0;
+  /// 批量插入单元（导入时使用），返回实际成功插入数量。
+  /// 由调用方在事务中调用以保证整批回滚（commit 模式）或仅校验（dry-run）。
+  Future<int> bulkCreate(List<Map<String, dynamic>> rows, {Session? tx}) async {
+    final db = tx ?? _db;
+    var inserted = 0;
     for (final row in rows) {
-      await _db.execute(
+      final result = await db.execute(
         Sql.named('''
           INSERT INTO units (
             floor_id, building_id, unit_number, property_type,
@@ -280,9 +282,9 @@ class UnitRepository {
           'isLeasable': row['is_leasable'] ?? true,
         },
       );
-      count++;
+      inserted += result.affectedRows;
     }
-    return count;
+    return inserted;
   }
 
   /// 查询所有单元用于导出（可按业态过滤，含楼栋/楼层名）
@@ -392,5 +394,24 @@ class UnitRepository {
       incomeWeighted: (row['wale_income_weighted'] as num?)?.toDouble() ?? 0.0,
       areaWeighted: (row['wale_area_weighted'] as num?)?.toDouble() ?? 0.0,
     );
+  }
+
+  /// 统计可租单元总数：is_leasable=true 且未归档
+  ///
+  /// 用作 `getOverview` 中分母 `totalLeasableUnits` 的权威口径。
+  /// 不能用 byType 累加的 `leased+vacant+expiring_soon` 推导，
+  /// 否则当存在缺口业态或异常状态时会偏小，导致 occupancy 失真。
+  Future<int> countLeasableUnits() async {
+    final result = await _db.execute(
+      Sql.named('''
+        SELECT COUNT(*)::BIGINT AS cnt
+        FROM units
+        WHERE is_leasable = TRUE
+          AND archived_at IS NULL
+      '''),
+    );
+    if (result.isEmpty) return 0;
+    final row = result.first.toColumnMap();
+    return (row['cnt'] as num?)?.toInt() ?? 0;
   }
 }

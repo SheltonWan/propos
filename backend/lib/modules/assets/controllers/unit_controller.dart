@@ -4,6 +4,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
 import '../../../core/errors/app_exception.dart';
+import '../../../core/request_context.dart';
 import '../../../shared/multipart_parser.dart';
 import '../services/unit_service.dart';
 
@@ -40,11 +41,14 @@ class UnitController {
 
   // ─── Handlers ────────────────────────────────────────────────────────────
 
-  /// GET /api/units?building_id=&floor_id=&property_type=&current_status=&is_leasable=&include_archived=&page=&page_size=
+  /// GET /api/units?building_id=&floor_id=&property_type=&current_status=&is_leasable=&include_archived=&page=&pageSize=
+  ///
+  /// 分页参数：`pageSize`（官方）；为兼容旧客户端同时接受 `page_size`。
   Future<Response> _list(Request request) async {
     final q = request.url.queryParameters;
     final page = int.tryParse(q['page'] ?? '1') ?? 1;
-    final pageSize = int.tryParse(q['page_size'] ?? '20') ?? 20;
+    final pageSize =
+        int.tryParse(q['pageSize'] ?? q['page_size'] ?? '20') ?? 20;
     final isLeasable = q['is_leasable'] == null
         ? null
         : q['is_leasable'] == 'true';
@@ -143,6 +147,7 @@ class UnitController {
   /// Content-Type: multipart/form-data
   /// Fields: dry_run?; Files: file
   Future<Response> _import(Request request) async {
+    final ctx = request.context[kRequestContextKey] as RequestContext;
     final parsed = await MultipartParser.parse(request);
     final file = parsed.requireFile('file');
     final dryRun = parsed.optionalField('dry_run') == 'true';
@@ -150,6 +155,7 @@ class UnitController {
     final result = await _service.importUnits(
       fileBytes: file.bytes,
       dryRun: dryRun,
+      userId: ctx.userId,
     );
     return _jsonResponse(200, {'data': result});
   }

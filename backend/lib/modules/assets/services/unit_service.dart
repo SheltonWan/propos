@@ -6,6 +6,7 @@ import '../../../core/pagination.dart';
 import '../models/unit.dart';
 import '../repositories/building_repository.dart';
 import '../repositories/floor_repository.dart';
+import '../repositories/import_batch_repository.dart';
 import '../repositories/unit_repository.dart';
 
 /// UnitService — 房源单元管理业务逻辑。
@@ -145,17 +146,28 @@ class UnitService {
   // ─── 批量导入 ─────────────────────────────────────────────────────────────
 
   /// 解析 Excel 文件并批量导入单元。
-  /// `dryRun=true` 时仅校验不入库，返回校验结果。
+  ///
+  /// 行为契约：
+  ///   - `dryRun=true`：仅校验，不入库；写入一条 `is_dry_run=true` 的批次记录，
+  ///     `rollback_status='committed'`，`success_count` 为校验通过行数，
+  ///     `failure_count` 为校验失败行数。
+  ///   - `dryRun=false`：在事务中校验 + 整批插入；任意行校验失败则整体回滚，
+  ///     批次记录 `rollback_status='rolled_back'`、`success_count=0`；
+  ///     全部通过则提交，`success_count` 为实际写入行数（去重后）。
+  ///
+  /// 返回结构与 admin/`ImportBatchDetail` 字段严格对齐。
   Future<Map<String, dynamic>> importUnits({
     required List<int> fileBytes,
     bool dryRun = false,
+    String? userId,
   }) async {
-    // 捕获 Excel 解码异常，转为 400 业务错误
+    // ── ① 解析 Excel ─────────────────────────────────────────────────────
     final Excel excel;
     try {
       excel = Excel.decodeBytes(fileBytes);
     } catch (_) {
-      throw const ValidationException('INVALID_FILE_FORMAT', '文件格式不支持，请上传 .xlsx 格式文件');
+      throw const ValidationException(
+          'INVALID_FILE_FORMAT', '文件格式不支持，请上传 .xlsx 格式文件');
     }
     final sheet = excel.tables.values.first;
     final rows = sheet.rows;
@@ -163,8 +175,13 @@ class UnitService {
       throw const ValidationException('VALIDATION_ERROR', 'Excel 文件为空');
     }
 
-    // 第一行为标题行，跳过
-    final errors = <String>[];
+    final totalRecords = rows.length - 1; // 第一行为标题行
+    if (totalRecords < 0) {
+      throw const ValidationException('VALIDATION_ERROR', 'Excel 文件为空');
+    }
+
+    // ── ② 行级校验 ───────────────────────────────────────────────────────
+    final errorDetails = <Map<String, dynamic>>[];
     final validRows = <Map<String, dynamic>>[];
 
     for (var i = 1; i < rows.length; i++) {
@@ -176,13 +193,25 @@ class UnitService {
       final unitNumber = _cellStr(row, 2);
       final propertyType = _cellStr(row, 3);
 
-      if (buildingId == null || floorId == null ||
-          unitNumber == null || propertyType == null) {
-        errors.add('第 $rowNum 行：楼栋ID、楼层ID、单元编号、业态为必填项');
+      if (buildingId == null) {
+        errorDetails.add(_err(rowNum, 'building_id', '楼栋ID不能为空'));
         continue;
       }
-      if (!{'office', 'retail', 'apartment'}.contains(propertyType)) {
-        errors.add('第 $rowNum 行：无效业态值 "$propertyType"');
+      if (floorId == null) {
+        errorDetails.add(_err(rowNum, 'floor_id', '楼层ID不能为空'));
+        continue;
+      }
+      if (unitNumber == null) {
+        errorDetails.add(_err(rowNum, 'unit_number', '单元编号不能为空'));
+        continue;
+      }
+      if (propertyType == null) {
+        errorDetails.add(_err(rowNum, 'property_type', '业态不能为空'));
+        continue;
+      }
+      if (!_validPropertyTypes.contains(propertyType)) {
+        errorDetails
+            .add(_err(rowNum, 'property_type', '无效业态值: $propertyType'));
         continue;
       }
 
@@ -198,16 +227,91 @@ class UnitService {
       });
     }
 
-    if (!dryRun && validRows.isNotEmpty) {
-      await UnitRepository(_db).bulkCreate(validRows);
+    // 批次名称：units_<UTC ISO 紧凑格式>
+    final batchName = 'units_${_compactNow()}';
+
+    // ── ③ Dry run：仅记录批次，不入库 ────────────────────────────────────
+    if (dryRun) {
+      final record = await ImportBatchRepository(_db).create(
+        batchName: batchName,
+        dataType: 'units',
+        totalRecords: totalRecords,
+        successCount: validRows.length,
+        failureCount: errorDetails.length,
+        rollbackStatus: 'committed',
+        isDryRun: true,
+        errorDetails: errorDetails.isEmpty ? null : errorDetails,
+        createdBy: userId,
+      );
+      return _formatBatchRecord(record);
     }
 
+    // ── ④ Commit：有错误则记录回滚批次，无错误则事务化整批插入 ──────────
+    if (errorDetails.isNotEmpty) {
+      final record = await ImportBatchRepository(_db).create(
+        batchName: batchName,
+        dataType: 'units',
+        totalRecords: totalRecords,
+        successCount: 0,
+        failureCount: errorDetails.length,
+        rollbackStatus: 'rolled_back',
+        isDryRun: false,
+        errorDetails: errorDetails,
+        createdBy: userId,
+      );
+      return _formatBatchRecord(record);
+    }
+
+    // 全部行校验通过 → 在事务中插入；冲突行 ON CONFLICT DO NOTHING 后真实写入数可能 < validRows
+    late Map<String, dynamic> record;
+    await _db.runTx((tx) async {
+      final inserted = await UnitRepository(tx).bulkCreate(validRows, tx: tx);
+      record = await ImportBatchRepository(tx).create(
+        batchName: batchName,
+        dataType: 'units',
+        totalRecords: totalRecords,
+        successCount: inserted,
+        failureCount: 0,
+        rollbackStatus: 'committed',
+        isDryRun: false,
+        errorDetails: null,
+        createdBy: userId,
+        tx: tx,
+      );
+    });
+    return _formatBatchRecord(record);
+  }
+
+  /// 构造一条错误明细
+  Map<String, dynamic> _err(int row, String field, String error) =>
+      {'row': row, 'field': field, 'error': error};
+
+  /// 紧凑 UTC 时间戳，例：20260425T093015Z
+  String _compactNow() {
+    final iso = DateTime.now().toUtc().toIso8601String();
+    return iso.replaceAll(RegExp(r'[-:.]'), '').split('T').join('T').substring(0, 16);
+  }
+
+  /// 将 import_batches 表的列映射格式化为响应 JSON
+  /// 与 admin/`ImportBatchDetail` 字段严格对齐
+  Map<String, dynamic> _formatBatchRecord(Map<String, dynamic> r) {
+    final createdAt = r['created_at'];
+    final errorRaw = r['error_details'];
     return {
-      'total_rows': rows.length - 1,
-      'valid_rows': validRows.length,
-      'error_rows': errors.length,
-      'errors': errors,
-      'dry_run': dryRun,
+      'id': r['id'] as String,
+      'batch_name': r['batch_name'] as String,
+      'data_type': r['data_type'] as String,
+      'total_records': (r['total_records'] as num).toInt(),
+      'success_count': (r['success_count'] as num).toInt(),
+      'failure_count': (r['failure_count'] as num).toInt(),
+      'rollback_status': r['rollback_status'] as String,
+      'is_dry_run': r['is_dry_run'] as bool,
+      'error_details': errorRaw is List ? errorRaw : null,
+      'source_file_path': r['source_file_path'] as String?,
+      'created_by': r['created_by'] as String?,
+      'created_at': createdAt is DateTime
+          ? createdAt.toUtc().toIso8601String()
+          : createdAt?.toString(),
     };
   }
 
@@ -272,17 +376,13 @@ class UnitService {
     final repo = UnitRepository(_db);
     final byType = await repo.getOverviewStats();
     final wale = await repo.getWaleStats();
+    // 可租单元数走独立 COUNT，避免按业态聚合时遗漏未分类/异常状态导致分母失真
+    final totalLeasable = await repo.countLeasableUnits();
 
     var totalUnits = 0;
-    var totalLeasable = 0;
     var occupied = 0; // leased + expiring_soon
     for (final s in byType) {
       totalUnits += s.totalUnits;
-      // total_nla 仅统计可租单元，可由 leased_units + vacant_units + expiring_soon_units 推导
-      // 但严格按字段口径：可租套数 = is_leasable=true 的全部单元，需独立查询。
-      // 此处近似：leased+vacant+expiring_soon 即 is_leasable=true 中可统计部分
-      // （非可租的 non_leasable 状态本身已排除在租赁口径外）
-      totalLeasable += s.leasedUnits + s.vacantUnits + s.expiringSoonUnits;
       occupied += s.leasedUnits + s.expiringSoonUnits;
     }
 
