@@ -24,16 +24,37 @@
       </template>
     </el-page-header>
 
+    <!-- 工具栏：业态筛选 + 缩放 + 重置 -->
+    <div class="toolbar">
+      <el-select
+        v-model="propertyFilter"
+        placeholder="业态筛选"
+        style="width: 140px"
+        clearable
+      >
+        <el-option label="全部" value="" />
+        <el-option label="写字楼" value="office" />
+        <el-option label="商铺" value="retail" />
+        <el-option label="公寓" value="apartment" />
+      </el-select>
+      <el-button-group>
+        <el-button :icon="ZoomIn" @click="zoom(0.2)" />
+        <el-button :icon="ZoomOut" @click="zoom(-0.2)" />
+        <el-button :icon="Refresh" @click="resetZoom" />
+      </el-button-group>
+      <span class="zoom-label">{{ Math.round(zoomLevel * 100) }}%</span>
+    </div>
+
     <el-alert v-if="store.error" type="error" :title="store.error" show-icon :closable="false" />
 
     <div v-loading="store.loading" class="layout">
       <!-- 单元列表 -->
       <div class="unit-list">
-        <div class="list-header">单元（{{ store.heatmap?.units.length ?? 0 }}）</div>
+        <div class="list-header">单元（{{ filteredUnits.length }}）</div>
         <el-input v-model="keyword" placeholder="搜索单元号" clearable size="default" />
         <el-table
           :data="filteredUnits"
-          height="calc(100vh - 280px)"
+          height="calc(100vh - 320px)"
           stripe
           highlight-current-row
           :row-class-name="rowClass"
@@ -53,62 +74,89 @@
         </el-table>
       </div>
 
-      <!-- SVG 热区 -->
+      <!-- SVG 热区（内联渲染以支持点击） -->
       <div class="svg-container">
         <div v-if="!store.heatmap?.svg_path" class="empty">该楼层暂未上传图纸</div>
-        <img v-else :src="svgUrl" class="svg-image" alt="楼层平面图" />
+        <div
+          v-else-if="svgContent"
+          ref="svgWrapper"
+          class="svg-wrapper"
+          :style="{ transform: `scale(${zoomLevel})`, transformOrigin: 'top left' }"
+          v-html="svgContent"
+        />
+        <div v-else class="empty">图纸加载中…</div>
 
         <!-- 图例 -->
         <div class="legend">
-          <span><i class="dot leased"></i>已租</span>
-          <span><i class="dot expiring"></i>即将到期</span>
-          <span><i class="dot vacant"></i>空置</span>
-          <span><i class="dot non-leasable"></i>非可租</span>
+          <span><i class="dot leased" />已租</span>
+          <span><i class="dot expiring" />即将到期</span>
+          <span><i class="dot vacant" />空置</span>
+          <span><i class="dot non-leasable" />非可租</span>
         </div>
       </div>
     </div>
 
-    <!-- 单元详情弹窗 -->
-    <el-dialog
-      v-model="showUnitDialog"
-      :title="`单元 ${selectedUnit?.unit_number ?? ''}`"
-      width="420"
+    <!-- 单元详情侧边抽屉 -->
+    <el-drawer
+      v-model="showDrawer"
+      :title="`单元 ${drawerStore.unit?.unit_number ?? selectedHeatmap?.unit_number ?? ''}`"
+      size="360px"
+      direction="rtl"
     >
-      <el-descriptions v-if="selectedUnit" :column="1" border>
-        <el-descriptions-item label="状态">
-          <el-tag :type="statusTag(selectedUnit.current_status)">
-            {{ statusLabel(selectedUnit.current_status) }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="业态">
-          {{ propertyTypeLabel(selectedUnit.property_type) }}
-        </el-descriptions-item>
-        <el-descriptions-item label="租户">
-          {{ selectedUnit.tenant_name ?? '—' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="合同到期日">
-          {{ formatDate(selectedUnit.contract_end_date) }}
-        </el-descriptions-item>
-      </el-descriptions>
+      <div v-loading="drawerStore.loading" class="drawer-body">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="状态">
+            <el-tag :type="statusTag(drawerUnit?.current_status ?? selectedHeatmap?.current_status ?? 'vacant')">
+              {{ statusLabel(drawerUnit?.current_status ?? selectedHeatmap?.current_status ?? 'vacant') }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="业态">
+            {{ propertyTypeLabel(drawerUnit?.property_type ?? selectedHeatmap?.property_type ?? 'office') }}
+          </el-descriptions-item>
+          <el-descriptions-item label="建筑面积">
+            {{ drawerUnit?.gross_area != null ? `${drawerUnit.gross_area} m²` : '—' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="套内面积">
+            {{ drawerUnit?.net_area != null ? `${drawerUnit.net_area} m²` : '—' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="租户">
+            {{ drawerStore.contract?.tenant_name ?? selectedHeatmap?.tenant_name ?? '—' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="月租金">
+            {{
+              drawerStore.contract?.monthly_rent != null
+                ? `¥${drawerStore.contract.monthly_rent.toLocaleString('zh-CN')}`
+                : '—'
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="到期日">
+            {{ formatDate(drawerStore.contract?.end_date ?? selectedHeatmap?.contract_end_date ?? null) }}
+          </el-descriptions-item>
+        </el-descriptions>
+      </div>
       <template #footer>
-        <el-button @click="showUnitDialog = false">关闭</el-button>
-        <el-button v-if="selectedUnit" type="primary" @click="goUnitDetail">
-          查看详情
+        <el-button @click="showDrawer = false">关闭</el-button>
+        <el-button type="primary" @click="goUnitDetail">查看详情</el-button>
+        <el-button v-if="drawerUnit?.current_contract_id" type="success" @click="goContract">
+          查看合同
         </el-button>
       </template>
-    </el-dialog>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
-import { useFloorMapStore } from '@/stores'
+import axios from 'axios'
+import { ZoomIn, ZoomOut, Refresh } from '@element-plus/icons-vue'
+import { useFloorMapStore, useFloorUnitDrawerStore } from '@/stores'
 import type { HeatmapUnit, PropertyType, UnitStatus } from '@/types/asset'
 import { API_FILES } from '@/constants/api_paths'
 
 const store = useFloorMapStore()
+const drawerStore = useFloorUnitDrawerStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -116,16 +164,25 @@ const floorId = computed(() => route.params.floorId as string)
 const buildingId = computed(() => route.params.buildingId as string)
 
 const keyword = ref('')
-const showUnitDialog = ref(false)
-const selectedUnit = ref<HeatmapUnit | null>(null)
+const propertyFilter = ref<'' | PropertyType>('')
+const showDrawer = ref(false)
+const selectedHeatmap = ref<HeatmapUnit | null>(null)
+const svgContent = ref<string>('')
+const svgWrapper = ref<HTMLElement | null>(null)
+const zoomLevel = ref(1)
+
+const drawerUnit = computed(() => drawerStore.unit)
 
 const currentPlanId = computed(() => store.plans.find((p) => p.is_current)?.id ?? '')
 
 const filteredUnits = computed(() => {
   const all = store.heatmap?.units ?? []
   const k = keyword.value.trim().toLowerCase()
-  if (!k) return all
-  return all.filter((u) => u.unit_number.toLowerCase().includes(k))
+  return all.filter((u) => {
+    if (propertyFilter.value && u.property_type !== propertyFilter.value) return false
+    if (k && !u.unit_number.toLowerCase().includes(k)) return false
+    return true
+  })
 })
 
 const svgUrl = computed(() => {
@@ -141,18 +198,90 @@ watch(floorId, (id) => {
   if (id) store.fetchMap(id)
 })
 
-function goBack(): void {
-  router.push({ name: 'building-detail', params: { id: buildingId.value } })
+// 当 SVG 路径就绪时获取文本内容并注入；同时根据单元状态着色 + 绑定点击
+watch(
+  svgUrl,
+  async (url) => {
+    if (!url) {
+      svgContent.value = ''
+      return
+    }
+    try {
+      const token = localStorage.getItem('access_token')
+      const res = await axios.get<string>(url, {
+        responseType: 'text',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      svgContent.value = res.data
+      await nextTick()
+      applyHeatmapStyles()
+    } catch {
+      svgContent.value = ''
+    }
+  },
+  { immediate: true },
+)
+
+// 当 heatmap units 更新时也重新着色
+watch(
+  () => store.heatmap?.units,
+  async () => {
+    if (svgContent.value) {
+      await nextTick()
+      applyHeatmapStyles()
+    }
+  },
+)
+
+function applyHeatmapStyles(): void {
+  const wrapper = svgWrapper.value
+  if (!wrapper) return
+  const units = store.heatmap?.units ?? []
+  const byUnitId: Record<string, HeatmapUnit> = {}
+  const byUnitNumber: Record<string, HeatmapUnit> = {}
+  for (const u of units) {
+    byUnitId[u.unit_id] = u
+    byUnitNumber[u.unit_number] = u
+  }
+  // SVG 中 polygon/rect 元素一般以 data-unit-id 或 id 标识单元
+  const candidates = wrapper.querySelectorAll<SVGGraphicsElement>(
+    '[data-unit-id], [data-unit-number], polygon[id], rect[id], path[id]',
+  )
+  candidates.forEach((el) => {
+    const unitId = el.getAttribute('data-unit-id')
+    const unitNumber = el.getAttribute('data-unit-number') ?? el.getAttribute('id')
+    const u =
+      (unitId ? byUnitId[unitId] : null) ??
+      (unitNumber ? byUnitNumber[unitNumber] : null)
+    if (!u) return
+    const color = statusFillColor(u.current_status)
+    el.setAttribute('fill', color)
+    el.setAttribute('fill-opacity', '0.55')
+    el.setAttribute('stroke', 'rgba(0,0,0,0.4)')
+    el.style.cursor = 'pointer'
+    el.addEventListener('click', () => onUnitRowClick(u))
+  })
 }
 
 function onUnitRowClick(row: HeatmapUnit): void {
-  selectedUnit.value = row
-  showUnitDialog.value = true
+  selectedHeatmap.value = row
+  showDrawer.value = true
+  drawerStore.reset()
+  drawerStore.load(row.unit_id)
 }
 
 function goUnitDetail(): void {
-  if (!selectedUnit.value) return
-  router.push({ name: 'unit-detail', params: { id: selectedUnit.value.unit_id } })
+  const id = drawerUnit.value?.id ?? selectedHeatmap.value?.unit_id
+  if (id) {
+    router.push({ name: 'unit-detail', params: { id } })
+  }
+}
+
+function goContract(): void {
+  const cid = drawerUnit.value?.current_contract_id
+  if (cid) {
+    router.push({ name: 'contract-detail', params: { id: cid } })
+  }
 }
 
 async function onChangePlan(planId: string): Promise<void> {
@@ -161,6 +290,15 @@ async function onChangePlan(planId: string): Promise<void> {
   } catch {
     // 错误已写入 store.error
   }
+}
+
+function zoom(delta: number): void {
+  const next = Math.max(0.4, Math.min(2.5, zoomLevel.value + delta))
+  zoomLevel.value = Number(next.toFixed(2))
+}
+
+function resetZoom(): void {
+  zoomLevel.value = 1
 }
 
 function rowClass({ row }: { row: HeatmapUnit }): string {
@@ -194,6 +332,22 @@ function statusTag(s: UnitStatus): 'success' | 'warning' | 'danger' | 'info' {
   }
 }
 
+function statusFillColor(s: UnitStatus): string {
+  switch (s) {
+    case 'leased':
+      return 'var(--el-color-success)'
+    case 'expiring_soon':
+    case 'renovating':
+    case 'pre_lease':
+      return 'var(--el-color-warning)'
+    case 'vacant':
+      return 'var(--el-color-danger)'
+    case 'non_leasable':
+    default:
+      return 'var(--el-color-info)'
+  }
+}
+
 function propertyTypeLabel(t: PropertyType): string {
   return ({ office: '写字楼', retail: '商铺', apartment: '公寓' } as const)[t]
 }
@@ -201,17 +355,31 @@ function propertyTypeLabel(t: PropertyType): string {
 function formatDate(v: string | null): string {
   return v ? dayjs(v).format('YYYY-MM-DD') : '—'
 }
+
+function goBack(): void {
+  router.push({ name: 'building-detail', params: { id: buildingId.value } })
+}
 </script>
 
 <style scoped>
 .floor-plan { padding: 24px; }
 .header { margin-bottom: 16px; }
 .title { font-size: 18px; font-weight: 600; }
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.zoom-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
 .layout {
   display: flex;
   gap: 16px;
   margin-top: 16px;
-  min-height: calc(100vh - 220px);
+  min-height: calc(100vh - 280px);
 }
 .unit-list {
   width: 320px;
@@ -228,14 +396,15 @@ function formatDate(v: string | null): string {
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 4px;
   overflow: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 16px;
 }
-.svg-image {
+.svg-wrapper {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.svg-wrapper :deep(svg) {
   max-width: 100%;
-  max-height: 100%;
-  display: block;
+  height: auto;
 }
 .empty {
   color: var(--el-text-color-secondary);
@@ -266,4 +435,7 @@ function formatDate(v: string | null): string {
 .legend .expiring { background: var(--el-color-warning); }
 .legend .vacant { background: var(--el-color-danger); }
 .legend .non-leasable { background: var(--el-color-info); }
+.drawer-body {
+  padding: 8px 4px;
+}
 </style>

@@ -26,13 +26,17 @@
         {{ store.item ? `${store.item.total_floors} 层` : '—' }}
       </el-descriptions-item>
       <el-descriptions-item label="建成年份">{{ store.item?.built_year ?? '—' }}</el-descriptions-item>
-      <el-descriptions-item label="建筑面积">
+      <el-descriptions-item label="建筑面积 (GFA)">
         {{ store.item ? `${formatArea(store.item.gfa)} m²` : '—' }}
       </el-descriptions-item>
-      <el-descriptions-item label="净可租面积">
+      <el-descriptions-item label="净可租面积 (NLA)">
         {{ store.item ? `${formatArea(store.item.nla)} m²` : '—' }}
       </el-descriptions-item>
-      <el-descriptions-item label="地址" :span="2">
+      <el-descriptions-item label="出租率">
+        <span class="rate-value">{{ formatRate(store.overall.rate) }}</span>
+        <span class="rate-sub">（已租 {{ store.overall.leased }} / 空置 {{ store.overall.vacant }} / 共 {{ store.overall.total }}）</span>
+      </el-descriptions-item>
+      <el-descriptions-item label="地址">
         {{ store.item?.address ?? '—' }}
       </el-descriptions-item>
     </el-descriptions>
@@ -48,17 +52,40 @@
         <el-table-column label="楼层" width="120">
           <template #default="{ row }">{{ row.floor_name ?? `${row.floor_number}F` }}</template>
         </el-table-column>
-        <el-table-column prop="floor_number" label="楼层号" width="120" align="right" />
-        <el-table-column label="净可租面积 (m²)" min-width="160" align="right">
-          <template #default="{ row }">{{ formatArea(row.nla) }}</template>
+        <el-table-column prop="floor_number" label="楼层号" width="100" align="right" />
+        <el-table-column label="总单元数" width="110" align="right">
+          <template #default="{ row }">{{ store.floorOccupancy[row.id]?.total ?? 0 }}</template>
         </el-table-column>
-        <el-table-column label="图纸状态" width="160">
+        <el-table-column label="已租" width="90" align="right">
+          <template #default="{ row }">{{ store.floorOccupancy[row.id]?.leased ?? 0 }}</template>
+        </el-table-column>
+        <el-table-column label="空置" width="90" align="right">
+          <template #default="{ row }">{{ store.floorOccupancy[row.id]?.vacant ?? 0 }}</template>
+        </el-table-column>
+        <el-table-column label="出租率" min-width="200">
           <template #default="{ row }">
-            <el-tag v-if="row.svg_path" type="success">已上传</el-tag>
-            <el-tag v-else type="info">未上传</el-tag>
+            <div class="rate-cell">
+              <el-progress
+                :percentage="ratePct(store.floorOccupancy[row.id]?.rate ?? 0)"
+                :color="rateColor(store.floorOccupancy[row.id]?.rate ?? 0)"
+                :stroke-width="10"
+                :show-text="false"
+                style="flex: 1"
+              />
+              <span class="rate-text">{{ formatRate(store.floorOccupancy[row.id]?.rate ?? 0) }}</span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="净可租面积 (m²)" width="160" align="right">
+          <template #default="{ row }">{{ formatArea(row.nla) }}</template>
+        </el-table-column>
+        <el-table-column label="图纸" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.svg_path" type="success" size="small">已上传</el-tag>
+            <el-tag v-else type="info" size="small">未上传</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click.stop="goFloor(row)">查看热区图</el-button>
           </template>
@@ -113,6 +140,18 @@ function formatArea(v: number | null): string {
   if (v == null) return '—'
   return v.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
 }
+function formatRate(rate: number): string {
+  return `${(rate * 100).toFixed(1)}%`
+}
+function ratePct(rate: number): number {
+  return Math.round(rate * 100)
+}
+function rateColor(rate: number): string {
+  if (rate >= 0.9) return 'var(--el-color-success)'
+  if (rate >= 0.7) return 'var(--el-color-primary)'
+  if (rate >= 0.5) return 'var(--el-color-warning)'
+  return 'var(--el-color-danger)'
+}
 </script>
 
 <style scoped>
@@ -121,4 +160,24 @@ function formatArea(v: number | null): string {
 .title { font-size: 18px; font-weight: 600; }
 .info { margin-bottom: 24px; }
 .floors :deep(.el-table) { cursor: pointer; }
+.rate-value {
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+.rate-sub {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.rate-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rate-text {
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+  min-width: 48px;
+  text-align: right;
+}
 </style>

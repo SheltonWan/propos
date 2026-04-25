@@ -126,4 +126,23 @@ export async function apiDelete(url: string): Promise<void> {
   await http.delete(url)
 }
 
+/**
+ * multipart/form-data 上传辅助
+ * 用于文件上传场景（批量导入、附件等）
+ */
+export async function apiPostForm<T>(
+  url: string,
+  form: FormData,
+  config?: AxiosRequestConfig,
+): Promise<T> {
+  const res = await http.post<ApiResponse<T>>(url, form, {
+    ...(config ?? {}),
+    headers: {
+      ...(config?.headers ?? {}),
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return res.data.data
+}
+
 export default http

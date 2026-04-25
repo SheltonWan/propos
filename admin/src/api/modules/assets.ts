@@ -3,26 +3,34 @@
  * 端点清单：参考 docs/backend/API_INVENTORY_v1.7.md L66-88
  */
 
-import { apiGet, apiGetList, apiPost, apiPatch } from '@/api/client'
+import { apiGet, apiGetList, apiPost, apiPatch, apiPostForm } from '@/api/client'
+import http from '@/api/client'
 import type { ApiListResponse } from '@/types/api'
 import type {
   AssetOverviewStats,
   Building,
+  ContractSummary,
   Floor,
   FloorHeatmap,
   FloorPlan,
+  ImportBatchDetail,
+  RenovationCreateRequest,
   RenovationListParams,
   RenovationRecord,
   Unit,
   UnitListParams,
+  UnitUpdateRequest,
 } from '@/types/asset'
 import {
   API_ASSETS_SUMMARY,
   API_BUILDINGS,
+  API_CONTRACTS,
   API_FLOORS,
   API_FLOOR_PLANS,
   API_RENOVATIONS,
   API_UNITS,
+  API_UNITS_EXPORT,
+  API_UNITS_IMPORT,
 } from '@/constants/api_paths'
 
 // /api/assets/summary 是历史命名，新接口为 /api/assets/overview
@@ -110,11 +118,6 @@ export async function fetchUnit(id: string): Promise<Unit> {
   return apiGet<Unit>(`${API_UNITS}/${id}`)
 }
 
-/** PATCH /api/units/:id — 更新单元 */
-export async function updateUnit(id: string, payload: Partial<Unit>): Promise<Unit> {
-  return apiPatch<Unit>(`${API_UNITS}/${id}`, payload)
-}
-
 // ─── 改造记录 ──────────────────────────────────────────
 
 /** GET /api/renovations — 改造记录列表 */
@@ -133,3 +136,48 @@ export async function fetchAssetOverview(): Promise<AssetOverviewStats> {
 
 /** 兼容旧名 /api/assets/summary（如未来需要恢复使用） */
 export const ASSETS_SUMMARY_PATH = API_ASSETS_SUMMARY
+
+// ─── 单元更新 ──────────────────────────────────────────
+
+/** PATCH /api/units/:id — 更新单元（M1 房源详情编辑） */
+export async function patchUnit(id: string, payload: UnitUpdateRequest): Promise<Unit> {
+  return apiPatch<Unit>(`${API_UNITS}/${id}`, payload)
+}
+
+// ─── 改造记录新增 ──────────────────────────────────────
+
+/** POST /api/renovations — 新增改造记录 */
+export async function createRenovation(
+  payload: RenovationCreateRequest,
+): Promise<RenovationRecord> {
+  return apiPost<RenovationRecord>(API_RENOVATIONS, payload)
+}
+
+// ─── 合同摘要（M1 房源详情展示当前合同信息）─────────────
+
+/** GET /api/contracts/:id — 合同详情，仅消费 ContractSummary 字段子集 */
+export async function fetchContractSummary(id: string): Promise<ContractSummary> {
+  return apiGet<ContractSummary>(`${API_CONTRACTS}/${id}`)
+}
+
+// ─── 批量导入 ──────────────────────────────────────────
+
+/** POST /api/units/import — 批量导入单元（dry_run 预校验或正式入库） */
+export async function importUnits(
+  file: File,
+  dryRun: boolean,
+): Promise<ImportBatchDetail> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('dry_run', String(dryRun))
+  return apiPostForm<ImportBatchDetail>(API_UNITS_IMPORT, form)
+}
+
+/** GET /api/units/export — 导出房源台账 Excel 二进制流 */
+export async function exportUnits(propertyType?: string): Promise<Blob> {
+  const res = await http.get(API_UNITS_EXPORT, {
+    params: propertyType ? { property_type: propertyType } : {},
+    responseType: 'blob',
+  })
+  return res.data as Blob
+}

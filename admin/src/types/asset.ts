@@ -165,3 +165,69 @@ export interface RenovationListParams {
   page?: number
   page_size?: number
 }
+
+// ─── 改造记录新增请求 ──────────────────────────────────
+
+export interface RenovationCreateRequest {
+  unit_id: string
+  renovation_type: string
+  started_at: string
+  completed_at?: string | null
+  cost?: number | null
+  contractor?: string | null
+  description?: string | null
+}
+
+// ─── 单元更新请求 ──────────────────────────────────────
+
+export interface UnitUpdateRequest {
+  unit_number?: string
+  property_type?: PropertyType
+  gross_area?: number | null
+  net_area?: number | null
+  orientation?: Orientation | null
+  ceiling_height?: number | null
+  decoration_status?: DecorationStatus
+  is_leasable?: boolean
+  market_rent_reference?: number | null
+  ext_fields?: Record<string, unknown>
+}
+
+// ─── 导入批次 ──────────────────────────────────────────
+
+export type ImportDataType = 'units' | 'contracts' | 'invoices'
+export type ImportRollbackStatus = 'committed' | 'rolled_back'
+
+export interface ImportError {
+  row: number
+  field: string
+  error: string
+}
+
+export interface ImportBatchDetail {
+  id: string
+  batch_name: string
+  data_type: ImportDataType
+  total_records: number
+  success_count: number
+  failure_count: number
+  rollback_status: ImportRollbackStatus
+  is_dry_run: boolean
+  error_details: ImportError[] | null
+  source_file_path: string | null
+  created_by: string | null
+  created_at: string
+}
+
+// ─── 合同摘要（用于房源详情页展示当前租赁信息）────────
+
+export interface ContractSummary {
+  id: string
+  contract_number: string
+  status: string
+  tenant_id: string | null
+  tenant_name: string | null
+  monthly_rent: number | null
+  start_date: string | null
+  end_date: string | null
+}

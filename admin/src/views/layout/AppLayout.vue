@@ -16,10 +16,14 @@
           <el-icon><Odometer /></el-icon>
           <template #title>总览</template>
         </el-menu-item>
-        <el-menu-item index="/assets">
-          <el-icon><OfficeBuilding /></el-icon>
-          <template #title>资产管理</template>
-        </el-menu-item>
+        <el-sub-menu index="assets-group">
+          <template #title>
+            <el-icon><OfficeBuilding /></el-icon>
+            <span>资产管理</span>
+          </template>
+          <el-menu-item index="/assets">资产总览</el-menu-item>
+          <el-menu-item index="/assets/import">批量导入</el-menu-item>
+        </el-sub-menu>
         <el-menu-item index="/contracts">
           <el-icon><Document /></el-icon>
           <template #title>合同管理</template>
