@@ -58,39 +58,140 @@ HOTZONE_STATUS_STYLE = """
       [data-unit-id]:hover { fill-opacity: 0.55; cursor: pointer; }
 """
 
-# 强制归类到专属 ACI 颜色的墙图层（渲染前会把这些图层的 LINE/LWPOLYLINE
-# dxf.color 覆写为 WALL_ACI，使 ezdxf SVGBackend 把它们放进独立 CSS class）。
-# 选 240 (hex F0) 避免与现有 C1..C23 冲突。
-WALL_HIGHLIGHT_LAYERS = {"WALL", "CURTWALL", "外墙", "0muqiang", "muqiang"}
-WALL_ACI = 240  # → ezdxf class "CF0"
+# 强制归类到专属标记颜色的图层。重要：ezdxf SVGBackend 生成的
+# CSS class 名是「按出现顺序递增」（.C1, .C2, .C3 ...），不是 ACI 值。
+# 所以不能预设 `.CF0` / `.CFA` 选择器，必须渲染后扫描 CSS 找到
+# 结果颜色等于我们标记色的那个 class，再动态生成覆盖规则。
+WALL_HIGHLIGHT_LAYERS = {
+    "WALL", "CURTWALL", "外墙", "0muqiang", "muqiang",
+    "0-立面(轮廓)",  # CAD 中用黄色描绘的建筑外轮廓
+    "轮廓", "OUTLINE",
+    # AIA 标准：建筑剖切边线（被剖到的墙/柱/楼板的双线轮廓）
+    "A-SECT-MCUT", "A-SECT-MCUT-FINE",
+}
+# 墙体/柱体实心填充图层：双线之间的填充 HATCH/SOLID 都在这些图层上，
+# 配合双线一起渲染才能呈现 CADview 中"实心黄墙"的视觉效果。
+WALL_FILL_LAYERS = {
+    "柱墙填充", "COLU_HATCH", "WALL_HATCH", "墙填充", "柱填充",
+}
+# 标记色：选生鲜颜色以便后处理唯一识别。
+WALL_MARKER_RGB = (255, 0, 240)   # #ff00f0 品红 — 墙双线
+WALL_MARKER_HEX = "#ff00f0"
+WALL_FILL_MARKER_RGB = (0, 255, 240)  # #00fff0 青 — 墙体填充 HATCH/SOLID
+WALL_FILL_MARKER_HEX = "#00fff0"
+HATCH_MARKER_RGB = (240, 255, 0)  # #f0ff00 黄绿 — 其他 HATCH（保温/铺装等）
+HATCH_MARKER_HEX = "#f0ff00"
 
 # CAD 线稿中性样式：将原 DXF 图层的硬编码 RGB 颜色改为 currentColor，
 # 由外层容器通过 CSS `color` 属性（Admin/uni-app）或 ColorFilter（Flutter）注入主题色。
 NEUTRAL_CAD_STYLE = """
       /* CAD 线稿：颜色随外层 color 属性；线宽不随缩放改变 */
       #floor-plan * { vector-effect: non-scaling-stroke; }
-      /* 填充类路径（柱墙 hatch、fill）统一用低透明度，避免吞没背景 */
-      #floor-plan path[fill]:not([fill="none"]) {
-        fill: currentColor;
-        fill-opacity: 0.18;
-      }
-      /* 墙线（WALL/CURTWALL/外墙 图层）加粗强调 —— 覆盖中性化后的 stroke-width:1 */
-      #floor-plan .CF0 {
+"""
+
+# 墙线覆盖样式模板（{cls} 在后处理时被替换为实际 class 名）
+# 重要：建筑墙体在 CAD 中按"双线法"绘制（内外两条细线表示墙厚），
+# 不能加粗成单条粗线，否则两条线会糊成一团失去墙体厚度表达。
+# 颜色随主题 currentColor 注入，不改线宽，保留 ezdxf 默认的细线粗细。
+WALL_OVERRIDE_TPL = """
+      /* 墙双线（WALL/CURTWALL/外墙/立面轮廓）—— 全不透明描边，随主题色 */
+      #floor-plan .{cls} {{
         stroke: currentColor !important;
-        stroke-width: 2.2 !important;
         stroke-opacity: 1 !important;
         fill: none !important;
-      }
+      }}
 """
+
+# 墙体填充覆盖样式：透明度略高于普通 HATCH（0.35 vs 0.18），随主题色填充。
+WALL_FILL_OVERRIDE_TPL = """
+      /* 墙体填充 HATCH/SOLID —— 实心黄色，连接双线拼出“实墙”象征 */
+      #floor-plan .{cls} {{
+        fill: currentColor !important;
+        fill-opacity: 0.35 !important;
+        stroke: none !important;
+      }}
+"""
+
+HATCH_OVERRIDE_TPL = """
+      /* 柱墙/保温 HATCH —— 仅这类降透明度 */
+      #floor-plan .{cls} {{
+        fill: currentColor !important;
+        fill-opacity: 0.18 !important;
+        stroke: none !important;
+      }}
+"""
+
+# 主线条覆盖样式：在没有显式 wall layer 标识的 CAD 里（绝大多数线条画在 layer-0
+# 由 INSERT 宿主图层决定颜色，全被 ezdxf 聚到同一 class），通过启发式识别
+# 「hits 最多的 stroke 类」并增强其视觉权重，让柱填充与之形成"实墙"锚点。
+MAIN_LINE_OVERRIDE_TPL = """
+      /* 主建筑线条（启发式识别）—— 加深显示，与柱填充形成视觉连接 */
+      #floor-plan .{cls} {{
+        stroke-opacity: 0.95 !important;
+        stroke-width: 1.4 !important;
+      }}
+"""
+
+
+def _find_main_stroke_class(svg_text: str, style_text: str) -> str:
+    """启发式识别"主线条 class"。
+
+    规则：在所有 stroke 类（fill: none 的 class）中，找 path 数量最多的那个；
+    且必须显著超过第二名（hits >= 2 倍第二名），否则返回空。这样能在标准
+    建筑平面图（墙线为主）里命中"主墙线 + 默认色线条"那个 class，
+    在轴线/标注混杂的图上则不会乱染。
+    """
+    # 收集所有 stroke 类（fill: none）
+    stroke_classes = []
+    for m in re.finditer(r"\.(C[0-9A-F]+)\s*\{([^}]*)\}", style_text):
+        cls, body = m.group(1), m.group(2)
+        if "fill: none" in body and "stroke:" in body and "stroke: none" not in body:
+            stroke_classes.append(cls)
+    if not stroke_classes:
+        return ""
+    # 数每个 class 在 path 中的 hits
+    hits = {}
+    for cls in stroke_classes:
+        hits[cls] = len(re.findall(rf'class="{cls}"', svg_text))
+    sorted_cls = sorted(hits.items(), key=lambda x: -x[1])
+    if not sorted_cls:
+        return ""
+    top_cls, top_n = sorted_cls[0]
+    second_n = sorted_cls[1][1] if len(sorted_cls) > 1 else 0
+    # 仅当显著最多（>= 2 倍第二名 且 >= 100 条）才认定
+    if top_n >= 100 and top_n >= second_n * 2:
+        return top_cls
+    return ""
+
+
+def _find_class_by_color(style_text: str, *, stroke_hex: str = None, fill_hex: str = None) -> str:
+    """在 ezdxf 输出的 CSS 中查找 stroke/fill 为指定 hex 颜色的 class 名。
+
+    ezdxf 生成的 class 名是递增的伪 ID（.C1, .C2, ...），不是 ACI 值；
+    必须根据颜色反查才能识别出哪个 class 对应我们的标记实体。
+    """
+    target = (stroke_hex or fill_hex or "").lower()
+    if not target:
+        return ""
+    for m in re.finditer(r"\.(C[0-9A-F]+)\s*\{([^}]*)\}", style_text):
+        name, body = m.group(1), m.group(2).lower()
+        if stroke_hex and re.search(r"stroke\s*:\s*" + re.escape(target), body):
+            return name
+        if fill_hex and re.search(r"fill\s*:\s*" + re.escape(target), body):
+            return name
+    return ""
 
 
 def _neutralize_cad_colors(style_text: str) -> str:
     """将 CAD 图层样式中的 stroke/fill 硬编码颜色替换为 currentColor。
 
     - `stroke: #rrggbb` → `stroke: currentColor`
-    - `fill: #rrggbb`   → `fill: currentColor; fill-opacity: 0.18`
-      （避免柱墙填充在深色主题下吞没整个平面图）
+    - `fill: #rrggbb`   → `fill: currentColor`
     - `stroke-width: <large>` → `stroke-width: 1`（配合 vector-effect: non-scaling-stroke）
+
+    注意：不再修改 fill-opacity——ezdxf 把 TEXT 也渲染为带 fill 的 path，
+    粗暴降透明度会让所有文字一起糊掉。HATCH 实体改由 HATCH_ACI 重映射后
+    通过专属 .CFA class 单独降透明度。
     """
     # stroke: #xxx → currentColor
     text = re.sub(
@@ -98,18 +199,10 @@ def _neutralize_cad_colors(style_text: str) -> str:
         "stroke: currentColor",
         style_text,
     )
-    # fill: #xxx → currentColor + 低透明度（填充类 class 会额外带 fill-opacity: 1.000，
-    # 这里保留；下面再统一覆盖 fill-opacity）
+    # fill: #xxx → currentColor（不动 fill-opacity）
     text = re.sub(
         r"fill\s*:\s*#[0-9a-fA-F]{3,8}",
         "fill: currentColor",
-        text,
-    )
-    # 把 fill-opacity: 1.000 统一降到 0.18（仅对 fill 非 none 的 class 生效；
-    # stroke-only 的 class 本身 fill: none，此替换对它们无害）
-    text = re.sub(
-        r"fill-opacity\s*:\s*1(?:\.0+)?",
-        "fill-opacity: 0.18",
         text,
     )
     # stroke-width 归一化
@@ -145,14 +238,43 @@ def _inject_hotzone_spec(
     root.attrib.pop("width", None)
     root.attrib.pop("height", None)
 
-    # 2. 合并现有 defs/style 并中性化颜色
+    # 2. 识别带标记色的 class（在中性化之前做，否则颜色被抹除）
     existing_defs = root.findall(f"{SVG}defs")
-    merged_style_text = NEUTRAL_CAD_STYLE
+    raw_style_text = ""
     for defs in existing_defs:
         for style_el in defs.findall(f"{SVG}style"):
             if style_el.text:
-                merged_style_text += "\n" + _neutralize_cad_colors(style_el.text)
+                raw_style_text += "\n" + style_el.text
+
+    wall_class = _find_class_by_color(raw_style_text, stroke_hex=WALL_MARKER_HEX)
+    # 墙体填充 HATCH/SOLID：ezdxf 可能用 fill 也可能用 stroke 表达，两种都查
+    wall_fill_class = (
+        _find_class_by_color(raw_style_text, fill_hex=WALL_FILL_MARKER_HEX)
+        or _find_class_by_color(raw_style_text, stroke_hex=WALL_FILL_MARKER_HEX)
+    )
+    hatch_class = _find_class_by_color(raw_style_text, fill_hex=HATCH_MARKER_HEX)
+
+    # 启发式：识别"主线条 class"——这套 CAD 把墙双线和默认色其他线条画在一起，
+    # 渲染后聚合到 hits 数量最多的 stroke 类。把它的视觉权重提升（深色 + 略粗），
+    # 让黄色柱填充与之形成"实墙"的连续视觉锚点。
+    # 仅当 hits 远超第二名时才认定（避免误染所有线条）。
+    main_stroke_class = _find_main_stroke_class(svg_string, raw_style_text)
+
+    # 3. 合并现有 defs/style 并中性化颜色
+    merged_style_text = NEUTRAL_CAD_STYLE
+    if raw_style_text:
+        merged_style_text += "\n" + _neutralize_cad_colors(raw_style_text)
+    for defs in existing_defs:
         root.remove(defs)
+    # 追加针对识别出的 class 的覆盖规则使其优先级高于中性化后的通用规则
+    if wall_fill_class:
+        merged_style_text += WALL_FILL_OVERRIDE_TPL.format(cls=wall_fill_class)
+    if wall_class:
+        merged_style_text += WALL_OVERRIDE_TPL.format(cls=wall_class)
+    if hatch_class:
+        merged_style_text += HATCH_OVERRIDE_TPL.format(cls=hatch_class)
+    if main_stroke_class:
+        merged_style_text += MAIN_LINE_OVERRIDE_TPL.format(cls=main_stroke_class)
     # 追加热区标准样式
     merged_style_text += HOTZONE_STATUS_STYLE
 
@@ -470,20 +592,47 @@ def main():
     doc = ezdxf.readfile(args.input)
     msp = doc.modelspace()
 
-    # 把墙图层实体颜色重映射到 WALL_ACI，使墙线在 SVG 中形成独立 CSS class（.CF0），
-    # 便于后续样式加粗；不改变图层定义本身，仅覆写实体 dxf.color。
+    # 把墙图层、HATCH/SOLID 重映射为标记 RGB（使用 entity.rgb / true_color，覆盖 ACI/图层色）。
+    # 后处理阶段在生成的 SVG CSS 中反查该颜色对应的 class 名后，动态添加样式覆盖。
+    # 重要：必须递归遍历所有 block 定义，因为外墙数据常被装进
+    # "19层" / "11层节点" / "pm3" 等子 block 中，仅扫 MSP 会遗漏大量实体。
     wall_count = 0
-    for e in msp:
-        if e.dxftype() not in ("LINE", "LWPOLYLINE", "POLYLINE", "ARC", "CIRCLE"):
+    wall_fill_count = 0
+    hatch_count = 0
+
+    def _remap_layout(layout):
+        nonlocal wall_count, wall_fill_count, hatch_count
+        for e in layout:
+            et = e.dxftype()
+            layer = (e.dxf.layer or "").strip()
+            if et in ("LINE", "LWPOLYLINE", "POLYLINE", "ARC", "CIRCLE"):
+                if layer in WALL_HIGHLIGHT_LAYERS:
+                    try:
+                        e.rgb = WALL_MARKER_RGB
+                        wall_count += 1
+                    except Exception:
+                        pass
+            elif et in ("HATCH", "SOLID", "TRACE"):
+                # 墙体/柱体填充图层 → 实心黄填充；其他 HATCH（保温、铺装、阴影）→ 通用低透明灰
+                try:
+                    if layer in WALL_FILL_LAYERS:
+                        e.rgb = WALL_FILL_MARKER_RGB
+                        wall_fill_count += 1
+                    else:
+                        e.rgb = HATCH_MARKER_RGB
+                        hatch_count += 1
+                except Exception:
+                    pass
+
+    _remap_layout(msp)
+    for block in doc.blocks:
+        if block.name.startswith("*"):
             continue
-        layer = (e.dxf.layer or "").strip()
-        if layer in WALL_HIGHLIGHT_LAYERS:
-            try:
-                e.dxf.color = WALL_ACI
-                wall_count += 1
-            except Exception:
-                pass
-    print(f"  墙线高亮: 已重映射 {wall_count} 条实体到 ACI={WALL_ACI} (class .CF0)")
+        _remap_layout(block)
+
+    print(f"  墙线高亮: {wall_count} 条 → RGB={WALL_MARKER_HEX}")
+    print(f"  墙体填充: {wall_fill_count} 个 → RGB={WALL_FILL_MARKER_HEX}")
+    print(f"  填充归一: {hatch_count} 个 HATCH/SOLID → RGB={HATCH_MARKER_HEX}")
 
     # 计算 Model Space 总体 extents
     print("计算 Model Space 包围盒...")
