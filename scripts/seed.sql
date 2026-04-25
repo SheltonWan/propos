@@ -248,8 +248,8 @@ VALUES
 -- ==========================================================================
 -- §4  楼栋（buildings）— 3 条
 -- ==========================================================================
--- DDL 字段: gross_area(建筑面积), leasable_area(可租面积), address(NOT NULL)
-INSERT INTO buildings (id, name, property_type, total_floors, gross_area, leasable_area, address)
+-- DDL 字段: gfa(建筑面积), nla(可租面积), address(NOT NULL)
+INSERT INTO buildings (id, name, property_type, total_floors, gfa, nla, address)
 VALUES
     (v_bld_office, 'A座',   'office',    20, 30000.00, 25500.00, '深圳市南山区科苑路8号A座'),
     (v_bld_retail, '商铺区', 'retail',    2,  2707.00,  2300.00, '深圳市南山区科苑路8号商铺区'),
@@ -259,11 +259,11 @@ VALUES
 -- §5  楼层（floors）— 11 条（含三栋楼全部楼层）
 -- svg_path/png_path 由 CAD 转换工具写入，此处为 NULL 占位（需 UPDATE 填充）
 -- ==========================================================================
--- DDL 字段: floor_area(楼层面积), label(楼层名称如1F/B1)
-INSERT INTO floors (id, building_id, floor_number, label, floor_area)
+-- DDL 字段: nla(楼层可租面积), floor_name(楼层名称如1F/B1)
+INSERT INTO floors (id, building_id, floor_number, floor_name, nla)
 VALUES
     -- A座（B1 设备层无 NLA，1F/2F/10F/20F 为主要楼层）
-    (v_flr_o_b1,  v_bld_office, -1, 'B1',  0.00),
+    (v_flr_o_b1,  v_bld_office, -1, 'B1',  NULL),
     (v_flr_o_1f,  v_bld_office,  1, '1F',  1200.00),
     (v_flr_o_2f,  v_bld_office,  2, '2F',  1350.00),
     (v_flr_o_10f, v_bld_office, 10, '10F', 1350.00),
@@ -281,53 +281,53 @@ VALUES
 -- §6  单元（units）— 15 spec + 3 虚拟子单元 = 18 条
 -- [安全] 非可租单元标记 is_leasable=FALSE，防止误开合同
 -- ==========================================================================
--- DDL 字段映射: unit_no(单元号), decoration(装修), status(状态)
--- DDL 中无: property_type / orientation / ceiling_height / is_leasable / ext_fields
-INSERT INTO units (id, floor_id, building_id, unit_no,
-                   gross_area, billing_area, net_area,
-                   decoration, status,
-                   market_rent_reference)
+-- DDL 字段映射: unit_number(单元号), decoration_status(装修), current_status(状态)
+-- property_type NOT NULL，按楼栋业态填入
+INSERT INTO units (id, floor_id, building_id, unit_number,
+                   gross_area, net_area,
+                   decoration_status, current_status,
+                   market_rent_reference, property_type)
 VALUES
     -- 写字楼单元
     (v_unit_10a,   v_flr_o_10f, v_bld_office, '10A',
-     320.00, 280.00, 280.00, 'refined',  'leased',      120.00),
+     320.00, 280.00, 'refined',  'leased',       120.00, 'office'),
     (v_unit_10b,   v_flr_o_10f, v_bld_office, '10B',
-     160.00, 140.00, 140.00, 'simple',   'leased',      110.00),
+     160.00, 140.00, 'simple',   'leased',       110.00, 'office'),
     (v_unit_10c,   v_flr_o_10f, v_bld_office, '10C',
-     85.00,  72.00,  72.00,  'blank',    'vacant',       95.00),
+     85.00,  72.00,  'blank',    'vacant',        95.00, 'office'),
     (v_unit_20a,   v_flr_o_20f, v_bld_office, '20A',
-     500.00, 440.00, 440.00, 'refined',  'leased',      135.00),
+     500.00, 440.00, 'refined',  'leased',       135.00, 'office'),
     (v_unit_lobby, v_flr_o_1f,  v_bld_office, '1-LOBBY',
-     200.00, 200.00, NULL,   'refined',  'non_leasable', NULL),
+     200.00, NULL,   'refined',  'non_leasable',   NULL, 'office'),
     -- 商铺单元
     (v_unit_s101,  v_flr_r_1f,  v_bld_retail, 'S101',
-     120.00, 108.00, 108.00, 'refined',  'leased',      250.00),
+     120.00, 108.00, 'refined',  'leased',       250.00, 'retail'),
     (v_unit_s102,  v_flr_r_1f,  v_bld_retail, 'S102',
-     80.00,  72.00,  72.00,  'simple',   'vacant',      200.00),
+     80.00,  72.00,  'simple',   'vacant',       200.00, 'retail'),
     (v_unit_s103,  v_flr_r_1f,  v_bld_retail, 'S103',
-     200.00, 180.00, 180.00, 'blank',    'vacant',      280.00),
+     200.00, 180.00, 'blank',    'vacant',       280.00, 'retail'),
     (v_unit_s201,  v_flr_r_2f,  v_bld_retail, 'S201',
-     150.00, 135.00, 135.00, 'simple',   'vacant',      150.00),
+     150.00, 135.00, 'simple',   'vacant',       150.00, 'retail'),
     (v_unit_scomm, v_flr_r_1f,  v_bld_retail, 'S-COMMON',
-     50.00,  50.00,  NULL,   'refined',  'non_leasable', NULL),
+     50.00,  NULL,   'refined',  'non_leasable',   NULL, 'retail'),
     -- 公寓单元
     (v_unit_a301,  v_flr_a_3f,  v_bld_apt,    'A301',
-     45.00,  38.00,  38.00,  'refined',  'vacant',     3500.00),
+     45.00,  38.00,  'refined',  'vacant',      3500.00, 'apartment'),
     (v_unit_a302,  v_flr_a_3f,  v_bld_apt,    'A302',
-     65.00,  55.00,  55.00,  'refined',  'leased',     5200.00),
+     65.00,  55.00,  'refined',  'leased',      5200.00, 'apartment'),
     (v_unit_a303,  v_flr_a_3f,  v_bld_apt,    'A303',
-     35.00,  28.00,  28.00,  'simple',   'vacant',     2800.00),
+     35.00,  28.00,  'simple',   'vacant',      2800.00, 'apartment'),
     (v_unit_a501,  v_flr_a_5f,  v_bld_apt,    'A501',
-     90.00,  78.00,  78.00,  'refined',  'vacant',     7500.00),
+     90.00,  78.00,  'refined',  'vacant',      7500.00, 'apartment'),
     (v_unit_aelec, v_flr_a_1f,  v_bld_apt,    'A-ELEC',
-     15.00,  15.00,  NULL,   'raw',      'non_leasable', NULL),
+     15.00,  NULL,   'raw',      'non_leasable',   NULL, 'apartment'),
     -- 20A 虚拟子单元（二房东拆分转租，PropOS 不直接管理出租）
     (v_unit_20a01, v_flr_o_20f, v_bld_office, '20A-01',
-     100.00, 88.00,  88.00,  'refined',  'non_leasable', NULL),
+     100.00, 88.00,  'refined',  'non_leasable',   NULL, 'office'),
     (v_unit_20a02, v_flr_o_20f, v_bld_office, '20A-02',
-     72.00,  64.00,  64.00,  'refined',  'non_leasable', NULL),
+     72.00,  64.00,  'refined',  'non_leasable',   NULL, 'office'),
     (v_unit_20a03, v_flr_o_20f, v_bld_office, '20A-03',
-     268.00, 236.00, 236.00, 'blank',    'non_leasable', NULL);
+     268.00, 236.00, 'blank',    'non_leasable',   NULL, 'office');
 
 -- ==========================================================================
 -- §7  租客（tenants）— 6 条
@@ -759,10 +759,9 @@ VALUES
 -- ==========================================================================
 -- §20  改造记录（renovation_records）— 3 条
 -- ==========================================================================
--- DDL 字段: record_type(类型枚举), start_date/end_date(日期)
--- renovation_type旧文内容已整合到 description字段
-INSERT INTO renovation_records (id, unit_id, record_type,
-                                start_date, end_date,
+-- DDL 字段: renovation_type(类型枚举), started_at/completed_at(时间戳)
+INSERT INTO renovation_records (id, unit_id, renovation_type,
+                                started_at, completed_at,
                                 cost, description, created_by)
 VALUES
     ('bc000000-0000-0000-0000-000000000001',

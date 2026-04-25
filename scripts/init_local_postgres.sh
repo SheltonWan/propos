@@ -74,6 +74,7 @@ APP_DB_PORT="${APP_DB_PORT:-${PGPORT:-5432}}"
 RUN_SEED=false        # --seed：是否执行 seed.sql
 SKIP_MIGRATIONS=false # --skip-migrations：是否跳过 DDL 迁移
 DRY_RUN=false         # --dry-run：只打印步骤，不真正执行
+BACKFILL=false        # --backfill：将所有 migration 文件标记为已应用，不实际执行
 
 usage() {
     cat <<'EOF'
@@ -167,6 +168,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-migrations)
             SKIP_MIGRATIONS=true
+            shift
+            ;;
+        --backfill)
+            BACKFILL=true
             shift
             ;;
         --dry-run)
@@ -303,8 +308,40 @@ check_admin_connection() {
     ok "管理员连接正常"
 }
 
+# 确保 schema_migrations 追踪表存在（幂等，用于记录已应用的 migration 文件名）
+ensure_migrations_table() {
+    if [[ "$DRY_RUN" == true ]]; then
+        return 0
+    fi
+
+    PGPASSWORD="$APP_DB_PASSWORD" PAGER=cat psql -X -v ON_ERROR_STOP=1 \
+        "${APP_PSQL_ARGS[@]}" -c "
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    filename   TEXT        PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);" >/dev/null
+}
+
+# 检查某个 migration 文件是否已应用
+migration_applied() {
+    local filename="$1"
+    local result
+    result="$(PGPASSWORD="$APP_DB_PASSWORD" PAGER=cat psql -X -t -A -v ON_ERROR_STOP=1 \
+        "${APP_PSQL_ARGS[@]}" -c \
+        "SELECT 1 FROM schema_migrations WHERE filename = '$filename';")"
+    [[ "$result" == "1" ]]
+}
+
+# 记录 migration 已应用
+mark_migration_applied() {
+    local filename="$1"
+    PGPASSWORD="$APP_DB_PASSWORD" PAGER=cat psql -X -v ON_ERROR_STOP=1 \
+        "${APP_PSQL_ARGS[@]}" -c \
+        "INSERT INTO schema_migrations (filename) VALUES ('$filename') ON CONFLICT DO NOTHING;" >/dev/null
+}
+
 # 按文件名字典序（即版本号顺序 001、002…）执行全部 DDL 迁移
-# *.undo.sql 自动排除，保证幂等性必须由 migration 文件自身负责（如 CREATE TABLE IF NOT EXISTS）
+# *.undo.sql 自动排除；已记录在 schema_migrations 表中的文件自动跳过
 run_migrations() {
     local migration_files
 
@@ -325,15 +362,46 @@ run_migrations() {
         return 0
     fi
 
+    ensure_migrations_table
+
+    local applied_count=0
+    local skipped_count=0
+
     while IFS= read -r migration_file; do
         [[ -n "$migration_file" ]] || continue
+        local filename
+        filename="$(basename "$migration_file")"
+
+        # --backfill 模式：仅写入追踪表，不执行文件
+        if [[ "$BACKFILL" == true ]]; then
+            if [[ "$DRY_RUN" != true ]]; then
+                mark_migration_applied "$filename"
+            fi
+            info "已回填（不执行）: $filename"
+            (( applied_count++ )) || true
+            continue
+        fi
+
+        if [[ "$DRY_RUN" != true ]] && migration_applied "$filename"; then
+            info "跳过已应用的 migration: $filename"
+            (( skipped_count++ )) || true
+            continue
+        fi
+
         run_app_file "执行 migration" "$migration_file"
+
+        if [[ "$DRY_RUN" != true ]]; then
+            mark_migration_applied "$filename"
+        fi
+        (( applied_count++ )) || true
     done <<< "$migration_files"
 
-    if [[ "$DRY_RUN" == true ]]; then
+    if [[ "$BACKFILL" == true ]]; then
+        ok "回填完成（已标记 ${applied_count} 个 migration 为已应用，未实际执行）"
+    elif [[ "$DRY_RUN" == true ]]; then
         ok "dry-run 模式下已模拟 migrations 执行"
     else
-        ok "migrations 执行完成"
+        ok "migrations 执行完成（新应用: ${applied_count}，已跳过: ${skipped_count}）"
     fi
 }
 
@@ -360,7 +428,7 @@ print_summary() {
     printf '  db_user: %s\n' "$APP_DB_USER"
     printf '  db_host: %s\n' "$APP_DB_HOST"
     printf '  db_port: %s\n' "$APP_DB_PORT"
-    printf '  migrations: %s\n' "$([[ "$SKIP_MIGRATIONS" == true ]] && printf 'skipped' || printf 'checked')"
+    printf '  migrations: %s\n' "$([[ "$SKIP_MIGRATIONS" == true ]] && printf 'skipped' || printf 'tracked via schema_migrations')"
     printf '  seed: %s\n' "$([[ "$RUN_SEED" == true ]] && printf 'requested' || printf 'not requested')"
     printf '\n建议写入 backend/.env 的数据库配置：\n'
     printf 'DATABASE_URL=postgres://%s:<APP_DB_PASSWORD>@%s:%s/%s\n' \
