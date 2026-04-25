@@ -21,6 +21,9 @@
             :label="`${p.version_label}${p.is_current ? '（当前）' : ''}`"
           />
         </el-select>
+        <el-button :icon="Upload" type="primary" @click="showUpload = true">
+          上传新版本
+        </el-button>
       </template>
     </el-page-header>
 
@@ -146,6 +149,50 @@
         </el-button>
       </template>
     </el-drawer>
+
+    <!-- 上传新版图纸弹窗 -->
+    <el-dialog v-model="showUpload" title="上传楼层图纸" width="520">
+      <el-form label-width="120px">
+        <el-form-item label="版本标签" required>
+          <el-input
+            v-model="uploadVersionLabel"
+            placeholder="如：原始图纸、2026年改造后"
+            maxlength="50"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="CAD 文件" required>
+          <el-upload
+            drag
+            :auto-upload="false"
+            :limit="1"
+            accept=".dwg"
+            :file-list="uploadFileList"
+            :on-change="onUploadFileChange"
+            :on-remove="onUploadFileRemove"
+          >
+            <el-icon class="upload-icon"><UploadFilled /></el-icon>
+            <div class="upload-text">点击或拖拽上传 .dwg 文件</div>
+            <template #tip>
+              <div class="upload-tip">
+                上传后后端异步转换为 SVG/PNG，转换完成后自动设为当前生效版本
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showUpload = false">取消</el-button>
+        <el-button
+          type="primary"
+          :loading="uploading"
+          :disabled="!canSubmitUpload"
+          @click="onSubmitUpload"
+        >
+          上传
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -153,7 +200,8 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
-import { ZoomIn, ZoomOut, Refresh } from '@element-plus/icons-vue'
+import { ZoomIn, ZoomOut, Refresh, Upload, UploadFilled } from '@element-plus/icons-vue'
+import { ElMessage, type UploadFile } from 'element-plus'
 import { useFloorMapStore, useFloorUnitDrawerStore } from '@/stores'
 import type { HeatmapUnit, PropertyType, UnitStatus } from '@/types/asset'
 import { API_FILES } from '@/constants/api_paths'
@@ -175,6 +223,17 @@ const selectedHeatmap = ref<HeatmapUnit | null>(null)
 const svgContent = ref<string>('')
 const svgWrapper = ref<HTMLElement | null>(null)
 const zoomLevel = ref(1)
+
+// ── 上传新版图纸状态 ─────────────────────────────────
+const showUpload = ref(false)
+const uploading = ref(false)
+const uploadVersionLabel = ref<string>('')
+const uploadFile = ref<File | null>(null)
+const uploadFileList = ref<UploadFile[]>([])
+
+const canSubmitUpload = computed<boolean>(
+  () => uploadFile.value != null && uploadVersionLabel.value.trim().length > 0,
+)
 
 const drawerUnit = computed(() => drawerStore.unit)
 
@@ -291,6 +350,35 @@ async function onChangePlan(planId: string): Promise<void> {
     await store.setCurrentPlan(planId)
   } catch {
     // 错误已写入 store.error
+  }
+}
+
+function onUploadFileChange(file: UploadFile): void {
+  if (file.raw) {
+    uploadFile.value = file.raw as File
+    uploadFileList.value = [file]
+  }
+}
+
+function onUploadFileRemove(): void {
+  uploadFile.value = null
+  uploadFileList.value = []
+}
+
+async function onSubmitUpload(): Promise<void> {
+  if (!uploadFile.value || !uploadVersionLabel.value.trim()) return
+  uploading.value = true
+  try {
+    await store.uploadCad(uploadFile.value, uploadVersionLabel.value.trim())
+    ElMessage.success('图纸已上传，后端正在转换中')
+    showUpload.value = false
+    uploadFile.value = null
+    uploadFileList.value = []
+    uploadVersionLabel.value = ''
+  } catch {
+    // 错误已写入 store.error
+  } finally {
+    uploading.value = false
   }
 }
 
@@ -440,4 +528,7 @@ function goBack(): void {
 .drawer-body {
   padding: 8px 4px;
 }
+.upload-icon { font-size: 48px; color: var(--el-color-primary); }
+.upload-text { color: var(--el-text-color-regular); margin-top: 8px; font-size: 14px; }
+.upload-tip { color: var(--el-text-color-secondary); font-size: 12px; }
 </style>
