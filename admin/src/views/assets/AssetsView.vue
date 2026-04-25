@@ -15,11 +15,11 @@
       <el-col v-for="stat in propertyTypeStats" :key="stat.property_type" :span="8">
         <el-card class="stat-card" shadow="hover">
           <div class="stat-title">{{ propertyTypeLabel(stat.property_type) }}</div>
-          <div class="stat-value">{{ stat.total }} 套</div>
+          <div class="stat-value">{{ stat.total_units }} 套</div>
           <div class="stat-sub">
             出租率
             <span class="stat-rate">{{ formatRate(stat.occupancy_rate) }}</span>
-            （已租 {{ stat.leased }} / 空置 {{ stat.vacant }}）
+            （已租 {{ stat.leased_units }} / 空置 {{ stat.vacant_units }} / 即将到期 {{ stat.expiring_soon_units }}）
           </div>
           <el-progress
             :percentage="Math.round(stat.occupancy_rate * 100)"
@@ -33,12 +33,17 @@
 
     <!-- ② 总计 -->
     <el-card v-if="store.overview" class="total-card" shadow="never">
-      <el-descriptions :column="4" border>
+      <el-descriptions :column="5" border>
         <el-descriptions-item label="总单元数">{{ store.overview.total_units }}</el-descriptions-item>
-        <el-descriptions-item label="已租">{{ store.overview.total_leased }}</el-descriptions-item>
-        <el-descriptions-item label="空置">{{ store.overview.total_vacant }}</el-descriptions-item>
+        <el-descriptions-item label="可租套数">{{ store.overview.total_leasable_units }}</el-descriptions-item>
         <el-descriptions-item label="整体出租率">
-          {{ formatRate(store.overview.occupancy_rate) }}
+          {{ formatRate(store.overview.total_occupancy_rate) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="WALE（收入加权）">
+          {{ store.overview.wale_income_weighted.toFixed(2) }} 年
+        </el-descriptions-item>
+        <el-descriptions-item label="WALE（面积加权）">
+          {{ store.overview.wale_area_weighted.toFixed(2) }} 年
         </el-descriptions-item>
       </el-descriptions>
     </el-card>

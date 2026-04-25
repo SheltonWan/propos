@@ -488,11 +488,12 @@ class FakeUnitService extends UnitService {
     if (shouldThrow != null) throw shouldThrow!;
     return overviewResult ??
         const AssetOverviewStats(
-          byPropertyType: [],
           totalUnits: 0,
-          totalLeased: 0,
-          totalVacant: 0,
-          occupancyRate: 0.0,
+          totalLeasableUnits: 0,
+          totalOccupancyRate: 0.0,
+          waleIncomeWeighted: 0.0,
+          waleAreaWeighted: 0.0,
+          byPropertyType: [],
         );
   }
 }

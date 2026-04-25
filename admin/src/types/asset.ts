@@ -129,22 +129,26 @@ export interface RenovationRecord {
 }
 
 // ─── 资产概览 ──────────────────────────────────────────
+// 字段口径严格遵循 docs/backend/API_CONTRACT_v1.7.md §2.23
 
 export interface PropertyTypeStats {
   property_type: PropertyType
-  total: number
-  leased: number
-  vacant: number
-  expiring_soon: number
+  total_units: number
+  leased_units: number
+  vacant_units: number
+  expiring_soon_units: number
   occupancy_rate: number
+  total_nla: number
+  leased_nla: number
 }
 
 export interface AssetOverviewStats {
-  by_property_type: PropertyTypeStats[]
   total_units: number
-  total_leased: number
-  total_vacant: number
-  occupancy_rate: number
+  total_leasable_units: number
+  total_occupancy_rate: number
+  wale_income_weighted: number
+  wale_area_weighted: number
+  by_property_type: PropertyTypeStats[]
 }
 
 // ─── 列表查询参数 ──────────────────────────────────────

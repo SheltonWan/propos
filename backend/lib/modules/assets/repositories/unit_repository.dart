@@ -312,16 +312,31 @@ class UnitRepository {
     return result.map((r) => Unit.fromColumnMap(r.toColumnMap())).toList();
   }
 
-  /// 聚合统计：按业态分组统计各出租状态单元数量（已归档单元不计入）
+  /// 聚合统计：按业态分组统计套数 + NLA 面积（已归档单元不计入）
+  ///
+  /// 输出字段（与 PropertyTypeStats.fromColumnMap 对齐）：
+  ///   property_type, total_units, leased_units, vacant_units,
+  ///   expiring_soon_units, total_nla, leased_nla
+  ///
+  /// 占用判定：current_status IN ('leased','expiring_soon') 视为「已被占用」。
+  /// total_nla 仅统计 is_leasable=true 的单元，避免大堂/机房等公共空间污染。
   Future<List<PropertyTypeStats>> getOverviewStats() async {
     final result = await _db.execute(
       Sql.named('''
         SELECT
           property_type::TEXT AS property_type,
-          COUNT(*)::INT                                                   AS total,
-          COUNT(*) FILTER (WHERE current_status = 'leased')::INT         AS leased,
-          COUNT(*) FILTER (WHERE current_status = 'vacant')::INT         AS vacant,
-          COUNT(*) FILTER (WHERE current_status = 'expiring_soon')::INT  AS expiring_soon
+          COUNT(*)::INT                                                                AS total_units,
+          COUNT(*) FILTER (WHERE current_status = 'leased')::INT                       AS leased_units,
+          COUNT(*) FILTER (WHERE current_status = 'vacant')::INT                       AS vacant_units,
+          COUNT(*) FILTER (WHERE current_status = 'expiring_soon')::INT                AS expiring_soon_units,
+          COALESCE(
+            SUM(net_area) FILTER (WHERE is_leasable),
+            0
+          )::FLOAT8                                                                    AS total_nla,
+          COALESCE(
+            SUM(net_area) FILTER (WHERE current_status IN ('leased','expiring_soon')),
+            0
+          )::FLOAT8                                                                    AS leased_nla
         FROM units
         WHERE archived_at IS NULL
         GROUP BY property_type
@@ -331,5 +346,51 @@ class UnitRepository {
     return result
         .map((r) => PropertyTypeStats.fromColumnMap(r.toColumnMap()))
         .toList();
+  }
+
+  /// 计算 WALE（加权平均剩余租期，单位：年），仅纳入 active / expiring_soon 合同
+  ///
+  /// 公式：
+  ///   wale_income = Σ(remaining_years × annual_rent) / Σ(annual_rent)
+  ///   wale_area   = Σ(remaining_years × leased_area) / Σ(leased_area)
+  ///
+  /// annual_rent ≈ contracts.base_monthly_rent × 12
+  /// leased_area = 合同下所有 contract_units.billing_area_snapshot 之和
+  /// 当无在租合同时返回 (0, 0)。
+  Future<WaleStats> getWaleStats() async {
+    final result = await _db.execute(
+      Sql.named('''
+        WITH active_contracts AS (
+          SELECT
+            c.id,
+            (c.base_monthly_rent * 12)::FLOAT8 AS annual_rent,
+            GREATEST((c.end_date - CURRENT_DATE), 0)::FLOAT8 / 365.0 AS remaining_years,
+            COALESCE(
+              (SELECT SUM(cu.billing_area_snapshot)
+               FROM contract_units cu
+               WHERE cu.contract_id = c.id),
+              0
+            )::FLOAT8 AS leased_area
+          FROM contracts c
+          WHERE c.status IN ('active', 'expiring_soon')
+        )
+        SELECT
+          COALESCE(
+            SUM(remaining_years * annual_rent) / NULLIF(SUM(annual_rent), 0),
+            0
+          )::FLOAT8 AS wale_income_weighted,
+          COALESCE(
+            SUM(remaining_years * leased_area) / NULLIF(SUM(leased_area), 0),
+            0
+          )::FLOAT8 AS wale_area_weighted
+        FROM active_contracts
+      '''),
+    );
+    if (result.isEmpty) return WaleStats.empty;
+    final row = result.first.toColumnMap();
+    return WaleStats(
+      incomeWeighted: (row['wale_income_weighted'] as num?)?.toDouble() ?? 0.0,
+      areaWeighted: (row['wale_area_weighted'] as num?)?.toDouble() ?? 0.0,
+    );
   }
 }

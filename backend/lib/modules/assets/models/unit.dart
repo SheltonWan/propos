@@ -126,67 +126,94 @@ class Unit {
 }
 
 /// AssetOverviewStats 资产概览统计 — 用于 GET /api/assets/overview 响应
+/// 字段定义严格遵循 docs/backend/API_CONTRACT_v1.7.md §2.23
 class AssetOverviewStats {
-  final List<PropertyTypeStats> byPropertyType;
   final int totalUnits;
-  final int totalLeased;
-  final int totalVacant;
-  final double occupancyRate;
+  final int totalLeasableUnits;
+  final double totalOccupancyRate;
+  final double waleIncomeWeighted;
+  final double waleAreaWeighted;
+  final List<PropertyTypeStats> byPropertyType;
 
   const AssetOverviewStats({
-    required this.byPropertyType,
     required this.totalUnits,
-    required this.totalLeased,
-    required this.totalVacant,
-    required this.occupancyRate,
+    required this.totalLeasableUnits,
+    required this.totalOccupancyRate,
+    required this.waleIncomeWeighted,
+    required this.waleAreaWeighted,
+    required this.byPropertyType,
   });
 
   Map<String, dynamic> toJson() => {
-        'by_property_type': byPropertyType.map((s) => s.toJson()).toList(),
         'total_units': totalUnits,
-        'total_leased': totalLeased,
-        'total_vacant': totalVacant,
-        'occupancy_rate': occupancyRate,
+        'total_leasable_units': totalLeasableUnits,
+        'total_occupancy_rate':
+            double.parse(totalOccupancyRate.toStringAsFixed(4)),
+        'wale_income_weighted':
+            double.parse(waleIncomeWeighted.toStringAsFixed(2)),
+        'wale_area_weighted': double.parse(waleAreaWeighted.toStringAsFixed(2)),
+        'by_property_type': byPropertyType.map((s) => s.toJson()).toList(),
       };
 }
 
-/// PropertyTypeStats 单业态统计摘要
+/// PropertyTypeStats 单业态统计摘要 — §2.23 PropertyTypeStats
 class PropertyTypeStats {
   final String propertyType;
-  final int total;
-  final int leased;
-  final int vacant;
-  final int expiringSoon;
+  final int totalUnits;
+  final int leasedUnits;
+  final int vacantUnits;
+  final int expiringSoonUnits;
   final double occupancyRate;
+  final double totalNla;
+  final double leasedNla;
 
   const PropertyTypeStats({
     required this.propertyType,
-    required this.total,
-    required this.leased,
-    required this.vacant,
-    required this.expiringSoon,
+    required this.totalUnits,
+    required this.leasedUnits,
+    required this.vacantUnits,
+    required this.expiringSoonUnits,
     required this.occupancyRate,
+    required this.totalNla,
+    required this.leasedNla,
   });
 
   factory PropertyTypeStats.fromColumnMap(Map<String, dynamic> map) {
-    final total = map['total'] as int? ?? 0;
-    final leased = map['leased'] as int? ?? 0;
+    final totalUnits = (map['total_units'] as num?)?.toInt() ?? 0;
+    // 已租 + 即将到期 都视为已被占用，统一计入出租率分子
+    final leasedUnits = (map['leased_units'] as num?)?.toInt() ?? 0;
+    final expiringSoonUnits =
+        (map['expiring_soon_units'] as num?)?.toInt() ?? 0;
+    final occupied = leasedUnits + expiringSoonUnits;
     return PropertyTypeStats(
       propertyType: map['property_type'] as String,
-      total: total,
-      leased: leased,
-      vacant: map['vacant'] as int? ?? 0,
-      expiringSoon: map['expiring_soon'] as int? ?? 0,
-      occupancyRate: total > 0 ? leased / total : 0.0,
+      totalUnits: totalUnits,
+      leasedUnits: leasedUnits,
+      vacantUnits: (map['vacant_units'] as num?)?.toInt() ?? 0,
+      expiringSoonUnits: expiringSoonUnits,
+      occupancyRate: totalUnits > 0 ? occupied / totalUnits : 0.0,
+      totalNla: (map['total_nla'] as num?)?.toDouble() ?? 0.0,
+      leasedNla: (map['leased_nla'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'property_type': propertyType,
-        'total': total,
-        'leased': leased,
-        'vacant': vacant,
-        'expiring_soon': expiringSoon,
-        'occupancy_rate': occupancyRate,
+        'total_units': totalUnits,
+        'leased_units': leasedUnits,
+        'vacant_units': vacantUnits,
+        'expiring_soon_units': expiringSoonUnits,
+        'occupancy_rate': double.parse(occupancyRate.toStringAsFixed(4)),
+        'total_nla': double.parse(totalNla.toStringAsFixed(2)),
+        'leased_nla': double.parse(leasedNla.toStringAsFixed(2)),
       };
+}
+
+/// WALE 聚合结果（仅 Repository 内部使用）
+class WaleStats {
+  final double incomeWeighted;
+  final double areaWeighted;
+  const WaleStats({required this.incomeWeighted, required this.areaWeighted});
+
+  static const empty = WaleStats(incomeWeighted: 0, areaWeighted: 0);
 }

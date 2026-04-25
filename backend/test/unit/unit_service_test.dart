@@ -10,6 +10,7 @@
 library;
 
 import 'package:excel/excel.dart';
+import 'package:postgres/postgres.dart';
 import 'package:test/test.dart';
 
 import 'package:propos_backend/core/errors/app_exception.dart';
@@ -243,39 +244,90 @@ void main() {
   // ─── getOverview 统计 ─────────────────────────────────────────────────────
 
   group('getOverview()', () {
-    test('10 套 5 出租 → occupancyRate=0.5', () async {
-      pool.executeHandler = (q, p) => makeResult(
-            ['property_type', 'total', 'leased', 'vacant', 'expiring_soon'],
-            [
-              ['office', 10, 5, 3, 1],
-            ],
-          );
+    // 工具：第 1 次调用 → byType；第 2 次（及后续）→ wale
+    Result Function(Object q, Object? p) dispatcher({
+      required Result byType,
+      Result? wale,
+    }) {
+      var callCount = 0;
+      return (q, p) {
+        callCount++;
+        if (callCount == 1) return byType;
+        return wale ??
+            makeResult(
+              ['wale_income_weighted', 'wale_area_weighted'],
+              [
+                [0.0, 0.0],
+              ],
+            );
+      };
+    }
+
+    test('10 套 5 出租 1 即将到期 → totalOccupancyRate=(5+1)/(5+3+1)=0.6667',
+        () async {
+      pool.executeHandler = dispatcher(
+        byType: makeResult(
+          [
+            'property_type',
+            'total_units',
+            'leased_units',
+            'vacant_units',
+            'expiring_soon_units',
+            'total_nla',
+            'leased_nla',
+          ],
+          [
+            ['office', 10, 5, 3, 1, 1000.0, 600.0],
+          ],
+        ),
+      );
       final stats = await svc.getOverview();
       expect(stats.totalUnits, 10);
-      expect(stats.totalLeased, 5);
-      expect(stats.occupancyRate, closeTo(0.5, 0.001));
+      expect(stats.totalLeasableUnits, 9); // 5+3+1
+      expect(stats.totalOccupancyRate, closeTo(6 / 9, 0.001));
+      expect(stats.waleIncomeWeighted, 0.0);
+      expect(stats.waleAreaWeighted, 0.0);
     });
 
-    test('office(10) + retail(20) → total=30, leased=15', () async {
-      pool.executeHandler = (q, p) => makeResult(
-            ['property_type', 'total', 'leased', 'vacant', 'expiring_soon'],
-            [
-              ['office', 10, 5, 3, 1],
-              ['retail', 20, 10, 7, 2],
-            ],
-          );
+    test('office(10) + retail(20) 已被占用合计 18 → totalOccupancyRate ≈ 18/28',
+        () async {
+      pool.executeHandler = dispatcher(
+        byType: makeResult(
+          [
+            'property_type',
+            'total_units',
+            'leased_units',
+            'vacant_units',
+            'expiring_soon_units',
+            'total_nla',
+            'leased_nla',
+          ],
+          [
+            ['office', 10, 5, 3, 1, 1000.0, 600.0],
+            ['retail', 20, 10, 7, 2, 2000.0, 1200.0],
+          ],
+        ),
+        wale: makeResult(
+          ['wale_income_weighted', 'wale_area_weighted'],
+          [
+            [2.5, 2.3],
+          ],
+        ),
+      );
       final stats = await svc.getOverview();
       expect(stats.totalUnits, 30);
-      expect(stats.totalLeased, 15);
-      expect(stats.occupancyRate, closeTo(0.5, 0.001));
+      expect(stats.totalLeasableUnits, 28); // 9+19
+      expect(stats.totalOccupancyRate, closeTo(18 / 28, 0.001));
+      expect(stats.waleIncomeWeighted, closeTo(2.5, 0.001));
+      expect(stats.waleAreaWeighted, closeTo(2.3, 0.001));
       expect(stats.byPropertyType, hasLength(2));
     });
 
-    test('无单元 → occupancyRate=0', () async {
-      pool.executeHandler = (q, p) => makeResult([], []);
+    test('无单元 → totalOccupancyRate=0', () async {
+      pool.executeHandler = dispatcher(byType: makeResult([], []));
       final stats = await svc.getOverview();
       expect(stats.totalUnits, 0);
-      expect(stats.occupancyRate, 0.0);
+      expect(stats.totalOccupancyRate, 0.0);
     });
   });
 }

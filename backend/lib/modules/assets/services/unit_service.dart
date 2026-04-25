@@ -269,23 +269,30 @@ class UnitService {
   // ─── 概览统计 ──────────────────────────────────────────────────────────────
 
   Future<AssetOverviewStats> getOverview() async {
-    final statsList = await UnitRepository(_db).getOverviewStats();
-    var totalUnits = 0;
-    var totalLeased = 0;
-    var totalVacant = 0;
+    final repo = UnitRepository(_db);
+    final byType = await repo.getOverviewStats();
+    final wale = await repo.getWaleStats();
 
-    for (final s in statsList) {
-      totalUnits += s.total;
-      totalLeased += s.leased;
-      totalVacant += s.vacant;
+    var totalUnits = 0;
+    var totalLeasable = 0;
+    var occupied = 0; // leased + expiring_soon
+    for (final s in byType) {
+      totalUnits += s.totalUnits;
+      // total_nla 仅统计可租单元，可由 leased_units + vacant_units + expiring_soon_units 推导
+      // 但严格按字段口径：可租套数 = is_leasable=true 的全部单元，需独立查询。
+      // 此处近似：leased+vacant+expiring_soon 即 is_leasable=true 中可统计部分
+      // （非可租的 non_leasable 状态本身已排除在租赁口径外）
+      totalLeasable += s.leasedUnits + s.vacantUnits + s.expiringSoonUnits;
+      occupied += s.leasedUnits + s.expiringSoonUnits;
     }
 
     return AssetOverviewStats(
-      byPropertyType: statsList,
       totalUnits: totalUnits,
-      totalLeased: totalLeased,
-      totalVacant: totalVacant,
-      occupancyRate: totalUnits > 0 ? totalLeased / totalUnits : 0.0,
+      totalLeasableUnits: totalLeasable,
+      totalOccupancyRate: totalLeasable > 0 ? occupied / totalLeasable : 0.0,
+      waleIncomeWeighted: wale.incomeWeighted,
+      waleAreaWeighted: wale.areaWeighted,
+      byPropertyType: byType,
     );
   }
 

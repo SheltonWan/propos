@@ -258,13 +258,15 @@ void main() {
   // ─── GET /assets/overview ─────────────────────────────────────────────────
 
   group('GET /assets/overview', () {
-    test('成功 → 200 data 含 total_units / occupancy_rate', () async {
+    test('成功 → 200 data 含 total_units / total_occupancy_rate / wale_*',
+        () async {
       svc.overviewResult = const AssetOverviewStats(
-        byPropertyType: [],
         totalUnits: 30,
-        totalLeased: 15,
-        totalVacant: 12,
-        occupancyRate: 0.5,
+        totalLeasableUnits: 27,
+        totalOccupancyRate: 0.5,
+        waleIncomeWeighted: 2.5,
+        waleAreaWeighted: 2.3,
+        byPropertyType: [],
       );
 
       final resp = await handler(makeReq('GET', '/assets/overview'));
@@ -272,7 +274,12 @@ void main() {
 
       expect(resp.statusCode, 200);
       expect((json['data'] as Map)['total_units'], 30);
-      expect((json['data'] as Map)['occupancy_rate'], closeTo(0.5, 0.001));
+      expect((json['data'] as Map)['total_leasable_units'], 27);
+      expect(
+          (json['data'] as Map)['total_occupancy_rate'], closeTo(0.5, 0.001));
+      expect(
+          (json['data'] as Map)['wale_income_weighted'], closeTo(2.5, 0.001));
+      expect((json['data'] as Map)['wale_area_weighted'], closeTo(2.3, 0.001));
     });
   });
 }
