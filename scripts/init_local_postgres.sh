@@ -69,6 +69,19 @@ APP_DB_HOST="${APP_DB_HOST:-${PGHOST:-localhost}}"
 APP_DB_PORT="${APP_DB_PORT:-${PGPORT:-5432}}"
 
 # -----------------------------------------------------------------------------
+# 初始超管账号（仅 migration 020 执行时使用，后端运行时不需要）
+# 生产部署前必须通过环境变量覆盖；开发机使用下方占位默认值
+# 生成 hash 命令（需安装 apache2-utils 或 httpd-tools）：
+#   htpasswd -bnBC 12 '' 'ChangeMe@2026!' | tr -d ':\n' | sed 's/\$2y/\$2a/'
+# -----------------------------------------------------------------------------
+ADMIN_EMAIL="${ADMIN_EMAIL:-smartv@qq.com}"
+# 开发机默认 hash，对应明文 'ChangeMe@2026!'（bcrypt cost=12）
+# 用 if 条件赋值而非 ${:-} 语法，因 bcrypt hash 含 $ 字符，需单引号防止 bash 展开
+if [[ -z "${ADMIN_PASSWORD_HASH:-}" ]]; then
+    ADMIN_PASSWORD_HASH='$2a$12$cWEz0fB8xeh7o8WtGOqQi.TZCC9Cc2cWbOgG18qgLg3RJa8hCr9Sq'
+fi
+
+# -----------------------------------------------------------------------------
 # 运行时标志（由命令行参数控制）
 # -----------------------------------------------------------------------------
 RUN_SEED=false        # --seed：是否执行 seed.sql
@@ -278,6 +291,8 @@ SQL
 }
 
 # 以业务角色（propos）身份对业务库执行 SQL 文件（migrations / seed）
+# -v admin_email / -v admin_password_hash 对所有 migration 透明传递，
+# 仅 020_seed_reference_data.sql 实际引用这两个变量，其余文件忽略多余变量不报错
 run_app_file() {
     local description="$1"
     local file_path="$2"
@@ -285,10 +300,13 @@ run_app_file() {
     info "$description: $file_path"
     if [[ "$DRY_RUN" == true ]]; then
         info "dry-run 模式下跳过文件执行"
+        info "  psql -v admin_email=\"$ADMIN_EMAIL\" -v admin_password_hash=\"***\" ..."
         return 0
     fi
 
     PGPASSWORD="$APP_DB_PASSWORD" PAGER=cat psql -X -v ON_ERROR_STOP=1 \
+        -v admin_email="$ADMIN_EMAIL" \
+        -v admin_password_hash="$ADMIN_PASSWORD_HASH" \
         "${APP_PSQL_ARGS[@]}" -f "$file_path"
 }
 

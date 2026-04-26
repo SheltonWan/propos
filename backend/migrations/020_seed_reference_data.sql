@@ -5,9 +5,14 @@
 --   2. 初始三个部门（租务部/财务部/物业运营部）
 --   3. KPI 指标库 K01-K14（含 direction / category）
 --
--- 注意：密码哈希应在部署时由 scripts/check_env.sh 生成，此处为临时占位值。
---   实际部署应通过环境变量 ADMIN_DEFAULT_PASSWORD_HASH 注入，
---   或在容器启动脚本中替换此行。
+-- 变量注入：超管邮箱与密码 hash 通过 psql -v 参数传入，不得硬编码在本文件中。
+--   由 scripts/init_local_postgres.sh 自动从以下环境变量读取后注入：
+--     ADMIN_EMAIL         — 超管登录邮箱（缺省 admin@propos.local）
+--     ADMIN_PASSWORD_HASH — bcrypt hash（cost≥12）；生产部署前必须替换为真实值
+--   手动执行时必须显式传入：
+--     psql -v admin_email='xxx@example.com' \
+--          -v admin_password_hash='$2a$12$...' \
+--          -f backend/migrations/020_seed_reference_data.sql
 -- 依赖: 001-018
 -- =============================================================================
 
@@ -15,14 +20,15 @@ BEGIN;
 
 -- -------------------------------------------------------------------------
 -- 1. 初始超级管理员
---    密码哈希对应明文 'ChangeMe@2026!'（bcrypt cost=12，首登后强制修改）
+--    邮箱与 hash 均由 psql 变量 :admin_email / :admin_password_hash 注入
+--    首次登录后必须修改密码
 -- -------------------------------------------------------------------------
 INSERT INTO users (id, name, email, password_hash, role, is_active)
 VALUES (
     'f0000000-0000-0000-0000-000000000001',  -- 与 scripts/seed.sql v_user_admin 保持一致
     '系统管理员',
-    'admin@propos.local',
-    '$2a$12$LToWy/SegZcCpI2IV.jA2uXRjax6s2Z2YoA1pdLDvmfkdvgisWeYa',  -- bcrypt(Test1234!, cost=12)
+    :'admin_email',         -- 从环境变量 ADMIN_EMAIL 注入
+    :'admin_password_hash', -- 从环境变量 ADMIN_PASSWORD_HASH 注入
     'super_admin',
     TRUE
 )

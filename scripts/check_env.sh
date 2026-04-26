@@ -277,6 +277,24 @@ check_env_var "FILE_STORAGE_PATH"    "本地文件存储根目录"           2
 check_env_var "ENCRYPTION_KEY"       "AES-256 证件号加密密钥"      32
 check_env_var "APP_PORT"             "HTTP 监听端口"               1
 
+# 部署初始化变量（migration 020 执行时需要；后端日常运行时不需要）
+echo ""
+info "以下变量仅首次部署初始化数据库时使用（日常开发可不设置）"
+for _dv_pair in \
+    "ADMIN_EMAIL:初始超管邮箱（默认 admin@propos.local）" \
+    "ADMIN_PASSWORD_HASH:初始超管密码 bcrypt hash（cost≥12，生产必须设置）"; do
+    _dv_name="${_dv_pair%%:*}"
+    _dv_desc="${_dv_pair#*:}"
+    _dv_val="${!_dv_name:-}"
+    if [[ -z "$_dv_val" ]]; then
+        warn "${_dv_name}  — ${_dv_desc}  （未设置，生产首次部署前必须指定）"
+    else
+        local _preview="${_dv_val:0:4}***"
+        ok "${_dv_name}  — ${_dv_desc}  ${DIM}(${_preview})${NC}"
+    fi
+done
+info "生成 hash：htpasswd -bnBC 12 '' '密码' | tr -d ':\\n' | sed 's/\$2y/\$2a/'"
+
 # ══════════════════════════════════════════════
 #  7. 数据库连通性
 # ══════════════════════════════════════════════
