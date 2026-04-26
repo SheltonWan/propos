@@ -144,14 +144,17 @@ class AuthService {
       throw const ValidationException('PASSWORD_SAME_AS_OLD', '新密码不能与旧密码相同');
     }
 
-    // 更新密码 + session_version 递增 + 标记 OTP 已使用（事务保证原子性）
+    // 更新密码 + session_version 递增 + 清除登录锁定状态 + 标记 OTP 已使用（事务保证原子性）
     await _db.runTx((session) async {
       await session.execute(
         Sql.named('''
           UPDATE users
-          SET password_hash = @newHash,
-              session_version = session_version + 1,
-              updated_at = now()
+          SET password_hash         = @newHash,
+              session_version       = session_version + 1,
+              failed_login_attempts = 0,
+              locked_until          = NULL,
+              password_changed_at   = now(),
+              updated_at            = now()
           WHERE id = @userId
         '''),
         parameters: {
