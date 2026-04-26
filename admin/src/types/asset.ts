@@ -197,6 +197,44 @@ export interface UnitUpdateRequest {
   ext_fields?: Record<string, unknown>
 }
 
+// ─── 业态扩展字段（API_CONTRACT §2.13）─────────────────
+
+/** 写字楼扩展字段 */
+export interface OfficeExtFields {
+  workstation_count?: number | null
+  partition_count?: number | null
+}
+
+/** 商铺扩展字段 */
+export interface RetailExtFields {
+  frontage_width?: number | null
+  street_facing?: boolean | null
+  retail_ceiling_height?: number | null
+}
+
+/** 公寓扩展字段 */
+export interface ApartmentExtFields {
+  bedroom_count?: number | null
+  en_suite_bathroom?: boolean | null
+}
+
+// ─── 改造照片上传（§2.21）──────────────────────────────
+
+export type RenovationPhotoStage = 'before' | 'after'
+
+export interface RenovationPhotoUploadResponse {
+  storage_path: string
+  photo_stage: RenovationPhotoStage
+}
+
+// ─── 楼层 CAD 上传响应（§2.8）─────────────────────────
+
+export interface FloorCadUploadResponse {
+  floor_plan_id: string
+  version_label: string
+  status: string
+}
+
 // ─── 导入批次 ──────────────────────────────────────────
 
 export type ImportDataType = 'units' | 'contracts' | 'invoices'

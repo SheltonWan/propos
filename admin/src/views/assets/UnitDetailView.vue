@@ -146,13 +146,31 @@
           </el-table-column>
           <el-table-column prop="contractor" label="施工方" min-width="160" />
           <el-table-column prop="description" label="说明" min-width="200" show-overflow-tooltip />
+          <el-table-column label="改造前照片" width="200">
+            <template #default="{ row }">
+              <RenovationPhotoCell
+                :paths="row.before_photo_paths ?? []"
+                stage="before"
+                @upload="(file: File, stage: RenovationPhotoStage) => onUploadPhoto(row.id, file, stage)"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="改造后照片" width="200">
+            <template #default="{ row }">
+              <RenovationPhotoCell
+                :paths="row.after_photo_paths ?? []"
+                stage="after"
+                @upload="(file: File, stage: RenovationPhotoStage) => onUploadPhoto(row.id, file, stage)"
+              />
+            </template>
+          </el-table-column>
           <template #empty>暂无改造记录</template>
         </el-table>
       </el-card>
     </div>
 
     <!-- 编辑单元弹窗 -->
-    <el-dialog v-model="showEdit" title="编辑房源" width="560">
+    <el-dialog v-model="showEdit" title="编辑房源" width="640">
       <el-form ref="editFormRef" :model="editForm" label-width="120px">
         <el-form-item label="装修状态">
           <el-select v-model="editForm.decoration_status" style="width: 100%">
@@ -185,6 +203,14 @@
         <el-form-item label="可租赁">
           <el-switch v-model="editForm.is_leasable" />
         </el-form-item>
+
+        <el-divider content-position="left">
+          业态扩展信息（{{ propertyTypeLabel(editPropertyType) }}）
+        </el-divider>
+        <UnitExtFieldsForm
+          v-model="editExtFields"
+          :property-type="editPropertyType"
+        />
       </el-form>
       <template #footer>
         <el-button @click="showEdit = false">取消</el-button>
@@ -240,11 +266,14 @@ import { Edit, Plus } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useUnitDetailStore } from '@/stores'
 import { M2_CONTRACT_ENABLED } from '@/constants/feature_flags'
+import UnitExtFieldsForm from './components/UnitExtFieldsForm.vue'
+import RenovationPhotoCell from './components/RenovationPhotoCell.vue'
 import type {
   DecorationStatus,
   Orientation,
   PropertyType,
   RenovationCreateRequest,
+  RenovationPhotoStage,
   UnitStatus,
   UnitUpdateRequest,
 } from '@/types/asset'
@@ -265,6 +294,10 @@ const editForm = reactive<UnitUpdateRequest>({
   market_rent_reference: null,
   is_leasable: true,
 })
+const editExtFields = ref<Record<string, unknown>>({})
+const editPropertyType = computed<PropertyType>(
+  () => store.item?.property_type ?? 'office',
+)
 
 function openEdit(): void {
   if (!store.item) return
@@ -273,13 +306,17 @@ function openEdit(): void {
   editForm.ceiling_height = store.item.ceiling_height
   editForm.market_rent_reference = store.item.market_rent_reference
   editForm.is_leasable = store.item.is_leasable
+  editExtFields.value = { ...(store.item.ext_fields ?? {}) }
   showEdit.value = true
 }
 
 async function onSubmitEdit(): Promise<void> {
   if (!unitId.value) return
   try {
-    await store.updateUnit(unitId.value, { ...editForm })
+    await store.updateUnit(unitId.value, {
+      ...editForm,
+      ext_fields: editExtFields.value,
+    })
     ElMessage.success('房源信息已更新')
     showEdit.value = false
   } catch {
@@ -328,6 +365,20 @@ async function onSubmitRenovation(): Promise<void> {
       // 错误已写入 store.error
     }
   })
+}
+
+// ── 改造照片上传 ─────────────────────────────────────
+async function onUploadPhoto(
+  renovationId: string,
+  file: File,
+  stage: RenovationPhotoStage,
+): Promise<void> {
+  try {
+    await store.uploadRenovationPhoto(renovationId, file, stage)
+    ElMessage.success(stage === 'before' ? '改造前照片已上传' : '改造后照片已上传')
+  } catch {
+    // 错误已写入 store.error
+  }
 }
 
 // ── 业态扩展字段 ─────────────────────────────────────

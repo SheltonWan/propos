@@ -10,12 +10,15 @@ import type {
   AssetOverviewStats,
   Building,
   ContractSummary,
+  FloorCadUploadResponse,
   Floor,
   FloorHeatmap,
   FloorPlan,
   ImportBatchDetail,
   RenovationCreateRequest,
   RenovationListParams,
+  RenovationPhotoStage,
+  RenovationPhotoUploadResponse,
   RenovationRecord,
   Unit,
   UnitListParams,
@@ -180,4 +183,35 @@ export async function exportUnits(propertyType?: string): Promise<Blob> {
     responseType: 'blob',
   })
   return res.data as Blob
+}
+
+// ─── 改造照片上传（§2.21）─────────────────────────────
+
+/** POST /api/renovations/:id/photos — 上传改造前/后照片 */
+export async function uploadRenovationPhoto(
+  renovationId: string,
+  file: File,
+  photoStage: RenovationPhotoStage,
+): Promise<RenovationPhotoUploadResponse> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('photo_stage', photoStage)
+  return apiPostForm<RenovationPhotoUploadResponse>(
+    `${API_RENOVATIONS}/${renovationId}/photos`,
+    form,
+  )
+}
+
+// ─── 楼层图纸上传（§2.8）──────────────────────────────
+
+/** POST /api/floors/:id/cad — 上传 .dwg 并触发转换 */
+export async function uploadFloorCad(
+  floorId: string,
+  file: File,
+  versionLabel: string,
+): Promise<FloorCadUploadResponse> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('version_label', versionLabel)
+  return apiPostForm<FloorCadUploadResponse>(`${API_FLOORS}/${floorId}/cad`, form)
 }
