@@ -48,17 +48,6 @@
         </template>
       </el-upload>
 
-      <div class="template-row">
-        <el-icon><Document /></el-icon>
-        <span>下载导入模板：</span>
-        <el-button type="primary" link @click="onDownloadTemplate('office')">写字楼</el-button>
-        <el-divider direction="vertical" />
-        <el-button type="primary" link @click="onDownloadTemplate('retail')">商铺</el-button>
-        <el-divider direction="vertical" />
-        <el-button type="primary" link @click="onDownloadTemplate('apartment')">公寓</el-button>
-        <span class="template-hint">CSV 格式，使用 Excel 打开后另存为 .xlsx 再上传</span>
-      </div>
-
       <div class="actions">
         <el-button :disabled="!store.file" type="primary" :loading="store.loading" @click="onDryRun">
           下一步：执行预校验
@@ -128,11 +117,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Document, UploadFilled } from '@element-plus/icons-vue'
 import type { UploadFile } from 'element-plus'
 import { useUnitImportStore } from '@/stores'
-import { downloadUnitImportTemplate } from './utils/unit_import_template'
-import type { PropertyType } from '@/types/asset'
 
 const store = useUnitImportStore()
 const router = useRouter()
@@ -206,10 +192,6 @@ function goAssets(): void {
   store.reset()
   router.push({ name: 'assets' })
 }
-
-function onDownloadTemplate(t: PropertyType): void {
-  downloadUnitImportTemplate(t)
-}
 </script>
 
 <style scoped>
@@ -230,22 +212,6 @@ function onDownloadTemplate(t: PropertyType): void {
 .upload-icon { font-size: 56px; color: var(--el-color-primary); }
 .upload-text { color: var(--el-text-color-regular); margin-top: 8px; font-size: 14px; }
 .upload-tip { color: var(--el-text-color-secondary); font-size: 12px; }
-.template-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 16px;
-  margin-top: 8px;
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-.template-hint {
-  margin-left: 8px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
 .actions {
   display: flex;
   gap: 12px;

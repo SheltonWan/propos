@@ -20,7 +20,6 @@ import type {
   FloorPlan,
   ImportBatchDetail,
   RenovationCreateRequest,
-  RenovationPhotoStage,
   RenovationRecord,
   Unit,
   UnitStatus,
@@ -43,8 +42,6 @@ import {
   importUnits as apiImportUnits,
   patchUnit,
   setCurrentFloorPlan as apiSetCurrentFloorPlan,
-  uploadFloorCad as apiUploadFloorCad,
-  uploadRenovationPhoto as apiUploadRenovationPhoto,
 } from '@/api/modules/assets'
 
 /** 楼栋粒度出租率聚合（前端在 useAssetOverviewStore 中根据 units 计算） */
@@ -261,20 +258,6 @@ export const useFloorMapStore = defineStore('floorMap', () => {
     }
   }
 
-  /** 上传 .dwg 图纸触发后端转换；上传成功后立即刷新一次（首次返回 status=converting） */
-  async function uploadCad(file: File, versionLabel: string): Promise<void> {
-    if (!item.value) return
-    error.value = null
-    try {
-      await apiUploadFloorCad(item.value.id, file, versionLabel)
-      // 转换异步执行，但版本记录已落库；先刷一次，UI 上版本会出现“转换中/未生效”
-      await fetchMap(item.value.id)
-    } catch (e) {
-      error.value = _msg(e, '上传图纸失败')
-      throw e
-    }
-  }
-
   function reset(): void {
     item.value = null
     heatmap.value = null
@@ -282,7 +265,7 @@ export const useFloorMapStore = defineStore('floorMap', () => {
     error.value = null
   }
 
-  return { item, heatmap, plans, loading, error, fetchMap, setCurrentPlan, uploadCad, reset }
+  return { item, heatmap, plans, loading, error, fetchMap, setCurrentPlan, reset }
 })
 
 // ─── 4. 房源详情 ───────────────────────────────────────
@@ -354,36 +337,6 @@ export const useUnitDetailStore = defineStore('unitDetail', () => {
     }
   }
 
-  /** 上传改造前/后照片，并就地更新对应记录的 *_photo_paths */
-  async function uploadRenovationPhoto(
-    renovationId: string,
-    file: File,
-    stage: RenovationPhotoStage,
-  ): Promise<void> {
-    saving.value = true
-    error.value = null
-    try {
-      const res = await apiUploadRenovationPhoto(renovationId, file, stage)
-      const idx = renovations.value.findIndex((r) => r.id === renovationId)
-      if (idx >= 0) {
-        const rec = renovations.value[idx]
-        const key: keyof RenovationRecord =
-          stage === 'before' ? 'before_photo_paths' : 'after_photo_paths'
-        const prev = (rec[key] as string[]) ?? []
-        renovations.value = [
-          ...renovations.value.slice(0, idx),
-          { ...rec, [key]: [...prev, res.storage_path] },
-          ...renovations.value.slice(idx + 1),
-        ]
-      }
-    } catch (e) {
-      error.value = _msg(e, '上传照片失败')
-      throw e
-    } finally {
-      saving.value = false
-    }
-  }
-
   function reset(): void {
     item.value = null
     renovations.value = []
@@ -403,7 +356,6 @@ export const useUnitDetailStore = defineStore('unitDetail', () => {
     fetchDetail,
     updateUnit,
     addRenovation,
-    uploadRenovationPhoto,
     reset,
   }
 })
