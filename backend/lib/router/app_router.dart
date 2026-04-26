@@ -4,12 +4,22 @@ import 'package:shelf_router/shelf_router.dart';
 import 'package:propos_backend/config/app_config.dart';
 import 'package:propos_backend/modules/auth/controllers/auth_controller.dart';
 import 'package:propos_backend/modules/auth/controllers/test_helper_controller.dart';
+import 'package:propos_backend/modules/auth/controllers/user_admin_controller.dart';
 import 'package:propos_backend/modules/auth/repositories/password_reset_otp_repository.dart';
 import 'package:propos_backend/modules/auth/repositories/user_auth_repository.dart';
 import 'package:propos_backend/modules/auth/repositories/refresh_token_repository.dart';
 import 'package:propos_backend/modules/auth/services/auth_service.dart';
 import 'package:propos_backend/modules/auth/services/login_service.dart';
+import 'package:propos_backend/modules/auth/services/user_admin_service.dart';
+import 'package:propos_backend/modules/auth/services/user_import_service.dart';
 import 'package:propos_backend/shared/email_service.dart';
+
+// 系统设置：组织架构
+import 'package:propos_backend/modules/org/controllers/department_controller.dart';
+import 'package:propos_backend/modules/org/controllers/managed_scope_controller.dart';
+import 'package:propos_backend/modules/org/services/department_import_service.dart';
+import 'package:propos_backend/modules/org/services/department_service.dart';
+import 'package:propos_backend/modules/org/services/managed_scope_service.dart';
 
 // M1 资产模块
 import 'package:propos_backend/modules/assets/services/building_service.dart';
@@ -51,6 +61,27 @@ Router buildRouter({required Pool db, required AppConfig config}) {
   final authController = AuthController(authService, loginService);
 
   router.mount('/api/', authController.router.call);
+
+  // ── 用户管理（系统设置）──────────────────────────────────────────────────
+  final userAdminService = UserAdminService(db);
+  final userImportService = UserImportService(db);
+  final userAdminController = UserAdminController(
+    userAdminService,
+    userImportService,
+  );
+  router.mount('/api/', userAdminController.router.call);
+
+  // ── 组织架构（系统设置）──────────────────────────────────────────────────
+  final departmentService = DepartmentService(db);
+  final departmentImportService = DepartmentImportService(db);
+  final managedScopeService = ManagedScopeService(db);
+  final departmentController = DepartmentController(
+    departmentService,
+    departmentImportService,
+  );
+  final managedScopeController = ManagedScopeController(managedScopeService);
+  router.mount('/api/', departmentController.router.call);
+  router.mount('/api/', managedScopeController.router.call);
 
   // ── 测试辅助端点（仅限非生产环境）────────────────────────────────────────
   if (config.allowTestEndpoints) {

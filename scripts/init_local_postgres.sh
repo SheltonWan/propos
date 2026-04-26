@@ -74,7 +74,7 @@ APP_DB_PORT="${APP_DB_PORT:-${PGPORT:-5432}}"
 # 生成 hash 命令（需安装 apache2-utils 或 httpd-tools）：
 #   htpasswd -bnBC 12 '' 'ChangeMe@2026!' | tr -d ':\n' | sed 's/\$2y/\$2a/'
 # -----------------------------------------------------------------------------
-ADMIN_EMAIL="${ADMIN_EMAIL:-smartv@qq.com}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@propos.cn}"
 # 开发机默认 hash，对应明文 'ChangeMe@2026!'（bcrypt cost=12）
 # 用 if 条件赋值而非 ${:-} 语法，因 bcrypt hash 含 $ 字符，需单引号防止 bash 展开
 if [[ -z "${ADMIN_PASSWORD_HASH:-}" ]]; then
