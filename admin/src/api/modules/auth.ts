@@ -1,4 +1,4 @@
-import { apiPost } from '@/api/client'
+import { apiPost, apiGet } from '@/api/client'
 import {
   API_AUTH_LOGIN,
   API_AUTH_ME,
@@ -34,7 +34,7 @@ export async function login(email: string, password: string): Promise<LoginRespo
 
 /** 获取当前用户信息 */
 export async function fetchMe(): Promise<CurrentUser> {
-  return apiPost<CurrentUser>(API_AUTH_ME)
+  return apiGet<CurrentUser>(API_AUTH_ME)
 }
 
 /** 退出登录 */
