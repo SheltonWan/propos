@@ -8,24 +8,24 @@ Middleware logMiddleware() {
   return (Handler inner) {
     return (Request request) async {
       final stopwatch = Stopwatch()..start();
-
-      Response response;
-      try {
-        response = await inner(request);
-      } finally {
-        stopwatch.stop();
-      }
-
       final method = request.method;
       // Shelf 的 request.url 不含前导斜杠，加回来保持可读性
       final path = '/${request.url}';
-      final status = response.statusCode;
-      final ms = stopwatch.elapsedMilliseconds;
       final now = DateTime.now().toUtc().toIso8601String();
 
-      io.stderr.writeln('[$now] $method $path → $status (${ms}ms)');
-
-      return response;
+      try {
+        final response = await inner(request);
+        stopwatch.stop();
+        io.stderr.writeln(
+            '[$now] $method $path → ${response.statusCode} (${stopwatch.elapsedMilliseconds}ms)');
+        return response;
+      } catch (e) {
+        // 异常由外层 errorHandler 转换为错误响应；此处仍需记录请求，否则错误请求无任何日志
+        stopwatch.stop();
+        io.stderr.writeln(
+            '[$now] $method $path → ERR (${stopwatch.elapsedMilliseconds}ms) $e');
+        rethrow;
+      }
     };
   };
 }
