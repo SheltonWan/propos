@@ -92,6 +92,14 @@ class PasswordResetOtpRepository {
     return result.first.toColumnMap()['cnt'] as int? ?? 0;
   }
 
+  /// 按 ID 删除单条 OTP 记录（发送邮件失败时回滚用）。
+  Future<void> deleteById(String id) async {
+    await _db.execute(
+      Sql.named('DELETE FROM password_reset_otps WHERE id = @id'),
+      parameters: {'id': id},
+    );
+  }
+
   /// 清理某用户的过期和已使用记录（节省存储，发新 OTP 前调用）。
   Future<void> deleteStaleByUserId(String userId) async {
     await _db.execute(

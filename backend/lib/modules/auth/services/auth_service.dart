@@ -68,14 +68,14 @@ class AuthService {
     final codeHash = _sha256Hex(otp);
 
     // 持久化 OTP 记录
-    await _otpRepo.create(
+    final otpRecord = await _otpRepo.create(
       userId: userId,
       email: email,
       codeHash: codeHash,
       expiryMinutes: _otpExpiryMinutes,
     );
 
-    // 发送邮件（失败不影响主流程响应，记录日志）
+    // 发送邮件（失败时删除 OTP 记录，避免虚耗速率限制配额）
     try {
       await _emailService.sendOtpEmail(
         email: email,
@@ -83,8 +83,9 @@ class AuthService {
         expireMinutes: _otpExpiryMinutes,
       );
     } catch (e) {
-      // 邮件发送失败 — 不对外抛出，只打日志
+      // 邮件发送失败 — 回滚 OTP 记录，只打日志，不对外抛出
       print('[AuthService] 发送 OTP 邮件失败: $e');
+      await _otpRepo.deleteById(otpRecord.id);
     }
   }
 
@@ -145,6 +146,8 @@ class AuthService {
     }
 
     // 更新密码 + session_version 递增 + 清除登录锁定状态 + 标记 OTP 已使用（事务保证原子性）
+    // 注意：markUsed 必须通过同一事务 session 执行，不得调用 _otpRepo.markUsed()
+    // （后者使用 Pool 独立连接，不在事务范围内）
     await _db.runTx((session) async {
       await session.execute(
         Sql.named('''
@@ -162,8 +165,13 @@ class AuthService {
           'userId': otpRecord.userId,
         },
       );
-      // 标记 OTP 已使用（防止二次提交）
-      await _otpRepo.markUsed(otpRecord.id);
+      // 标记 OTP 已使用（防止二次提交），与密码更新同事务
+      await session.execute(
+        Sql.named(
+          'UPDATE password_reset_otps SET used_at = now() WHERE id = @id',
+        ),
+        parameters: {'id': otpRecord.id},
+      );
     });
   }
 
