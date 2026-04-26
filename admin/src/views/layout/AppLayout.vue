@@ -40,6 +40,14 @@
           <el-icon><Connection /></el-icon>
           <template #title>二房东管理</template>
         </el-menu-item>
+        <el-sub-menu index="system-group">
+          <template #title>
+            <el-icon><Setting /></el-icon>
+            <span>系统设置</span>
+          </template>
+          <el-menu-item index="/system/users">用户管理</el-menu-item>
+          <el-menu-item index="/system/departments">组织架构</el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 
@@ -79,7 +87,7 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   Odometer, OfficeBuilding, Document, Money, Tools,
-  Connection, Fold, Expand, ArrowDown,
+  Connection, Fold, Expand, ArrowDown, Setting,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores'
 import { SIDEBAR_WIDTH_PX, SIDEBAR_COLLAPSED_WIDTH_PX } from '@/constants/ui_constants'

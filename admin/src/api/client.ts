@@ -122,37 +122,20 @@ export async function apiPatch<T>(url: string, data?: unknown): Promise<T> {
   return res.data.data
 }
 
+export async function apiPut<T>(url: string, data?: unknown): Promise<T> {
+  const res = await http.put<ApiResponse<T>>(url, data)
+  return res.data.data
+}
+
 export async function apiDelete(url: string): Promise<void> {
   await http.delete(url)
 }
 
-/**
- * 原始 GET 请求（不解包 data 字段）
- *
- * 用于非 JSON-Envelope 接口，例如 `/api/files/{path}` 返回的 SVG 文本或二进制流。
- * 复用 axios 实例的鉴权 / refresh 拦截器，避免在业务组件中手写 token 注入。
- */
-export async function apiGetRaw<T = unknown>(
-  url: string,
-  config?: AxiosRequestConfig,
-): Promise<T> {
-  const res = await http.get<T>(url, config)
-  return res.data
-}
-
-/**
- * multipart/form-data 上传辅助
- * 用于文件上传场景（批量导入、附件等）
- *
- * 注意：不显式设置 Content-Type 头，由浏览器/axios 根据 FormData
- * 自动生成包含 boundary 的完整 multipart 头，避免后端 multipart 解析失败。
- */
-export async function apiPostForm<T>(
-  url: string,
-  form: FormData,
-  config?: AxiosRequestConfig,
-): Promise<T> {
-  const res = await http.post<ApiResponse<T>>(url, form, config)
+/** multipart/form-data 上传（Excel 导入、文件上传等） */
+export async function apiPostForm<T>(url: string, form: FormData): Promise<T> {
+  const res = await http.post<ApiResponse<T>>(url, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
   return res.data.data
 }
 

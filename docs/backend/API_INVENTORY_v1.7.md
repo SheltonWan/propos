@@ -24,6 +24,7 @@
 | PATCH | /api/users/:id/status | 启停用账号 | super_admin |
 | PATCH | /api/users/:id/role | 变更角色 | super_admin |
 | PATCH | /api/users/:id/department | 变更员工所属部门 | super_admin |
+| POST | /api/users/import | 批量导入员工账号（v1.8 新增；支持 `dry_run`） | super_admin |
 | POST | /api/auth/change-password | 修改密码（需提供旧密码，触发 `session_version` 递增） | 已登录 |
 | POST | /api/auth/forgot-password | 申请密码重置（发送邮件重置链接，不论邮箱是否存在均返回 200） | 公共 |
 | POST | /api/auth/reset-password | 通过邮件 token 重置密码（无需旧密码，token 有效期 2 小时） | 公共 |
@@ -48,6 +49,7 @@
 | POST | /api/departments | 创建部门 | org.manage |
 | PATCH | /api/departments/:id | 更新部门（名称、排序、父级） | org.manage |
 | DELETE | /api/departments/:id | 停用部门（逻辑删除，设 `is_active = false`） | org.manage |
+| POST | /api/departments/import | 批量导入组织架构（v1.8 新增；支持 `dry_run`，按层级 1→3 顺序写入） | org.manage |
 | GET | /api/managed-scopes | 查询管辖范围（支持按 `department_id` 或 `user_id` 过滤） | org.read |
 | PUT | /api/managed-scopes | 设置管辖范围（批量覆写某部门或某用户的范围配置） | org.manage |
 
@@ -358,11 +360,12 @@
 
 ### 导入接口备注
 
-1. `POST /api/imports` 请求体包含 `data_type`（`unit` / `contract` / `sublease` / `invoice`）+ Excel 文件。
+1. `POST /api/imports` 请求体包含 `data_type`（`unit` / `contract` / `sublease` / `invoice` / `user` / `department`）+ Excel 文件。
 2. `dry_run = true` 时仅执行校验，不写入数据库，返回校验结果预览。
-3. 单元台账导入使用整批回滚（一条出错全部不导入）；合同和账单使用部分导入。
+3. 单元台账、用户账号、组织架构导入使用整批回滚（一条出错全部不导入）；合同和账单使用部分导入。
 4. 每条导入数据标记 `import_batch_id`，支持按批次精确回滚。
 5. 回滚操作限 `super_admin` 权限，需记录审计日志。
+6. 用户和组织架构的批量导入提供独立的便捷端点 `POST /api/users/import` 和 `POST /api/departments/import`，请求体形式与 `POST /api/imports` 一致（`data_type` 由路径隐含），便于前端按场景拆分。
 
 ---
 
@@ -556,6 +559,9 @@
 | 变更项 | 影响端点 |
 |--------|----------|
 | NOI Margin/OpEx Ratio 聚合 | `GET /api/noi/summary` 响应新增 `noi_margin`、`opex_ratio` 字段 |
+| 员工账号批量导入 | 新增 `POST /api/users/import`（dry_run + 整批回滚） |
+| 组织架构批量导入 | 新增 `POST /api/departments/import`（dry_run + 按层级顺序写入） |
+| 通用导入 `data_type` 扩容 | `POST /api/imports` 的 `data_type` 枚举追加 `user` / `department` |
 
 ---
 

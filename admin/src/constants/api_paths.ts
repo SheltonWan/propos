@@ -7,7 +7,11 @@ export const API_AUTH_CHANGE_PASSWORD = '/api/auth/change-password'
 export const API_AUTH_FORGOT_PASSWORD = '/api/auth/forgot-password'
 export const API_AUTH_RESET_PASSWORD = '/api/auth/reset-password'
 
+// 用户与组织架构
+export const API_USERS = '/api/users'
+export const API_USERS_IMPORT = '/api/users/import'
 export const API_DEPARTMENTS = '/api/departments'
+export const API_DEPARTMENTS_IMPORT = '/api/departments/import'
 export const API_BUILDINGS = '/api/buildings'
 export const API_FLOORS = '/api/floors'
 export const API_UNITS = '/api/units'

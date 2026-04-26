@@ -389,6 +389,62 @@
 
 ---
 
+### 1.15 `POST /api/users/import` — 批量导入员工账号
+
+**权限**: `super_admin`
+
+> v1.8 新增。便捷端点；与 `POST /api/imports`（`data_type = "user"`）行为一致，路径隐含数据类型。失败时整批回滚（不允许部分提交）。
+
+**Request** — `multipart/form-data`
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `file` | file (.csv / .xlsx) | 是 | 导入文件，UTF-8 编码 |
+| `dry_run` | boolean | 否 | 默认 `false`；`true` 时仅校验、不落库 |
+| `batch_name` | string | 否 | 批次名称（默认按文件名 + 时间戳生成） |
+
+**文件列规范**（首行表头）
+
+| 列 | 类型 | 必填 | 说明 |
+|----|------|------|------|
+| `name` | string | 是 | 员工姓名 |
+| `phone` | string | 是 | 手机号（11 位，作为登录账号） |
+| `email` | string | 否 | 邮箱（用于密码找回） |
+| `role` | string(enum) | 是 | 角色编码（见 `UserRole`） |
+| `department_name` | string | 是 | 所属部门完整路径（用 `/` 分隔，例如 `运营中心/物业部`） |
+| `bound_contract_no` | string | 否 | 仅 `tenant_user` / `sublease_external` 角色必填，按合同编号绑定 |
+
+**Response 200** — `UserImportResult`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `batch_id` | string(uuid) | 批次 ID（同 `POST /api/imports` 返回的 `id`） |
+| `batch_name` | string | 批次名称 |
+| `dry_run` | boolean | 是否为试运行 |
+| `total_records` | integer | 文件总行数（不含表头） |
+| `success_count` | integer | 成功条数 |
+| `failure_count` | integer | 失败条数 |
+| `rollback_status` | string(enum) | `none` / `committed` / `rolled_back`（试运行恒为 `none`） |
+| `error_details` | `ImportErrorRow[]` | 失败行详情（行号 + 错误码 + 提示） |
+
+**`ImportErrorRow`**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `row` | integer | 文件行号（从 2 起，跳过表头） |
+| `code` | string | 错误码（如 `PHONE_DUPLICATE`） |
+| `message` | string | 错误描述 |
+
+**错误码**
+
+| 错误码 | 说明 |
+|--------|------|
+| `IMPORT_FILE_INVALID` | 文件格式不合法或无法解析 |
+| `IMPORT_HEADER_MISMATCH` | 表头列与规范不一致 |
+| `IMPORT_BATCH_FAILED` | 含失败记录，整批已回滚（仅在 `dry_run = false` 时返回） |
+
+---
+
 ## 一-A、组织架构管理
 
 ### 1A.1 `GET /api/departments` — 部门树列表
@@ -521,6 +577,45 @@
 | `property_type` | string(enum) | 否 | 管辖业态 |
 
 **Response 200** — `ManagedScopeConfig[]`（覆写后的完整列表）
+
+---
+
+### 1A.7 `POST /api/departments/import` — 批量导入组织架构
+
+**权限**: `org.manage`
+
+> v1.8 新增。便捷端点；与 `POST /api/imports`（`data_type = "department"`）行为一致。按层级 1 → 2 → 3 顺序写入；失败时整批回滚。
+
+**Request** — `multipart/form-data`
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `file` | file (.csv / .xlsx) | 是 | 导入文件，UTF-8 编码 |
+| `dry_run` | boolean | 否 | 默认 `false`；`true` 时仅校验、不落库 |
+| `batch_name` | string | 否 | 批次名称 |
+
+**文件列规范**（首行表头）
+
+| 列 | 类型 | 必填 | 说明 |
+|----|------|------|------|
+| `name` | string | 是 | 部门名称 |
+| `parent_path` | string | 否 | 父部门完整路径（顶级留空，例如 `运营中心/物业部`） |
+| `level` | integer | 是 | 层级（1~3，需与 `parent_path` 匹配） |
+| `sort_order` | integer | 否 | 排序号（默认 0） |
+
+**Response 200** — `DepartmentImportResult`
+
+字段与 §1.15 `UserImportResult` 一致（`batch_id` / `batch_name` / `dry_run` / `total_records` / `success_count` / `failure_count` / `rollback_status` / `error_details`）。
+
+**错误码**
+
+| 错误码 | 说明 |
+|--------|------|
+| `IMPORT_FILE_INVALID` | 文件格式不合法 |
+| `IMPORT_HEADER_MISMATCH` | 表头列与规范不一致 |
+| `MAX_DEPTH_EXCEEDED` | 文件中存在层级 > 3 的记录 |
+| `PARENT_DEPARTMENT_NOT_FOUND` | 引用的父部门路径不存在 |
+| `IMPORT_BATCH_FAILED` | 含失败记录，整批已回滚 |
 
 ---
 

@@ -101,6 +101,33 @@ const router = createRouter({
           name: 'sublease-detail',
           component: () => import('@/views/subleases/SubleaseDetailView.vue'),
         },
+        // 系统设置 — 用户管理
+        {
+          path: 'system/users',
+          name: 'users',
+          component: () => import('@/views/system/users/UsersView.vue'),
+        },
+        {
+          path: 'system/users/import',
+          name: 'user-import',
+          component: () => import('@/views/system/users/UserImportView.vue'),
+        },
+        {
+          path: 'system/users/:id',
+          name: 'user-detail',
+          component: () => import('@/views/system/users/UserDetailView.vue'),
+        },
+        // 系统设置 — 组织架构
+        {
+          path: 'system/departments',
+          name: 'departments',
+          component: () => import('@/views/system/departments/DepartmentsView.vue'),
+        },
+        {
+          path: 'system/departments/import',
+          name: 'department-import',
+          component: () => import('@/views/system/departments/DepartmentImportView.vue'),
+        },
       ],
     },
     // 404
