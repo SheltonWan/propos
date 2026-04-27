@@ -9,6 +9,7 @@ import type { ApiListResponse } from '@/types/api'
 import type {
   AssetOverviewStats,
   Building,
+  CadImportJob,
   ContractSummary,
   FloorCadUploadResponse,
   Floor,
@@ -27,6 +28,7 @@ import type {
 import {
   API_ASSETS_SUMMARY,
   API_BUILDINGS,
+  API_CAD_IMPORT_JOBS,
   API_CONTRACTS,
   API_FLOORS,
   API_FLOOR_PLANS,
@@ -237,4 +239,29 @@ export async function uploadFloorCad(
   form.append('file', file)
   form.append('version_label', versionLabel)
   return apiPostForm<FloorCadUploadResponse>(`${API_FLOORS}/${floorId}/cad`, form)
+}
+
+// ─── 楼栋级 DXF 导入（Day 14）─────────────────────────
+
+/** POST /api/buildings/:id/cad-upload — 上传整栋 DXF，立即返回任务记录 */
+export async function uploadBuildingDxf(
+  buildingId: string,
+  file: File,
+): Promise<CadImportJob> {
+  const form = new FormData()
+  form.append('file', file)
+  return apiPostForm<CadImportJob>(`${API_BUILDINGS}/${buildingId}/cad-upload`, form)
+}
+
+/** GET /api/cad-import-jobs/:id — 查询任务状态（前端轮询） */
+export async function fetchCadImportJob(jobId: string): Promise<CadImportJob> {
+  return apiGet<CadImportJob>(`${API_CAD_IMPORT_JOBS}/${jobId}`)
+}
+
+/** PATCH /api/cad-import-jobs/:id/assign — 手动指派未匹配 SVG 到楼层 */
+export async function assignUnmatchedSvg(
+  jobId: string,
+  payload: { svg_label: string; floor_id: string },
+): Promise<CadImportJob> {
+  return apiPatch<CadImportJob>(`${API_CAD_IMPORT_JOBS}/${jobId}/assign`, payload)
 }

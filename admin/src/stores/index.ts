@@ -2,6 +2,7 @@ export { useAuthStore } from './auth'
 export {
     useAssetOverviewStore,
     useBuildingDetailStore,
+    useCadImportStore,
     useFloorMapStore,
     useFloorUnitDrawerStore,
     useUnitDetailStore,

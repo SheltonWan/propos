@@ -14,6 +14,7 @@ import type { PaginationMeta } from '@/types/api'
 import type {
   AssetOverviewStats,
   Building,
+  CadImportJob,
   ContractSummary,
   Floor,
   FloorHeatmap,
@@ -27,11 +28,13 @@ import type {
   UnitUpdateRequest,
 } from '@/types/asset'
 import {
+  assignUnmatchedSvg as apiAssignUnmatchedSvg,
   createRenovation as apiCreateRenovation,
   exportUnits as apiExportUnits,
   fetchAssetOverview,
   fetchBuilding,
   fetchBuildings,
+  fetchCadImportJob as apiFetchCadImportJob,
   fetchContractSummary,
   fetchFloor,
   fetchFloorHeatmap,
@@ -43,6 +46,7 @@ import {
   importUnits as apiImportUnits,
   patchUnit,
   setCurrentFloorPlan as apiSetCurrentFloorPlan,
+  uploadBuildingDxf as apiUploadBuildingDxf,
   uploadFloorCad as apiUploadFloorCad,
   uploadRenovationPhoto as apiUploadRenovationPhoto,
 } from '@/api/modules/assets'
@@ -502,4 +506,118 @@ export const useUnitImportStore = defineStore('unitImport', () => {
   }
 
   return { file, dryRunResult, commitResult, loading, error, setFile, dryRun, commit, reset }
+})
+
+// ─── 7. 楼栋级 DXF 导入（Day 14）──────────────────────
+
+/**
+ * useCadImportStore — 楼栋级 DXF 上传 + 异步切分 + 未匹配指派的 Pinia store。
+ *
+ * 流程：
+ *   1. upload(buildingId, file) → 立即拿到 job，状态 'uploaded'
+ *   2. startPolling(jobId) → 每 2s 轮询一次 GET /cad-import-jobs/:id，
+ *      直到 status = done 或 failed 自动停止
+ *   3. assign(svgLabel, floorId) → 手动指派单个 SVG 到楼层
+ *   4. reset() → 关闭对话框时清理所有状态与 timer
+ *
+ * 注意：本 store 是「会话级」状态，不缓存历史任务记录；每次打开对话框前
+ *       调用 reset() 清空。
+ */
+export const useCadImportStore = defineStore('cadImport', () => {
+  const job = ref<CadImportJob | null>(null)
+  const loading = ref(false)
+  const polling = ref(false)
+  const error = ref<string | null>(null)
+
+  let pollTimer: ReturnType<typeof setInterval> | null = null
+
+  /** 是否处于「切分中」状态，用于 UI loading 提示 */
+  const isProcessing = computed(
+    () => job.value != null && (job.value.status === 'uploaded' || job.value.status === 'splitting'),
+  )
+
+  /** 是否已完成（包含 done / failed） */
+  const isFinished = computed(
+    () => job.value != null && (job.value.status === 'done' || job.value.status === 'failed'),
+  )
+
+  async function upload(buildingId: string, file: File): Promise<CadImportJob | null> {
+    loading.value = true
+    error.value = null
+    try {
+      const j = await apiUploadBuildingDxf(buildingId, file)
+      job.value = j
+      startPolling(j.id)
+      return j
+    } catch (e) {
+      error.value = _msg(e, 'DXF 上传失败')
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  function startPolling(jobId: string): void {
+    stopPolling()
+    polling.value = true
+    pollTimer = setInterval(() => {
+      void refresh(jobId)
+    }, 2000)
+  }
+
+  function stopPolling(): void {
+    if (pollTimer != null) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+    polling.value = false
+  }
+
+  async function refresh(jobId: string): Promise<void> {
+    try {
+      const j = await apiFetchCadImportJob(jobId)
+      job.value = j
+      if (j.status === 'done' || j.status === 'failed') {
+        stopPolling()
+      }
+    } catch (e) {
+      // 轮询期间的临时错误不直接清空 job，但要展示给用户
+      error.value = _msg(e, '查询任务状态失败')
+    }
+  }
+
+  async function assign(svgLabel: string, floorId: string): Promise<boolean> {
+    if (job.value == null) return false
+    error.value = null
+    try {
+      job.value = await apiAssignUnmatchedSvg(job.value.id, {
+        svg_label: svgLabel,
+        floor_id: floorId,
+      })
+      return true
+    } catch (e) {
+      error.value = _msg(e, '指派失败')
+      return false
+    }
+  }
+
+  function reset(): void {
+    stopPolling()
+    job.value = null
+    error.value = null
+    loading.value = false
+  }
+
+  return {
+    job,
+    loading,
+    polling,
+    error,
+    isProcessing,
+    isFinished,
+    upload,
+    refresh,
+    assign,
+    reset,
+  }
 })

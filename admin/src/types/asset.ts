@@ -240,6 +240,34 @@ export interface FloorCadUploadResponse {
   status: string
 }
 
+// ─── 楼栋级 DXF 导入任务（§2.8 Day 14）────────────────
+
+/** 切分任务状态机：uploaded → splitting → done | failed */
+export type CadImportJobStatus = 'uploaded' | 'splitting' | 'done' | 'failed'
+
+/** 未匹配的 SVG（来自切分输出，等待管理员手动指派楼层） */
+export interface UnmatchedSvg {
+  /** 标签：来自 SVG 文件名，如 'F11' / 'F6-F8-F10' / '屋顶' */
+  label: string
+  /** 临时存储路径（cad/{buildingId}/jobs/{jobId}/...svg） */
+  tmp_path: string
+}
+
+export interface CadImportJob {
+  id: string
+  building_id: string
+  status: CadImportJobStatus
+  dxf_path: string
+  prefix: string
+  matched_count: number
+  unmatched_svgs: UnmatchedSvg[]
+  error_message: string | null
+  created_by: string | null
+  created_by_name: string | null
+  created_at: string
+  updated_at: string
+}
+
 // ─── 导入批次 ──────────────────────────────────────────
 
 export type ImportDataType = 'units' | 'contracts' | 'invoices'

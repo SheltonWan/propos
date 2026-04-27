@@ -42,7 +42,15 @@
     </el-descriptions>
 
     <!-- 楼层列表 -->
-    <el-card class="floors" header="楼层列表" shadow="never">
+    <el-card class="floors" shadow="never">
+      <template #header>
+        <div class="floors-header">
+          <span class="section-title">楼层列表</span>
+          <el-button type="primary" size="small" :disabled="!store.item" @click="showCadImport = true">
+            导入 DXF
+          </el-button>
+        </div>
+      </template>
       <el-table
         v-loading="store.loading"
         :data="sortedFloors"
@@ -92,20 +100,29 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <CadImportDialog
+      v-model="showCadImport"
+      :building-id="buildingId"
+      :floors="store.floors"
+      @finished="onCadFinished"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useBuildingDetailStore } from '@/stores'
 import type { Floor, BuildingPropertyType } from '@/types/asset'
+import CadImportDialog from './components/CadImportDialog.vue'
 
 const store = useBuildingDetailStore()
 const route = useRoute()
 const router = useRouter()
 
 const buildingId = computed(() => route.params.id as string)
+const showCadImport = ref(false)
 
 const sortedFloors = computed(() =>
   [...store.floors].sort((a, b) => b.floor_number - a.floor_number),
@@ -118,6 +135,11 @@ onMounted(() => {
 watch(buildingId, (id) => {
   if (id) store.fetchDetail(id)
 })
+
+function onCadFinished(): void {
+  // CAD 导入完成后重拉楼栋明细（楼层 svg_path 可能已更新）
+  store.fetchDetail(buildingId.value)
+}
 
 function goBack(): void {
   router.push({ name: 'assets' })
@@ -160,6 +182,15 @@ function rateColor(rate: number): string {
 .title { font-size: 18px; font-weight: 600; }
 .info { margin-bottom: 24px; }
 .floors :deep(.el-table) { cursor: pointer; }
+.floors-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+}
 .rate-value {
   font-weight: 600;
   color: var(--el-color-primary);
