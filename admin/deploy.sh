@@ -120,12 +120,11 @@ REMOTE_DIST="$3"
 REMOTE_NGINX_CONF="$4"
 
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    # 容器已存在：重载配置并重启
+    # 容器已存在：重启容器（bind mount 场景下 nginx -s reload 不会重读宿主机文件变更）
     echo "[远程] 重启 ${CONTAINER_NAME} 容器..."
-    # nginx.conf 通过 bind mount 已对容器可见，无需 docker cp，直接校验并热重载
     docker exec "${CONTAINER_NAME}" nginx -t 2>&1 | sed 's/^/  /'
-    docker exec "${CONTAINER_NAME}" nginx -s reload
-    echo "[远程] ✓ Nginx 配置已热重载"
+    docker restart "${CONTAINER_NAME}" > /dev/null
+    echo "[远程] ✓ Nginx 容器已重启，配置已更新"
 else
     # 容器不存在：首次启动
     echo "[远程] 首次启动 ${CONTAINER_NAME} 容器..."
