@@ -5,6 +5,9 @@ cad_intermediate/
 backend/.env
 backend/.local/
 
+# ── 部署凭据（含 TCR 账号密码，严禁提交）─────────
+.deploy.env
+
 # ── Dart / Flutter ───────────────────────────────
 .dart_tool/
 .packages
