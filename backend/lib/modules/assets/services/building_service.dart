@@ -176,40 +176,40 @@ class BuildingService {
       }
 
       // 2. 业务关联校验：不允许删除已有单元/工单/账单的楼栋
-      Future<int> count(String table) async {
-        final r = await tx.execute(
-          Sql.named('SELECT COUNT(*)::INT AS c FROM $table WHERE building_id = @id'),
-          parameters: {'id': id},
-        );
-        return r.first.toColumnMap()['c'] as int;
-      }
+      // 注意：此处使用独立命名查询，避免字符串拼接 SQL
 
-      final unitCount = await count('units');
+      final unitRows = await tx.execute(
+        Sql.named('SELECT COUNT(*)::INT AS c FROM units WHERE building_id = @id'),
+        parameters: {'id': id},
+      );
+      final unitCount = unitRows.first.toColumnMap()['c'] as int;
       if (unitCount > 0) {
         throw ValidationException(
             'BUILDING_HAS_UNITS', '楼栋下仍有 $unitCount 个单元，请先删除单元再删除楼栋');
       }
-      final workOrderCount = await count('workorders');
+
+      final workorderRows = await tx.execute(
+        Sql.named('SELECT COUNT(*)::INT AS c FROM workorders WHERE building_id = @id'),
+        parameters: {'id': id},
+      );
+      final workOrderCount = workorderRows.first.toColumnMap()['c'] as int;
       if (workOrderCount > 0) {
         throw ValidationException(
             'BUILDING_HAS_WORKORDERS', '楼栋下仍有 $workOrderCount 个工单，无法删除');
       }
-      final invoiceCount = await count('invoices');
+
+      final invoiceRows = await tx.execute(
+        Sql.named('SELECT COUNT(*)::INT AS c FROM invoices WHERE building_id = @id'),
+        parameters: {'id': id},
+      );
+      final invoiceCount = invoiceRows.first.toColumnMap()['c'] as int;
       if (invoiceCount > 0) {
         throw ValidationException(
             'BUILDING_HAS_INVOICES', '楼栋下仍有 $invoiceCount 张账单,无法删除');
       }
 
       // 3. 级联删除楼栋自动生成的图纸/楼层（可能尚未上传图纸，floor_plans 可空）
-      await tx.execute(
-        Sql.named(
-            'DELETE FROM floor_plans WHERE floor_id IN (SELECT id FROM floors WHERE building_id = @id)'),
-        parameters: {'id': id},
-      );
-      await tx.execute(
-        Sql.named('DELETE FROM floors WHERE building_id = @id'),
-        parameters: {'id': id},
-      );
+      await FloorRepository(tx).deleteByBuildingId(id);
 
       // 4. 删除楼栋
       final affected = await BuildingRepository(tx).delete(id);

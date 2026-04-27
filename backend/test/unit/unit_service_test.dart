@@ -14,6 +14,7 @@ import 'package:postgres/postgres.dart';
 import 'package:test/test.dart';
 
 import 'package:propos_backend/core/errors/app_exception.dart';
+import 'package:propos_backend/modules/assets/services/unit_import_service.dart';
 import 'package:propos_backend/modules/assets/services/unit_service.dart';
 
 import 'helpers/asset_fakes.dart';
@@ -48,10 +49,12 @@ List<int> _makeExcel({
 void main() {
   late FakePool pool;
   late UnitService svc;
+  late UnitImportService importSvc;
 
   setUp(() {
     pool = FakePool();
     svc = UnitService(pool);
+    importSvc = UnitImportService(pool);
   });
 
   // ─── getUnit ─────────────────────────────────────────────────────────────
@@ -238,7 +241,7 @@ void main() {
     test('只含标题行（无数据）→ 抛出 ValidationException(VALIDATION_ERROR)', () async {
       final bytes = _makeExcel(emptyBody: true);
       await expectLater(
-        svc.importUnits(filename: 'test.xlsx', fileBytes: bytes),
+        importSvc.importUnits(filename: 'test.xlsx', fileBytes: bytes),
         throwsA(isA<ValidationException>()
             .having((e) => e.code, 'code', 'VALIDATION_ERROR')),
       );
@@ -260,7 +263,7 @@ void main() {
         ['b-1', null, null, 'office'],
       ]);
       final result =
-          await svc.importUnits(filename: 'test.xlsx', fileBytes: bytes);
+          await importSvc.importUnits(filename: 'test.xlsx', fileBytes: bytes);
       expect(result['failure_count'], greaterThan(0));
       expect(result['rollback_status'], 'rolled_back');
     });
@@ -303,7 +306,7 @@ void main() {
         ['b-1', 'f-1', '101', 'shop'],
       ]);
       final result =
-          await svc.importUnits(filename: 'test.xlsx', fileBytes: bytes);
+          await importSvc.importUnits(filename: 'test.xlsx', fileBytes: bytes);
       expect(result['failure_count'], 1);
       expect(result['error_details'], isA<List>());
     });
@@ -337,7 +340,7 @@ void main() {
       final bytes = _makeExcel(rows: [
         ['b-1', 'f-1', '101', 'office'],
       ]);
-      final result = await svc.importUnits(
+      final result = await importSvc.importUnits(
           filename: 'test.xlsx', fileBytes: bytes, dryRun: true);
       expect(result['is_dry_run'], isTrue);
       expect(result['success_count'], 1);
@@ -374,7 +377,7 @@ void main() {
       final bytes = _makeExcel(rows: [
         ['b-1', 'f-1', '101', 'retail'],
       ]);
-      await svc.importUnits(
+      await importSvc.importUnits(
           filename: 'test.xlsx', fileBytes: bytes, dryRun: false);
       expect(pool.runTxCalled, isTrue);
     });

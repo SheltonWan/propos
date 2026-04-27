@@ -18,6 +18,7 @@ import 'package:propos_backend/modules/assets/models/unit.dart';
 import 'package:propos_backend/modules/assets/services/building_service.dart';
 import 'package:propos_backend/modules/assets/services/floor_service.dart';
 import 'package:propos_backend/modules/assets/services/renovation_service.dart';
+import 'package:propos_backend/modules/assets/services/unit_import_service.dart';
 import 'package:propos_backend/modules/assets/services/unit_service.dart';
 
 import 'fakes.dart';
@@ -513,6 +514,29 @@ class FakeUnitService extends UnitService {
   }
 
   @override
+  Future<AssetOverviewStats> getOverview() async {
+    if (shouldThrow != null) throw shouldThrow!;
+    return overviewResult ??
+        const AssetOverviewStats(
+          totalUnits: 0,
+          totalLeasableUnits: 0,
+          totalOccupancyRate: 0.0,
+          waleIncomeWeighted: 0.0,
+          waleAreaWeighted: 0.0,
+          byPropertyType: [],
+        );
+  }
+}
+
+/// 伪 UnitImportService — 供 UnitController 单元测试注入
+class FakeUnitImportService extends UnitImportService {
+  AppException? shouldThrow;
+  Map<String, dynamic>? importResult;
+  List<int> exportBytes = [];
+
+  FakeUnitImportService() : super(FakePool());
+
+  @override
   Future<Map<String, dynamic>> importUnits({
     required String filename,
     required List<int> fileBytes,
@@ -541,20 +565,6 @@ class FakeUnitService extends UnitService {
   Future<List<int>> exportUnits({String? propertyType}) async {
     if (shouldThrow != null) throw shouldThrow!;
     return exportBytes;
-  }
-
-  @override
-  Future<AssetOverviewStats> getOverview() async {
-    if (shouldThrow != null) throw shouldThrow!;
-    return overviewResult ??
-        const AssetOverviewStats(
-          totalUnits: 0,
-          totalLeasableUnits: 0,
-          totalOccupancyRate: 0.0,
-          waleIncomeWeighted: 0.0,
-          waleAreaWeighted: 0.0,
-          byPropertyType: [],
-        );
   }
 }
 

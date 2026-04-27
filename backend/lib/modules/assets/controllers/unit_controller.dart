@@ -7,6 +7,7 @@ import '../../../core/errors/app_exception.dart';
 import '../../../core/request_context.dart';
 import '../../../shared/multipart_parser.dart';
 import '../services/unit_service.dart';
+import '../services/unit_import_service.dart';
 
 /// UnitController — 房源单元资源路由处理器。
 ///
@@ -23,8 +24,9 @@ import '../services/unit_service.dart';
 /// 所有端点受 RBAC 中间件保护，Controller 不做角色判断。
 class UnitController {
   final UnitService _service;
+  final UnitImportService _importService;
 
-  UnitController(this._service);
+  UnitController(this._service, this._importService);
 
   Router get router {
     final r = Router();
@@ -129,7 +131,7 @@ class UnitController {
   /// GET /api/units/export?property_type=
   Future<Response> _export(Request request) async {
     final q = request.url.queryParameters;
-    final bytes = await _service.exportUnits(
+    final bytes = await _importService.exportUnits(
       propertyType: q['property_type'],
     );
     return Response(
@@ -152,7 +154,7 @@ class UnitController {
     final file = parsed.requireFile('file');
     final dryRun = parsed.optionalField('dry_run') == 'true';
 
-    final result = await _service.importUnits(
+    final result = await _importService.importUnits(
       filename: file.filename,
       fileBytes: file.bytes,
       dryRun: dryRun,

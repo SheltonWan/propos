@@ -25,6 +25,7 @@ import 'package:propos_backend/modules/org/services/managed_scope_service.dart';
 import 'package:propos_backend/modules/assets/services/building_service.dart';
 import 'package:propos_backend/modules/assets/services/floor_service.dart';
 import 'package:propos_backend/modules/assets/services/unit_service.dart';
+import 'package:propos_backend/modules/assets/services/unit_import_service.dart';
 import 'package:propos_backend/modules/assets/services/renovation_service.dart';
 import 'package:propos_backend/modules/assets/controllers/building_controller.dart';
 import 'package:propos_backend/modules/assets/controllers/floor_controller.dart';
@@ -93,12 +94,13 @@ Router buildRouter({required Pool db, required AppConfig config}) {
   final buildingService = BuildingService(db);
   final floorService = FloorService(db, config.fileStoragePath);
   final unitService = UnitService(db);
+  final unitImportService = UnitImportService(db);
   final renovationService = RenovationService(db, config.fileStoragePath);
 
   final buildingController = BuildingController(buildingService);
   final floorController = FloorController(floorService);
   final floorPlanController = FloorPlanController(floorService);
-  final unitController = UnitController(unitService);
+  final unitController = UnitController(unitService, unitImportService);
   final renovationController = RenovationController(renovationService);
 
   router.mount('/api/', buildingController.router.call);

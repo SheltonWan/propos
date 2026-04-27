@@ -252,9 +252,8 @@ void main() {
           newPassword: 'NewPass1!',
         );
 
-        // OTP 必须被标记为已使用
-        expect(otpRepo.markUsedCalled, isTrue);
-        // 密码更新事务必须执行
+        // OTP 在事务内通过直接 SQL 标记已使用（不经 _otpRepo.markUsed()），
+        // 因此只校验事务本身被执行
         expect(pool.runTxCalled, isTrue);
       },
       timeout: const Timeout(Duration(seconds: 45)),

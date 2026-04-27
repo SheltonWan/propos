@@ -79,13 +79,15 @@ Future<Map<String, dynamic>> readJson(Response resp) async =>
 
 void main() {
   late FakeUnitService svc;
+  late FakeUnitImportService importSvc;
   late Handler handler;
 
   setUp(() {
     svc = FakeUnitService();
+    importSvc = FakeUnitImportService();
     handler = const Pipeline()
         .addMiddleware(errorHandler())
-        .addHandler(UnitController(svc).router.call);
+        .addHandler(UnitController(svc, importSvc).router.call);
   });
 
   // ─── GET /units ───────────────────────────────────────────────────────────
@@ -190,7 +192,7 @@ void main() {
 
   group('GET /units/export', () {
     test('成功 → 200 content-type=xlsx 有字节内容', () async {
-      svc.exportBytes = [0x50, 0x4B, 0x03, 0x04]; // ZIP/XLSX magic bytes
+      importSvc.exportBytes = [0x50, 0x4B, 0x03, 0x04]; // ZIP/XLSX magic bytes
 
       final resp = await handler(makeReq('GET', '/units/export'));
 
@@ -214,7 +216,7 @@ void main() {
     });
 
     test('Service 正常处理 → 200 data 含 is_dry_run', () async {
-      svc.importResult = {
+      importSvc.importResult = {
         'id': 'b1',
         'batch_name': 'units_test',
         'data_type': 'units',
@@ -330,7 +332,7 @@ void main() {
       expect((json['data'] as Map)['total_units'], 30);
       expect((json['data'] as Map)['total_leasable_units'], 27);
       expect(
-          (json['data'] as Map)['total_occupancy_rate'], closeTo(0.5, 0.001));
+          (json['data'] as Map)['occupancy_rate'], closeTo(0.5, 0.001));
       expect(
           (json['data'] as Map)['wale_income_weighted'], closeTo(2.5, 0.001));
       expect((json['data'] as Map)['wale_area_weighted'], closeTo(2.3, 0.001));

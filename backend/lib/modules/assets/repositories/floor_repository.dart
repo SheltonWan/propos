@@ -166,6 +166,26 @@ class FloorRepository {
     );
   }
 
+  /// 在事务中级联删除楼栋下所有图纸版本和楼层记录。
+  ///
+  /// 必须在外部事务上下文中调用（通过 `FloorRepository(tx)` 构造）。
+  /// 删除顺序：先删 floor_plans（外键约束依赖 floors.id），再删 floors。
+  Future<void> deleteByBuildingId(String buildingId) async {
+    await _db.execute(
+      Sql.named('''
+        DELETE FROM floor_plans
+        WHERE floor_id IN (
+          SELECT id FROM floors WHERE building_id = @buildingId::UUID
+        )
+      '''),
+      parameters: {'buildingId': buildingId},
+    );
+    await _db.execute(
+      Sql.named('DELETE FROM floors WHERE building_id = @buildingId::UUID'),
+      parameters: {'buildingId': buildingId},
+    );
+  }
+
   // ─── floor_plans ─────────────────────────────────────────────────────────
 
   /// 列出楼层所有图纸版本（含上传人姓名），按创建时间倒序
