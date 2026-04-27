@@ -11,12 +11,12 @@ import '../repositories/user_admin_repository.dart';
 
 /// UserImportService — 批量导入员工账号。
 ///
-/// 文件列（中文表头）：姓名 / 邮箱 / 初始密码 / 角色 / 部门ID / 绑定主合同ID
+/// 文件列（中文表头）：姓名 / 邮箱 / 初始密码 / 角色 / 部门名称 / 主合同编号
 ///   - 邮箱：作为登录唯一标识，必须为有效 email 格式
 ///   - 初始密码：由导入人填写，后端直接进行 bcrypt(cost=12) 散列存储
 ///   - 角色：英文标识，如 leasing_specialist
-///   - 部门ID：系统部门 UUID，sub_landlord 角色可留空
-///   - 绑定主合同ID：仅 sub_landlord 角色必填，填写主合同 UUID
+///   - 部门名称：系统中已有的部门名称，sub_landlord 角色可留空
+///   - 主合同编号：仅 sub_landlord 角色必填，格式如 HT-2024-OFFICE-SUB-001
 ///   - dry_run 时不落库；有任意错误时整批回滚
 class UserImportService {
   final Pool _db;
@@ -28,8 +28,8 @@ class UserImportService {
     '邮箱',
     '初始密码',
     '角色',
-    '部门ID',
-    '绑定主合同ID',
+    '部门名称',
+    '主合同编号',
   ];
 
   Future<Map<String, dynamic>> import({
@@ -78,8 +78,8 @@ class UserImportService {
             final email = _str(row, 1)?.trim() ?? '';
             final password = _str(row, 2)?.trim() ?? '';
             final role = _str(row, 3)?.trim() ?? '';
-            final departmentId = _str(row, 4)?.trim() ?? '';
-            final boundContractId = _str(row, 5)?.trim() ?? '';
+            final departmentName = _str(row, 4)?.trim() ?? '';
+            final contractNo = _str(row, 5)?.trim() ?? '';
 
             if (name.isEmpty) {
               throw const ValidationException(
@@ -94,13 +94,35 @@ class UserImportService {
               throw const ValidationException('VALIDATION_ERROR', '初始密码不能为空');
             }
             _validateRole(role);
-            if (role != 'sub_landlord' && departmentId.isEmpty) {
+            if (role != 'sub_landlord' && departmentName.isEmpty) {
               throw const ValidationException(
-                  'VALIDATION_ERROR', '部门ID不能为空');
+                  'VALIDATION_ERROR', '部门名称不能为空');
             }
-            if (role == 'sub_landlord' && boundContractId.isEmpty) {
+            if (role == 'sub_landlord' && contractNo.isEmpty) {
               throw const ValidationException(
-                  'BOUND_CONTRACT_REQUIRED', '二房东必须填写绑定主合同ID');
+                  'BOUND_CONTRACT_REQUIRED', '二房东必须填写主合同编号');
+            }
+
+            // 按部门名称反查 UUID
+            String? departmentId;
+            if (departmentName.isNotEmpty) {
+              departmentId =
+                  await _resolveDepartmentByName(departmentName, tx: tx);
+              if (departmentId == null) {
+                throw ValidationException(
+                    'DEPARTMENT_NOT_FOUND', '部门名称不存在: $departmentName');
+              }
+            }
+
+            // 按合同编号反查合同 UUID（仅 sub_landlord）
+            String? boundContractId;
+            if (role == 'sub_landlord' && contractNo.isNotEmpty) {
+              boundContractId =
+                  await _resolveContractByNo(contractNo, tx: tx);
+              if (boundContractId == null) {
+                throw ValidationException(
+                    'CONTRACT_NOT_FOUND', '主合同编号不存在: $contractNo');
+              }
             }
 
             final repo = UserAdminRepository(tx);
@@ -120,11 +142,8 @@ class UserImportService {
               email: email.toLowerCase(),
               passwordHash: hash,
               role: role,
-              departmentId: departmentId.isNotEmpty ? departmentId : null,
-              boundContractId:
-                  role == 'sub_landlord' && boundContractId.isNotEmpty
-                      ? boundContractId
-                      : null,
+              departmentId: departmentId,
+              boundContractId: boundContractId,
               tx: tx,
             );
             successCount++;
@@ -168,59 +187,32 @@ class UserImportService {
 
   // ─── 辅助 ─────────────────────────────────────────────────────────────────
 
-  Future<String?> _resolveDepartmentId(
-    String path, {
+  /// 按部门名称查找启用状态的部门 UUID，未找到返回 null
+  Future<String?> _resolveDepartmentByName(
+    String name, {
     required Session tx,
   }) async {
-    final parts = path
-        .split('/')
-        .map((p) => p.trim())
-        .where((p) => p.isNotEmpty)
-        .toList();
-    if (parts.isEmpty) return null;
-    String? currentParent;
-    for (final part in parts) {
-      final result = await tx.execute(
-        Sql.named('''
-          SELECT id::TEXT
-          FROM departments
-          WHERE name = @name
-            AND (
-              (@parent::UUID IS NULL AND parent_id IS NULL)
-              OR parent_id = @parent::UUID
-            )
-            AND is_active = TRUE
-          LIMIT 1
-        '''),
-        parameters: {'name': part, 'parent': currentParent},
-      );
-      if (result.isEmpty) return null;
-      currentParent = result.first.toColumnMap()['id'] as String;
-    }
-    return currentParent;
+    final result = await tx.execute(
+      Sql.named(
+          'SELECT id::TEXT FROM departments WHERE name = @name AND is_active = TRUE LIMIT 1'),
+      parameters: {'name': name},
+    );
+    if (result.isEmpty) return null;
+    return result.first.toColumnMap()['id'] as String?;
   }
 
-  Future<String?> _resolveContractId(
+  /// 按合同编号查找合同 UUID，未找到返回 null
+  Future<String?> _resolveContractByNo(
     String contractNo, {
     required Session tx,
   }) async {
-    // 兼容尚未实现的 contracts 模块：表存在但若无数据则返回 null
-    try {
-      final result = await tx.execute(
-        Sql.named('''
-          SELECT id::TEXT
-          FROM contracts
-          WHERE contract_no = @no
-          LIMIT 1
-        '''),
-        parameters: {'no': contractNo},
-      );
-      if (result.isEmpty) return null;
-      return result.first.toColumnMap()['id'] as String;
-    } catch (_) {
-      // contracts 表/列尚未存在时返回 null
-      return null;
-    }
+    final result = await tx.execute(
+      Sql.named(
+          'SELECT id::TEXT FROM contracts WHERE contract_no = @no LIMIT 1'),
+      parameters: {'no': contractNo},
+    );
+    if (result.isEmpty) return null;
+    return result.first.toColumnMap()['id'] as String?;
   }
 
   void _validateRole(String role) {

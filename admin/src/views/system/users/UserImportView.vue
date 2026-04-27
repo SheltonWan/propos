@@ -36,7 +36,7 @@
         <div class="upload-text">点击或拖拽上传 Excel 文件</div>
         <template #tip>
           <div class="upload-tip">
-            支持 .xlsx / .xls。模板列：姓名、邮箱、初始密码、角色（英文标识）、部门 ID、绑定主合同 ID（仅二房东角色）
+            支持 .xlsx / .xls。模板列：姓名、邮箱、初始密码、角色（英文标识）、部门名称、主合同编号（仅二房东角色）
           </div>
         </template>
       </el-upload>
@@ -157,8 +157,8 @@ function onReset(): void {
 }
 
 function onDownloadTemplate(): void {
-  const headers = ['姓名', '邮箱', '初始密码', '角色', '部门ID', '绑定主合同ID']
-  const sample = ['张三', 'zhangsan@propos.cn', 'Init@1234', 'leasing_specialist', 'de000000-0000-0000-0000-000000000005', '']
+  const headers = ['姓名', '邮箱', '初始密码', '角色', '部门名称', '主合同编号']
+  const sample = ['张三', 'zhangsan@propos.cn', 'Init@1234', 'leasing_specialist', '写字楼组', '']
   const csv = [headers.join(','), sample.join(',')].join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
