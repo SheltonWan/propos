@@ -2,7 +2,9 @@ import 'package:postgres/postgres.dart';
 
 import '../../../core/errors/app_exception.dart';
 import '../models/building.dart';
+import '../models/floor.dart';
 import '../repositories/building_repository.dart';
+import '../repositories/floor_repository.dart';
 
 /// BuildingService — 楼栋管理业务逻辑。
 ///
@@ -90,6 +92,56 @@ class BuildingService {
   }
 
   // ─── 辅助 ─────────────────────────────────────────────────────────────────
+
+  /// 创建楼栋并同事务批量创建 N 个楼层（floor_number 从 1 到 totalFloors）。
+  ///
+  /// 用于 admin 后台「新建楼栋」对话框：管理员只需填写楼栋基本信息和总层数，
+  /// 后端在单一事务中自动生成 1F~NF 共 N 条楼层记录。
+  Future<({Building building, List<Floor> floors})> createBuildingWithFloors({
+    required String name,
+    required String propertyType,
+    required int totalFloors,
+    required double gfa,
+    required double nla,
+    String? address,
+    int? builtYear,
+  }) async {
+    _validatePropertyType(propertyType);
+    if (totalFloors <= 0) {
+      throw const ValidationException('VALIDATION_ERROR', '总楼层数必须大于 0');
+    }
+    if (totalFloors > 200) {
+      throw const ValidationException('VALIDATION_ERROR', '总楼层数不得超过 200');
+    }
+    if (gfa <= 0 || nla <= 0) {
+      throw const ValidationException('VALIDATION_ERROR', '建筑面积/净可租面积必须大于 0');
+    }
+
+    return await _db.runTx<({Building building, List<Floor> floors})>((tx) async {
+      final building = await BuildingRepository(tx).create(
+        name: name,
+        propertyType: propertyType,
+        totalFloors: totalFloors,
+        gfa: gfa,
+        nla: nla,
+        address: address,
+        builtYear: builtYear,
+      );
+
+      final floors = <Floor>[];
+      final floorRepo = FloorRepository(tx);
+      for (var n = 1; n <= totalFloors; n++) {
+        final floor = await floorRepo.create(
+          buildingId: building.id,
+          floorNumber: n,
+        );
+        floors.add(floor);
+      }
+      return (building: building, floors: floors);
+    });
+  }
+
+  // ─── 内部 ─────────────────────────────────────────────────────────────────
 
   static const _validPropertyTypes = {'office', 'retail', 'apartment'};
 

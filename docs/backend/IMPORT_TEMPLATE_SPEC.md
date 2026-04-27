@@ -1,9 +1,10 @@
 # PropOS Excel 导入模板字段规格
 
-> **版本**: v1.0  
-> **日期**: 2026-04-08  
+> **版本**: v1.1  
+> **日期**: 2026-04-27  
 > **依据**: PRD v1.8（六、数据初始化方案）/ data_model v1.5 / API_CONTRACT v1.7  
-> **用途**: 定义 Excel 批量导入模板的列名、数据类型、校验规则与错误码映射  
+> **用途**: 定义批量导入模板的列名、数据类型、校验规则与错误码映射  
+> **变更**: v1.1 单元台账模板新增「业态」列（col D），支持综合体楼栋混合业态导入；统一 `ext_fields` 命名为 snake_case；导入接受 `.csv / .xlsx / .xls`
 
 ---
 
@@ -13,7 +14,7 @@
 
 | 数据类别 | 导入端点 | 数据类型标识 | 错误处理模式 |
 |---------|---------|------------|------------|
-| 单元台账（三业态分模板） | `POST /api/units/import` | `units` | **整批回滚** |
+| 单元台账（支持单业态 / 混合业态） | `POST /api/units/import` | `units` | **整批回滚** |
 | 历史合同 | `POST /api/contracts/import` | `contracts` | **部分导入** |
 | 未结账单 | `POST /api/invoices/import` | `invoices` | **部分导入** |
 | 子租赁信息 | `POST /api/subleases/import` | `subleases` | **部分导入** |
@@ -22,13 +23,14 @@
 
 | 规则项 | 说明 |
 |--------|------|
-| 文件格式 | `.xlsx`（不接受 `.xls` / `.csv`） |
+| 文件格式 | `.csv` / `.xlsx` / `.xls` |
 | 文件大小 | ≤ 10MB |
 | 单次行数上限 | 1000 行（超过提示分批导入） |
-| 首行 | **表头行**（列名必须与本文档定义完全一致，含中文） |
+| 首行 | **表头行**（列名必须与本文档定义一致；CSV 须为 UTF-8 含 BOM） |
 | 空行处理 | 跳过空行，不计入错误 |
+| 注释行 | 首列以 `#` 开头的行被视为提示，不参与校验和入库 |
 | 试导入模式 | 请求参数 `dry_run=true` 时仅校验不入库 |
-| 错误报告 | 返回 Excel 文件（原始行号 + 错误列 + 错误原因） |
+| 错误报告 | 接口返回 `error_details: [{row, field, error}]` JSON 列表 |
 | 批次追踪 | 每次导入生成 `import_batches` 记录，含 `batch_id`、操作人、时间、状态 |
 
 ### 1.3 通用列校验规则
@@ -46,63 +48,87 @@
 
 ## 二、单元台账导入模板
 
+> **业态列设计**：从 v1.1 起，col D「业态」可按行指定写字楼/商铺/公寓，  
+> 同一文件可混合三种业态（适合综合体楼栋）。  
+> 该列**留空**时回退使用对应楼栋的 `buildings.property_type`，向后兼容旧模板。  
+> 后端通过表头第 4 列文字是否包含「业态」自动识别新旧模板格式：  
+> - 新模板（14 列，含「业态」）：col D=业态，col E=建筑面积，... col K=参考租金，col L/M/N=业态专属字段  
+> - 旧模板（13 列，无「业态」）：col D=建筑面积，... col J=参考租金，col K/L/M=业态专属字段
+
 ### 2.1 写字楼单元模板
 
-**文件名**: `单元台账_写字楼.xlsx`
+**文件名**: `单元台账_写字楼.csv`
 
 | 列序 | 列名（表头） | 数据库字段 | 类型 | 必填 | 校验规则 | 错误码 |
 |------|------------|-----------|------|------|---------|--------|
 | A | 楼栋名称 | → `buildings.name` | 文本 | 是 | 必须已存在于系统 | `BUILDING_NOT_FOUND` |
 | B | 楼层名称 | → `floors.floor_name` | 文本 | 是 | 必须已存在于该楼栋 | `FLOOR_NOT_FOUND` |
 | C | 单元编号 | `unit_number` | 文本(50) | 是 | 同楼栋内唯一 | `DUPLICATE_UNIT_NUMBER` |
-| D | 建筑面积(m²) | `gross_area` | 数字(10,2) | 否 | > 0 | `INVALID_AREA` |
-| E | 套内面积(m²) | `net_area` | 数字(10,2) | 是 | > 0，≤ 建筑面积 | `INVALID_AREA` |
-| F | 朝向 | `orientation` | 枚举 | 否 | `东/南/西/北` → `east/south/west/north` | `INVALID_ENUM` |
-| G | 层高(m) | `ceiling_height` | 数字(4,2) | 否 | > 0 | `INVALID_NUMBER` |
-| H | 装修状态 | `decoration_status` | 枚举 | 是 | `毛坯/简装/精装/原始` → `blank/simple/refined/raw` | `INVALID_ENUM` |
-| I | 是否可租 | `is_leasable` | 布尔 | 是 | `是/否` → `true/false` | `INVALID_BOOLEAN` |
-| J | 参考市场租金(元/m²/月) | `market_rent_reference` | 数字(10,2) | 否 | ≥ 0 | `INVALID_NUMBER` |
-| K | 工位数 | `ext_fields.workstation_count` | 整数 | 否 | ≥ 0 | `INVALID_NUMBER` |
-| L | 分隔间数 | `ext_fields.partition_count` | 整数 | 否 | ≥ 0 | `INVALID_NUMBER` |
+| D | 业态 | `property_type` | 枚举 | 否 | `写字楼/商铺/公寓` 或 `office/retail/apartment`，留空继承楼栋 | `INVALID_ENUM` |
+| E | 建筑面积(m²) | `gross_area` | 数字(10,2) | 否 | > 0 | `INVALID_AREA` |
+| F | 套内面积(m²) | `net_area` | 数字(10,2) | 是 | > 0，≤ 建筑面积 | `INVALID_AREA` |
+| G | 朝向 | `orientation` | 枚举 | 否 | `东/南/西/北` → `east/south/west/north` | `INVALID_ENUM` |
+| H | 层高(m) | `ceiling_height` | 数字(4,2) | 否 | > 0 | `INVALID_NUMBER` |
+| I | 装修状态 | `decoration_status` | 枚举 | 是 | `毛坯/简装/精装/原始` → `blank/simple/refined/raw` | `INVALID_ENUM` |
+| J | 是否可租 | `is_leasable` | 布尔 | 是 | `是/否` → `true/false` | `INVALID_BOOLEAN` |
+| K | 参考市场租金(元/m²/月) | `market_rent_reference` | 数字(10,2) | 否 | ≥ 0 | `INVALID_NUMBER` |
+| L | 工位数 | `ext_fields.workstation_count` | 整数 | 否 | ≥ 0 | `INVALID_NUMBER` |
+| M | 分隔间数 | `ext_fields.partition_count` | 整数 | 否 | ≥ 0 | `INVALID_NUMBER` |
 
 ### 2.2 商铺单元模板
 
-**文件名**: `单元台账_商铺.xlsx`
+**文件名**: `单元台账_商铺.csv`
 
 | 列序 | 列名（表头） | 数据库字段 | 类型 | 必填 | 校验规则 | 错误码 |
 |------|------------|-----------|------|------|---------|--------|
 | A | 楼栋名称 | → `buildings.name` | 文本 | 是 | 必须已存在 | `BUILDING_NOT_FOUND` |
 | B | 楼层名称 | → `floors.floor_name` | 文本 | 是 | 必须已存在 | `FLOOR_NOT_FOUND` |
 | C | 单元编号 | `unit_number` | 文本(50) | 是 | 同楼栋内唯一 | `DUPLICATE_UNIT_NUMBER` |
-| D | 建筑面积(m²) | `gross_area` | 数字(10,2) | 否 | > 0 | `INVALID_AREA` |
-| E | 套内面积(m²) | `net_area` | 数字(10,2) | 是 | > 0 | `INVALID_AREA` |
-| F | 朝向 | `orientation` | 枚举 | 否 | 同写字楼 | `INVALID_ENUM` |
-| G | 层高(m) | `ceiling_height` | 数字(4,2) | 否 | > 0 | `INVALID_NUMBER` |
-| H | 装修状态 | `decoration_status` | 枚举 | 是 | 同写字楼 | `INVALID_ENUM` |
-| I | 是否可租 | `is_leasable` | 布尔 | 是 | `是/否` | `INVALID_BOOLEAN` |
-| J | 参考市场租金(元/m²/月) | `market_rent_reference` | 数字(10,2) | 否 | ≥ 0 | `INVALID_NUMBER` |
-| K | 门面宽度(m) | `ext_fields.frontage_width` | 数字(6,2) | 否 | > 0 | `INVALID_NUMBER` |
-| L | 是否临街 | `ext_fields.street_facing` | 布尔 | 否 | `是/否` | `INVALID_BOOLEAN` |
-| M | 商铺层高(m) | `ext_fields.retail_ceiling_height` | 数字(4,2) | 否 | > 0 | `INVALID_NUMBER` |
+| D | 业态 | `property_type` | 枚举 | 否 | 同 2.1 | `INVALID_ENUM` |
+| E | 建筑面积(m²) | `gross_area` | 数字(10,2) | 否 | > 0 | `INVALID_AREA` |
+| F | 套内面积(m²) | `net_area` | 数字(10,2) | 是 | > 0 | `INVALID_AREA` |
+| G | 朝向 | `orientation` | 枚举 | 否 | 同写字楼 | `INVALID_ENUM` |
+| H | 层高(m) | `ceiling_height` | 数字(4,2) | 否 | > 0 | `INVALID_NUMBER` |
+| I | 装修状态 | `decoration_status` | 枚举 | 是 | 同写字楼 | `INVALID_ENUM` |
+| J | 是否可租 | `is_leasable` | 布尔 | 是 | `是/否` | `INVALID_BOOLEAN` |
+| K | 参考市场租金(元/m²/月) | `market_rent_reference` | 数字(10,2) | 否 | ≥ 0 | `INVALID_NUMBER` |
+| L | 门面宽度(m) | `ext_fields.frontage_width` | 数字(6,2) | 否 | > 0 | `INVALID_NUMBER` |
+| M | 是否临街 | `ext_fields.street_facing` | 布尔 | 否 | `是/否` | `INVALID_BOOLEAN` |
+| N | 商铺层高(m) | `ext_fields.retail_ceiling_height` | 数字(4,2) | 否 | > 0 | `INVALID_NUMBER` |
 
 ### 2.3 公寓单元模板
 
-**文件名**: `单元台账_公寓.xlsx`
+**文件名**: `单元台账_公寓.csv`
 
 | 列序 | 列名（表头） | 数据库字段 | 类型 | 必填 | 校验规则 | 错误码 |
 |------|------------|-----------|------|------|---------|--------|
 | A | 楼栋名称 | → `buildings.name` | 文本 | 是 | 必须已存在 | `BUILDING_NOT_FOUND` |
 | B | 楼层名称 | → `floors.floor_name` | 文本 | 是 | 必须已存在 | `FLOOR_NOT_FOUND` |
 | C | 单元编号 | `unit_number` | 文本(50) | 是 | 同楼栋内唯一 | `DUPLICATE_UNIT_NUMBER` |
-| D | 建筑面积(m²) | `gross_area` | 数字(10,2) | 否 | > 0 | `INVALID_AREA` |
-| E | 套内面积(m²) | `net_area` | 数字(10,2) | 是 | > 0 | `INVALID_AREA` |
-| F | 朝向 | `orientation` | 枚举 | 否 | 同写字楼 | `INVALID_ENUM` |
-| G | 层高(m) | `ceiling_height` | 数字(4,2) | 否 | > 0 | `INVALID_NUMBER` |
-| H | 装修状态 | `decoration_status` | 枚举 | 是 | 同写字楼 | `INVALID_ENUM` |
-| I | 是否可租 | `is_leasable` | 布尔 | 是 | `是/否` | `INVALID_BOOLEAN` |
-| J | 参考市场租金(元/月) | `market_rent_reference` | 数字(10,2) | 否 | ≥ 0（注：公寓为整套月租） | `INVALID_NUMBER` |
-| K | 卧室数 | `ext_fields.bedroom_count` | 整数 | 否 | ≥ 0 | `INVALID_NUMBER` |
-| L | 独立卫生间 | `ext_fields.en_suite_bathroom` | 布尔 | 否 | `是/否` | `INVALID_BOOLEAN` |
+| D | 业态 | `property_type` | 枚举 | 否 | 同 2.1 | `INVALID_ENUM` |
+| E | 建筑面积(m²) | `gross_area` | 数字(10,2) | 否 | > 0 | `INVALID_AREA` |
+| F | 套内面积(m²) | `net_area` | 数字(10,2) | 是 | > 0 | `INVALID_AREA` |
+| G | 朝向 | `orientation` | 枚举 | 否 | 同写字楼 | `INVALID_ENUM` |
+| H | 层高(m) | `ceiling_height` | 数字(4,2) | 否 | > 0 | `INVALID_NUMBER` |
+| I | 装修状态 | `decoration_status` | 枚举 | 是 | 同写字楼 | `INVALID_ENUM` |
+| J | 是否可租 | `is_leasable` | 布尔 | 是 | `是/否` | `INVALID_BOOLEAN` |
+| K | 参考市场租金(元/月) | `market_rent_reference` | 数字(10,2) | 否 | ≥ 0（注：公寓为整套月租，单位与写字楼/商铺不同） | `INVALID_NUMBER` |
+| L | 卧室数 | `ext_fields.bedroom_count` | 整数 | 否 | ≥ 0 | `INVALID_NUMBER` |
+| M | 独立卫生间 | `ext_fields.en_suite_bathroom` | 布尔 | 否 | `是/否` | `INVALID_BOOLEAN` |
+
+### 2.4 综合体（混合业态）模板
+
+**文件名**: `单元台账_综合体.csv`
+
+适用于一栋楼底层 1-5F 商铺、6F+ 写字楼/公寓的综合体场景。表头使用通用占位列名 `业态专属字段1/2/3`，每行根据 col D 的业态决定 L/M/N 三列含义：
+
+| 业态 | 字段1 (col L) | 字段2 (col M) | 字段3 (col N) |
+|------|--------------|--------------|--------------|
+| 写字楼 | 工位数 | 分隔间数 | 留空 |
+| 商铺 | 门面宽度(m) | 是否临街 | 商铺层高(m) |
+| 公寓 | 卧室数 | 独立卫生间 | 留空 |
+
+业态列必填，字段映射规则与 2.1/2.2/2.3 完全一致。
 
 ---
 

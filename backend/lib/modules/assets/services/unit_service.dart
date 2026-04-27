@@ -150,19 +150,21 @@ class UnitService {
 
   /// 解析 Excel 文件并批量导入单元。
   ///
-  /// 列映射（与 unit_import_template.ts 的 OFFICE/RETAIL/APARTMENT_TEMPLATE 严格对齐）：
-  ///   0: 楼栋名称   → 通过 buildings.name 解析为 building_id，并推导 property_type
+  /// 列映射（与 unit_import_template.ts 的 TEMPLATE 严格对齐）：
+  ///   0: 楼栋名称   → 通过 buildings.name 解析为 building_id
   ///   1: 楼层名称   → 通过 floors.floor_name + building_id 解析为 floor_id
   ///   2: 单元编号   → unit_number
-  ///   3: 建筑面积   → gross_area
-  ///   4: 套内面积   → net_area
-  ///   5: 朝向       → orientation（东/南/西/北 → east/south/west/north）
-  ///   6: 层高       → ceiling_height
-  ///   7: 装修状态   → decoration_status（精装/简装/毛坯/原始）
-  ///   8: 是否可租   → is_leasable（是→true）
-  ///   9: 参考租金   → market_rent_reference
-  ///  10-11: 业态专属 ext_fields（写字楼: 工位数/分隔间数；商铺: 门面宽/是否临街；
-  ///          公寓: 卧室数/独立卫生间；商铺col12: 商铺层高）
+  ///   3: 业态       → property_type（office/retail/apartment 或中文：写字楼/商铺/公寓）
+  ///                   为空时继承楼栋的 property_type（兼容单一业态楼栋旧模板）
+  ///   4: 建筑面积   → gross_area
+  ///   5: 套内面积   → net_area
+  ///   6: 朝向       → orientation（东/南/西/北 → east/south/west/north）
+  ///   7: 层高       → ceiling_height
+  ///   8: 装修状态   → decoration_status（精装/简装/毛坯/原始）
+  ///   9: 是否可租   → is_leasable（是→true）
+  ///  10: 参考租金   → market_rent_reference
+  ///  11-13: 业态专属 ext_fields（写字楼: 工位数/分隔间数；商铺: 门面宽/是否临街/商铺层高；
+  ///          公寓: 卧室数/独立卫生间）
   ///
   /// 行为契约：
   ///   - `dryRun=true`：仅校验，不入库；写入一条 `is_dry_run=true` 的批次记录，
@@ -210,6 +212,16 @@ class UnitService {
     // 将 rawRows 转为统一的 List<List<dynamic>>，用于后续按列索引访问
     // 跳过表头行（rawRows[0]）
     final rows = rawRows;
+
+    // ── 表头自适应：检测 col3 是否为「业态」列（新模板 14 列 / 旧模板 13 列）
+    // 旧模板：col3 = 建筑面积，col4 = 套内面积 ... col9 = 参考租金，col10-12 = ext_fields
+    // 新模板：col3 = 业态，col4 = 建筑面积 ... col10 = 参考租金，col11-13 = ext_fields
+    final headerRow = rows.isNotEmpty ? rows[0] : const <dynamic>[];
+    final headerCol3 = headerRow.length > 3
+        ? (headerRow[3]?.toString().trim() ?? '')
+        : '';
+    final hasPropertyTypeCol = headerCol3.contains('业态');
+    final colOffset = hasPropertyTypeCol ? 1 : 0;
 
     // ── ② 行级校验（含楼栋/楼层名称解析，跳过注释行和空行）───────────────
     final errorDetails = <Map<String, dynamic>>[];
@@ -277,7 +289,7 @@ class UnitService {
         continue;
       }
       final buildingId = buildingInfo['id']!;
-      final propertyType = buildingInfo['property_type']!;
+      final buildingPropertyType = buildingInfo['property_type']!;
 
       // ── 楼层名称解析（带缓存）─────────────────────────────────────────
       final floorCacheKey = '$buildingId:$floorName';
@@ -299,25 +311,54 @@ class UnitService {
         continue;
       }
 
-      // ── 业态专属扩展字段 ─────────────────────────────────────────────────
+      // ── 行级业态（仅新模板才有 col3 业态列；旧模板回退到楼栋业态）─────
+      String? rawPt;
+      if (hasPropertyTypeCol) {
+        rawPt = _cellStr(row, 3);
+      }
+      final propertyType = _parsePropertyType(rawPt) ?? buildingPropertyType;
+      if (rawPt != null &&
+          rawPt.isNotEmpty &&
+          _parsePropertyType(rawPt) == null) {
+        errorDetails.add(_err(rowNum, '业态',
+            '无效业态值: $rawPt（合法值: 写字楼/商铺/公寓 或 office/retail/apartment）'));
+        continue;
+      }
+
+      // ── 业态专属扩展字段（snake_case，对齐 admin 编辑表单和数据库 JSONB）
+      // 新模板列序：col11=字段1, col12=字段2, col13=字段3
+      // 旧模板列序：col10=字段1, col11=字段2, col12=字段3（不带业态列时整体 -1）
+      final ext1 = 11 + colOffset - 1; // 等价：新=11，旧=10
+      final ext2 = 12 + colOffset - 1; // 等价：新=12，旧=11
+      final ext3 = 13 + colOffset - 1; // 等价：新=13，旧=12
       final extFields = <String, dynamic>{};
       if (propertyType == 'office') {
-        final workstations = _cellInt(row, 10);
-        if (workstations != null) extFields['workstations'] = workstations;
-        final partitions = _cellInt(row, 11);
-        if (partitions != null) extFields['partitions'] = partitions;
+        final workstationCount = _cellInt(row, ext1);
+        if (workstationCount != null) {
+          extFields['workstation_count'] = workstationCount;
+        }
+        final partitionCount = _cellInt(row, ext2);
+        if (partitionCount != null) {
+          extFields['partition_count'] = partitionCount;
+        }
       } else if (propertyType == 'retail') {
-        final shopWidth = _cellDouble(row, 10);
-        if (shopWidth != null) extFields['shopWidth'] = shopWidth;
-        extFields['isStreetside'] = (_cellStr(row, 11) ?? '') == '是';
-        final shopCeilingHeight = _cellDouble(row, 12);
-        if (shopCeilingHeight != null) {
-          extFields['shopCeilingHeight'] = shopCeilingHeight;
+        final frontageWidth = _cellDouble(row, ext1);
+        if (frontageWidth != null) extFields['frontage_width'] = frontageWidth;
+        final streetFacingRaw = _cellStr(row, ext2);
+        if (streetFacingRaw != null && streetFacingRaw.isNotEmpty) {
+          extFields['street_facing'] = streetFacingRaw == '是';
+        }
+        final retailCeilingHeight = _cellDouble(row, ext3);
+        if (retailCeilingHeight != null) {
+          extFields['retail_ceiling_height'] = retailCeilingHeight;
         }
       } else if (propertyType == 'apartment') {
-        final bedroomCount = _cellInt(row, 10);
-        if (bedroomCount != null) extFields['bedroomCount'] = bedroomCount;
-        extFields['privateBathroom'] = (_cellStr(row, 11) ?? '') == '是';
+        final bedroomCount = _cellInt(row, ext1);
+        if (bedroomCount != null) extFields['bedroom_count'] = bedroomCount;
+        final enSuiteRaw = _cellStr(row, ext2);
+        if (enSuiteRaw != null && enSuiteRaw.isNotEmpty) {
+          extFields['en_suite_bathroom'] = enSuiteRaw == '是';
+        }
       }
 
       validRows.add({
@@ -325,13 +366,13 @@ class UnitService {
         'floor_id': floorId,
         'unit_number': unitNumber,
         'property_type': propertyType,
-        'gross_area': _cellDouble(row, 3),
-        'net_area': _cellDouble(row, 4),
-        'orientation': _parseOrientation(_cellStr(row, 5)),
-        'ceiling_height': _cellDouble(row, 6),
-        'decoration_status': _parseDecoration(_cellStr(row, 7)),
-        'is_leasable': (_cellStr(row, 8) ?? '是') == '是',
-        'market_rent_reference': _cellDouble(row, 9),
+        'gross_area': _cellDouble(row, 3 + colOffset),
+        'net_area': _cellDouble(row, 4 + colOffset),
+        'orientation': _parseOrientation(_cellStr(row, 5 + colOffset)),
+        'ceiling_height': _cellDouble(row, 6 + colOffset),
+        'decoration_status': _parseDecoration(_cellStr(row, 7 + colOffset)),
+        'is_leasable': (_cellStr(row, 8 + colOffset) ?? '是') == '是',
+        'market_rent_reference': _cellDouble(row, 9 + colOffset),
         'ext_fields': extFields,
       });
     }
@@ -549,6 +590,20 @@ class UnitService {
   /// 从单元格读取整数（兼容 String/Int/Double 格）
   int? _cellInt(List<dynamic> row, int col) {
     return _cellDouble(row, col)?.round();
+  }
+
+  /// 业态中文或英文→标准英文枚举；无法识别时返回 null
+  String? _parsePropertyType(String? value) {
+    if (value == null || value.isEmpty) return null;
+    const map = {
+      '写字楼': 'office',
+      'office': 'office',
+      '商铺': 'retail',
+      'retail': 'retail',
+      '公寓': 'apartment',
+      'apartment': 'apartment',
+    };
+    return map[value.toLowerCase()] ?? map[value];
   }
 
   /// 朝向中文→英文枚举；不在映射表内时返回 null

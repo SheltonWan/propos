@@ -3,6 +3,7 @@
     <div class="page-header">
       <h2 class="page-title">资产管理</h2>
       <div class="actions">
+        <el-button :icon="Plus" type="primary" @click="showCreate = true">新建楼栋</el-button>
         <el-button :icon="Upload" @click="goImport">批量导入</el-button>
         <el-button :icon="Download" :loading="exporting" @click="onExport">导出 Excel</el-button>
       </div>
@@ -88,20 +89,24 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <BuildingCreateDialog v-model="showCreate" @created="store.fetchAll()" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Upload, Download } from '@element-plus/icons-vue'
+import { Upload, Download, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAssetOverviewStore } from '@/stores'
 import type { Building, PropertyType } from '@/types/asset'
+import BuildingCreateDialog from './components/BuildingCreateDialog.vue'
 
 const store = useAssetOverviewStore()
 const router = useRouter()
 const exporting = ref(false)
+const showCreate = ref(false)
 
 const propertyTypeStats = computed(() => store.overview?.by_property_type ?? [])
 
