@@ -1,12 +1,12 @@
 # PropOS Phase 1 项目开发日程计划
 
-> **版本**: v1.4
-> **制定日期**: 2026-04-05（v1.4 更新日期: 2026-04-13）
-> **计划开始日期**: 2026-04-08（周三）
-> **计划上线日期**: 2026-08-21（周五）
+> **版本**: v1.5
+> **制定日期**: 2026-04-05（v1.4 更新日期: 2026-04-13；v1.5 更新日期: 2026-04-27）
+> **计划开始日期**: 2026-04-20（周一，Phase 0 已于 2026-04-17 完成）
+> **计划上线日期**: 2026-08-14（周五）
 > **开发模式**: Copilot Agent 主导（~85% 零手写代码）+ 人工基础设施配置
 > **每日投入**: 8 小时
-> **总工期**: 20 周 / 98 个工作日
+> **总工期**: 17 周 / 85 个工作日（不含已完成的 Phase 0）
 > **依据文档**: PRD v1.8 / ARCH v1.5 / data_model v1.5
 
 ---
@@ -87,14 +87,13 @@
 
 | 阶段 | 周次 | 日历区间 | 核心交付 | 工作日 |
 |------|------|---------|---------|--------|
-| Phase 0：基础搭建 | W1–W2 | 4/8–4/17 | 核心 Package + 后端框架 + Auth | 8 天 |
-| Phase 1：M1 资产 | W3–W5 | 4/20–5/8 | 资产台账 + CAD 导入 + SVG 热区图 | 15 天 |
-| Phase 2：M2 合同 | W6–W9 | 5/11–6/5 | 合同生命周期 + 递增规则 + WALE | 20 天 |
-| Phase 3：M4 工单 | W10–W11 | 6/8–6/19 | 工单流转 + 移动端报修 + 推送 | 10 天 |
-| Phase 4：M3 财务 | W12–W15 | 6/22–7/17 | 账单 + NOI 看板 + KPI 仪表盘 | 20 天 |
-| Phase 5：M5 穿透 | W16–W17 | 7/20–7/31 | 子租赁 + 外部填报门户 + 审核流 | 10 天 |
-| Phase 6：集成测试 | W18–W19 | 8/3–8/14 | 模块联动 + 数据初始化 + 回归 | 10 天 |
-| Phase 7：UAT 上线 | W20 | 8/17–8/21 | 用户验收 + 正式 Go-live | 5 天 |
+| Phase 0：基础搭建 ✅ | —（已完成） | 4/8–4/17 | 核心 Package + 后端框架 + Auth | 8 天 |
+| Phase 1：M1 资产 | W1–W3 | 4/20–5/8 | 资产台账 + CAD 导入 + SVG 热区图 | 15 天 |
+| Phase 2：M2 合同 | W4–W7 | 5/11–6/5 | 合同生命周期 + 递增规则 + WALE | 20 天 |
+| Phase 3：M4 工单 | W8–W9 | 6/8–6/19 | 工单流转 + 移动端报修 + 推送 | 10 天 |
+| Phase 4：M3 财务 | W10–W13 | 6/22–7/17 | 账单 + NOI 看板 + KPI 仪表盘 | 20 天 |
+| Phase 5：M5 穿透 | W14–W15 | 7/20–7/31 | 子租赁 + 外部填报门户 + 审核流 | 10 天 |
+| Phase 6：集成+UAT+上线 | W16–W17 | 8/3–8/14 | 模块联动 + 数据初始化 + 回归 + UAT + Go-live | 10 天 |
 
 **模块开发顺序依据**：
 - M1（资产）是数据底座，其他模块均依赖单元/楼层实体
@@ -117,12 +116,11 @@
 | M4 工单上线 | 2026-06-19 | 移动端报修全链路；FCM 推送验证；成本接口预留 | `backend/lib/modules/work_orders/` + `app/src/pages/workorders/` + `admin/src/views/workorders/` |
 | M3 财务上线 | 2026-07-17 | 账单生成 < 30 秒；NOI 三业态拆分正确；KPI 2 套方案打分与手工一致 | `backend/lib/modules/finance/` + `admin/src/views/finance/` |
 | M5 穿透上线 | 2026-07-31 | 外部门户可独立访问；审核流完整；行级隔离安全验证通过 | `backend/lib/modules/subleases/` + `admin/src/views/subleases/` |
-| 集成完成 | 2026-08-14 | 全 PRD 验收项 Pass；50 并发压测达标；实际数据导入完成 | 全模块交叉合规扫描 |
-| **正式上线** | **2026-08-21** | **PropOS Phase 1 全模块生产环境就绪** | — |
+| **集成+UAT+正式上线** | **2026-08-14** | **全 PRD 验收项 Pass；UAT 验收通过；PropOS Phase 1 生产环境就绪** | 全模块交叉合规扫描 |
 
 ---
 
-## Phase 0：项目基础搭建
+## Phase 0：项目基础搭建（✅ 已完成 2026-04-17）
 
 > **时间**：2026-04-08（W1）— 2026-04-17（W2），共 8 个工作日
 
@@ -226,7 +224,7 @@
 
 ## Phase 1：M1 资产与空间可视化
 
-> **时间**：2026-04-20（W3）— 2026-05-08（W5），共 15 个工作日
+> **时间**：2026-04-20（W1）— 2026-05-08（W3），共 15 个工作日
 
 ### 第 3 周（4/20 — 4/24）· M1 后端 CRUD
 
@@ -393,7 +391,7 @@
 
 ## Phase 2：M2 租务与合同管理
 
-> **时间**：2026-05-11（W6）— 2026-06-05（W9），共 20 个工作日
+> **时间**：2026-05-11（W4）— 2026-06-05（W7），共 20 个工作日
 
 ### 第 6 周（5/11 — 5/15）· M2 后端 Tenant + Contract
 
@@ -615,7 +613,7 @@
 
 ## Phase 3：M4 物业运营与工单系统
 
-> **时间**：2026-06-08（W10）— 2026-06-19（W11），共 10 个工作日
+> **时间**：2026-06-08（W8）— 2026-06-19（W9），共 10 个工作日
 
 ### 第 10 周（6/8 — 6/12）· M4 后端 + 前端类型/Store
 
@@ -727,7 +725,7 @@
 
 ## Phase 4：M3 财务与业财一体化
 
-> **时间**：2026-06-22（W12）— 2026-07-17（W15），共 20 个工作日
+> **时间**：2026-06-22（W10）— 2026-07-17（W13），共 20 个工作日
 
 ### 第 12 周（6/22 — 6/26）· M3 后端 账单 + 收款 + NOI
 
@@ -950,7 +948,7 @@
 
 ## Phase 5：M5 二房东租赁信息穿透管理
 
-> **时间**：2026-07-20（W16）— 2026-07-31（W17），共 10 个工作日
+> **时间**：2026-07-20（W14）— 2026-07-31（W15），共 10 个工作日
 
 ### 第 16 周（7/20 — 7/24）· M5 后端 + 外部门户
 
@@ -1068,11 +1066,11 @@
 
 ---
 
-## Phase 6：集成测试 + 数据初始化
+## Phase 6：集成测试 + 数据初始化 + UAT + 正式上线
 
-> **时间**：2026-08-03（W18）— 2026-08-14（W19），共 10 个工作日
+> **时间**：2026-08-03（W16）— 2026-08-14（W17），共 10 个工作日
 
-### 第 18 周（8/3 — 8/7）· 全模块集成 + 数据初始化
+### 第 16 周（8/3 — 8/7）· 全模块集成 + 数据初始化
 
 #### Day 84 · 8月3日（周一）— 全模块跨领域联动验证
 
@@ -1129,7 +1127,7 @@
 > 初始化财务 + KPI 数据。生成种子数据脚本 `scripts/seed_finance.dart`（不修改生产代码）：①初始化三个 KPI 方案（租务部/财务部/物业运营部），权重经验值写死在脚本中，脚本运行前校验总权重 = 1.0；②补录 6 个月历史 KPI 快照（`kpi_score_snapshots`），K10 满意度用估算值（85），其余指标调用 `KpiGatherService.gatherMetricData()` 从实际导入数据取真实值；③二房东账号：通过现有 `POST /api/users`（管理员端）创建，角色 `sub_landlord`，`subLandlordScope` 在 `user_permissions` 表中关联对应 `masterContractId` 数组。运行种子脚本前先备份数据库（`pg_dump`）。
 > 附：`@file:.github/copilot-instructions.md`（安全：证件号加密存储）`@file:docs/backend/data_model.md`（用户权限模型）
 
-### 第 19 周（8/10 — 8/14）· 全量回归 + 性能 + 安全
+### 第 17 周（8/10 — 8/14）· 全量回归 + 性能 + 安全 + UAT + 正式上线
 
 #### Day 89 · 8月10日（周一）— 全量功能回归测试
 
@@ -1164,7 +1162,7 @@
 > 执行完整安全审查并生成报告 `docs/security/security_audit_report.md`。逐项执行：①SQL注入扫描：`grep -rn 'execute\|query' backend/lib --include="*.dart" | grep -v '\$[0-9]' | grep -v '//'` 输出可疑行（期望零条）；②JWT 算法：`grep -rn "alg\|algorithm\|none" backend/lib --include="*.dart"` 确认无 `alg:none`；③IDOR：对每个 `GET /api/{resource}/:id` 端点，用另一个用户 JWT 访问，期望 403 或无越权数据；④idNumber 脱敏：`grep -rn "idNumber\|id_number" backend/lib --include="*.dart" | grep -v MaskingUtils | grep -v "// encrypted"` 期望零裸露字段；⑤CORS：验证 `backend/lib/config/app_config.dart` 中 `corsOrigins` 在生产模式下从 `CORS_ORIGINS` 环境变量读取（不含 `*`）。每项结果记录 Pass/Fail + 证据截图。
 > 附：`@file:.github/copilot-instructions.md`（安全要求：证件号加密、JWT HS256、行级隔离）`@file:docs/ARCH.md`
 
-#### Day 92 · 8月13日（周四）— 回归缺陷修复
+#### Day 92 · 8月13日（周四）— 回归缺陷修复 + UAT 演示（全模块）
 
 - 修复 Day 89-91 测试发现的 P0 / P1 缺陷（P0 = 崩溃/数据错误，P1 = 功能不符合 PRD）
 - P2 级问题（UI 细节 / 非核心功能）记录到 Backlog，不阻断上线
@@ -1174,7 +1172,7 @@
 > 修复 Day 89-91 发现的所有 P0/P1 缺陷。修复优先级：P0（系统崩溃 / 数据计算错误 / 安全漏洞）必须当日修复且回归验证；P1（功能不符合 PRD / UI 无法操作）当日修复或明日上午前完成。P2（UI 微调 / 非关键功能缺失）记录到 `docs/qa/backlog.md` 并标注"Phase 2 处理"，**不因 P2 延误上线计划**。审计日志最终校验：`SELECT DISTINCT operation FROM audit_logs` 查看覆盖的操作类型，确认包含 `contract_update`、`payment_reconciliation`、`permission_change`、`sublease_review` 四类（缺失则检查对应 Service 是否漏写了 audit log 调用）。修复每个 bug 后在 `docs/qa/regression_test_matrix.md` 对应行更新状态为 `✅ Pass`。
 > 附：`@file:.github/copilot-instructions.md`（审计日志要求：4类操作必须覆盖）`@file:docs/PRD.md`
 
-#### Day 93 · 8月14日（周五）— 部署准备
+#### Day 93 · 8月14日（周五）— 部署准备 + UAT 验收签字 + **正式上线**
 
 - 编写 `README.md`（启动步骤 / 环境变量 / 数据库初始化 SQL 运行顺序）
 - `.env.example`（6 个必填 + 3 个可选变量，含说明注释）
@@ -1190,11 +1188,14 @@
 
 ---
 
-## Phase 7：用户验收测试（UAT）+ 正式上线
+## Phase 7（已压缩至 Phase 6 W17）：UAT 提示语存档参考
 
-> **时间**：2026-08-17（W20）— 2026-08-21（周五），共 5 个工作日
+> **⚠️ v1.5 工期压缩说明**：原计划 W20（8/17–8/21）的 UAT 已整合压缩至 Phase 6 第 17 周（W17：8/10–8/14）后 3 天执行。以下 Day 94–98 Copilot 提示语保留作执行参考，实际时间映射：
+> - **Day 92（8/13）**：对应原 Day 94–96（UAT 演示 M1→M5 全模块 + 问题记录）
+> - **Day 92 下午–Day 93 上午（8/13–8/14）**：对应原 Day 97（缺陷修复 + 验收签字）
+> - **Day 93（8/14）**：对应原 Day 98（正式上线）
 
-#### Day 94 · 8月17日（周一）— UAT 启动 + 资产模块演示
+#### Day 94（→ 实际 8/13 上午）— UAT 启动 + 资产模块演示
 
 - 向超级管理员/运营管理层演示 M1 资产台账、楼层热区图操作
 - 采集用户反馈（UI 易用性、数据显示、操作流程），填写 UAT 问题单
@@ -1204,7 +1205,7 @@
 > UAT 第一天：M1 资产台账与楼层热区演示。使用生产等量的真实导入数据（639 套），**不使用测试 Mock 数据**。演示前检查：①楼层热区颜色与合同到期日一致（随机抽查 3 套单元，对比热区色块与 `GET /api/units/:id` 返回的 `daysUntilExpiry`）；②`leased`/`expiring_soon`/`vacant`/`non_leasable` 四种状态色使用的是 CSS 变量 `--color-success/--color-warning/--color-danger/--color-neutral`（或 Element Plus `type="success/warning/danger/info"`），**不是硬编码 hex**。UAT 问题单格式保存到 `docs/qa/uat_feedback.md`（表格列：`| 功能点 | 反馈描述 | 优先级P0/P1/P2 | 处理方案 | 负责人 |`）。当场发现 P0（崩溃/数据错误）立即修复后重演示；P1 UI 问题记录后**继续演示，不中断 UAT**。
 > 附：`@file:docs/PRD.md`（§七 验收标准）`@file:.github/copilot-instructions.md`
 
-#### Day 95 · 8月18日（周二）— UAT 合同 + 工单模块
+#### Day 95（→ 实际 8/13 中午）— UAT 合同 + 工单模块
 
 - 租务专员操作 M2（新建合同 / 录入递增规则 / 查看 WALE 仪表盘）
 - 前线员工操作 M4 移动端报修（扫码 / 手填 / 上传照片 / 查看进度）全流程演示
@@ -1214,7 +1215,7 @@
 > UAT 第二天：M2 合同模块 + M4 工单移动端 + M5 外部门户。M2 演示要点：①新建合同时录入含 2 段递增的混合规则，保存后进入合同详情页确认 `escalationRules` JSONB 正确展示；②查看 WALE 仪表盘，数值与预期年数对应（WALE 公式：`Σ(剩余租期ᵢ × 年化租金ᵢ) / Σ(年化租金ᵢ)`）。M4 演示要点：使用真机扫生成的 QR 码（`/api/qr/unit/:id`），确认直接跳转到报修提交页（**不需要手动输入房号**）；工单提交后在运维人员端 App 收到任务推送（推送降级 → `/api/alerts` 兜底机制也须演示）。M5 演示要点：二房东使用独立账号登录，**仅能看到自己名下子租赁数据**，访问其他二房东编号返回 403（演示 `GET /api/sub-leases?landlordId=other` 返回空集或 403）。问题记录到 `docs/qa/uat_feedback.md`，与 Day 94 同表格追加。
 > 附：`@file:docs/PRD.md`（§七 验收标准）`@file:.github/copilot-instructions.md`
 
-#### Day 96 · 8月19日（周三）— UAT 财务 + KPI
+#### Day 96（→ 实际 8/13 下午）— UAT 财务 + KPI
 
 - 财务人员操作账单核销、录入支出、查看 NOI 看板
 - 管理层查看 KPI 评分仪表盘（雷达图 / 排名榜 / 历史趋势）
@@ -1224,7 +1225,7 @@
 > UAT 第三天：M3 财务 + KPI 演示。财务演示要点：①批量账单生成（演示 `POST /api/invoices/generate`，显示已生成条数和金额合计）；②核销一笔账单（状态从 `pending` → `paid`，确认列表状态标签变为 `type="success"` 绿色）；③NOI 看板显示公式说明 `NOI = EGI - OpEx`，数字可与财务手工计算对比。KPI 演示要点：查看当月 KPI 评分仪表盘，雷达图 10 个指标均有数值（满意度指标为手动录入，其余 9 个自动，**空值显示 0 分而非报错**）；尝试提交 KPI 申诉（提交后状态变 `appealing`，管理层端显示待审申诉提醒）。UAT 问题汇总后，在 `docs/qa/uat_feedback.md` 末尾添加"上线阻断项清单"区块，标明 P0/P1 问题数量及全部确认"已修复"方可批准上线。
 > 附：`@file:docs/PRD.md`（§七 验收标准）`@file:.github/copilot-instructions.md`
 
-#### Day 97 · 8月20日（周四）— UAT 缺陷修复
+#### Day 97（→ 实际 8/13 收尾 + 验收签字）— UAT 缺陷修复
 
 - 修复 UAT 反馈的全部上线阻断问题（P0/P1 级，限制在 6 小时内）
 - 更新操作手册截图（若 UI 有调整）
@@ -1234,7 +1235,7 @@
 > UAT 最终缺陷修复日。修复规则：P0（崩溃/数据错误/安全漏洞）和 P1（核心功能缺失/错误数据展示）必须在今天 6 小时内全部修复并复测通过；P2（样式细节/非核心体验）允许推迟到 Phase 2。修复后每个问题在 `docs/qa/uat_feedback.md` 标记 `✅ 已修复`（含修复 commit hash 便于追溯）。修复时严格检查四类操作的审计日志是否仍完整（`SELECT DISTINCT operation FROM audit_logs` 结果必须包含：`contract_change`/`invoice_write_off`/`permission_change`/`sub_landlord_submit`）。若今日 18:00 前 P0/P1 全部修复且复测通过，运营负责人可签字验收；否则上线推迟一个工作日，不得强行上线。操作手册截图更新至 `docs/ops/user_manual_screenshots/`（按模块子目录存放）。
 > 附：`@file:docs/PRD.md`（§七 验收标准）`@file:.github/copilot-instructions.md`
 
-#### Day 98 · 8月21日（周五）— **正式上线**
+#### Day 98（→ 实际 8/14）— **正式上线**
 
 - 生产环境部署：后端服务启动验证（6 个必填环境变量 assert 通过）、PostgreSQL 连接、文件存储挂载
 - 生产环境冒烟测试（登录 / 数据查询 / 账单生成各触发一次）
@@ -1246,7 +1247,7 @@
 > **正式上线日 — 严格按顺序执行**。①服务启动验证：6 个必填环境变量（`DATABASE_URL`/`JWT_SECRET`/`JWT_EXPIRES_IN_HOURS`/`FILE_STORAGE_PATH`/`ENCRYPTION_KEY`/`APP_PORT`）缺失时服务必须 panic 退出并输出明确错误（`app_config.dart` 已有 assert，验证其在生产日志中输出 `✅ All required env vars present`）。②健康检查：`GET /api/health` 返回 `{"status":"ok","db":"connected"}`（不含任何内部路径或版本号敏感信息）。③冒烟测试三步：`POST /api/auth/login`（正常返回 JWT）→ `GET /api/units?page=1&pageSize=20`（返回 meta.total = 639）→ `POST /api/invoices/generate`（当月，返回 successCount > 0）。④生产数据核查：`SELECT count(*) FROM units` = 639，`SELECT count(*) FROM contracts WHERE status='active'` 与测试环境对比无差异。⑤上线通知：向团队发布 PropOS Phase 1 正式上线公告，附 Phase 2 优先级评估启动计划。**上线后第一时间通知运维人员保存当前 pg_dump 快照作为 Day-0 基准备份。**
 > 附：`@file:.github/copilot-instructions.md`（必填环境变量、安全规范）`@file:docs/ARCH.md`（Phase 2 功能范围边界）
 
-> **最终里程碑：PropOS Phase 1 于 2026-08-21 正式上线，639 套房源三业态全数字化管理就位，M1~M5 五個模块全面运行。**
+> **最终里程碑：PropOS Phase 1 于 2026-08-14 正式上线，639 套房源三业态全数字化管理就位，M1~M5 五个模块全面运行（工期压缩至 17 周，较原计划提前 1 周）。**
 
 ---
 
