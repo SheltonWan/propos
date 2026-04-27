@@ -11,24 +11,25 @@ import '../repositories/user_admin_repository.dart';
 
 /// UserImportService — 批量导入员工账号。
 ///
-/// 文件列：name / phone / email / role / department_name / bound_contract_no
-///   - phone 用作登录账号（写入 email 字段，作为唯一登录标识）
-///     注：当前 schema 仅保留 email 列；如果 phone 已是 email 格式则原样写入，否则按 phone@local.placeholder 规则生成。
-///   - 由于本期未引入合同号→合同 id 反查，bound_contract_no 暂仅做格式记录；为 sub_landlord 时缺失会标记错误。
-///   - 缺省密码为 phone 后 6 位 + 'A!'；首次登录会被强制改密。
-///   - dry_run 时不落库；失败时整批回滚
+/// 文件列（中文表头）：姓名 / 邮箱 / 初始密码 / 角色 / 部门ID / 绑定主合同ID
+///   - 邮箱：作为登录唯一标识，必须为有效 email 格式
+///   - 初始密码：由导入人填写，后端直接进行 bcrypt(cost=12) 散列存储
+///   - 角色：英文标识，如 leasing_specialist
+///   - 部门ID：系统部门 UUID，sub_landlord 角色可留空
+///   - 绑定主合同ID：仅 sub_landlord 角色必填，填写主合同 UUID
+///   - dry_run 时不落库；有任意错误时整批回滚
 class UserImportService {
   final Pool _db;
 
   UserImportService(this._db);
 
   static const List<String> _expectedHeaders = [
-    'name',
-    'phone',
-    'email',
-    'role',
-    'department_name',
-    'bound_contract_no',
+    '姓名',
+    '邮箱',
+    '初始密码',
+    '角色',
+    '部门ID',
+    '绑定主合同ID',
   ];
 
   Future<Map<String, dynamic>> import({
@@ -74,75 +75,56 @@ class UserImportService {
           final row = dataRows[i];
           try {
             final name = _str(row, 0)?.trim() ?? '';
-            final phone = _str(row, 1)?.trim() ?? '';
-            final email = _str(row, 2)?.trim() ?? '';
+            final email = _str(row, 1)?.trim() ?? '';
+            final password = _str(row, 2)?.trim() ?? '';
             final role = _str(row, 3)?.trim() ?? '';
-            final departmentName = _str(row, 4)?.trim() ?? '';
-            final boundContractNo = _str(row, 5)?.trim() ?? '';
+            final departmentId = _str(row, 4)?.trim() ?? '';
+            final boundContractId = _str(row, 5)?.trim() ?? '';
 
             if (name.isEmpty) {
               throw const ValidationException(
                   'VALIDATION_ERROR', '员工姓名不能为空');
             }
-            if (phone.isEmpty || !RegExp(r'^\d{11}$').hasMatch(phone)) {
+            if (email.isEmpty ||
+                !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
               throw const ValidationException(
-                  'VALIDATION_ERROR', '手机号格式无效（11 位数字）');
+                  'VALIDATION_ERROR', '邮箱格式无效');
+            }
+            if (password.isEmpty) {
+              throw const ValidationException('VALIDATION_ERROR', '初始密码不能为空');
             }
             _validateRole(role);
-            if (departmentName.isEmpty) {
+            if (role != 'sub_landlord' && departmentId.isEmpty) {
               throw const ValidationException(
-                  'VALIDATION_ERROR', 'department_name 不能为空');
+                  'VALIDATION_ERROR', '部门ID不能为空');
             }
-            if (role == 'sub_landlord' && boundContractNo.isEmpty) {
+            if (role == 'sub_landlord' && boundContractId.isEmpty) {
               throw const ValidationException(
-                  'BOUND_CONTRACT_REQUIRED', '二房东必须填写 bound_contract_no');
+                  'BOUND_CONTRACT_REQUIRED', '二房东必须填写绑定主合同ID');
             }
-
-            // 解析部门路径
-            final departmentId = await _resolveDepartmentId(
-              departmentName,
-              tx: tx,
-            );
-            if (departmentId == null) {
-              throw const NotFoundException(
-                  'DEPARTMENT_NOT_FOUND', '部门路径不存在');
-            }
-
-            // 解析合同号 → 合同 id
-            String? boundContractId;
-            if (role == 'sub_landlord' && boundContractNo.isNotEmpty) {
-              boundContractId =
-                  await _resolveContractId(boundContractNo, tx: tx);
-              if (boundContractId == null) {
-                throw const NotFoundException(
-                    'CONTRACT_NOT_FOUND', '合同编号不存在');
-              }
-            }
-
-            final loginEmail = email.isNotEmpty
-                ? email.toLowerCase()
-                : '$phone@phone.local';
 
             final repo = UserAdminRepository(tx);
-            if (await repo.emailExists(loginEmail, tx: tx)) {
+            if (await repo.emailExists(email.toLowerCase(), tx: tx)) {
               throw const ConflictException(
-                  'EMAIL_ALREADY_EXISTS', '邮箱/手机号已被注册');
+                  'EMAIL_ALREADY_EXISTS', '邮箱已被注册');
             }
 
-            // 默认密码：手机号后 6 位 + 'A!'，确保满足复杂度并强制改密
-            final defaultPwd = '${phone.substring(phone.length - 6)}A!';
+            // 使用导入文件中提供的初始密码进行散列存储
             final hash = BCrypt.hashpw(
-              defaultPwd,
+              password,
               BCrypt.gensalt(logRounds: 12),
             );
 
             await repo.create(
               name: name,
-              email: loginEmail,
+              email: email.toLowerCase(),
               passwordHash: hash,
               role: role,
-              departmentId: departmentId,
-              boundContractId: boundContractId,
+              departmentId: departmentId.isNotEmpty ? departmentId : null,
+              boundContractId:
+                  role == 'sub_landlord' && boundContractId.isNotEmpty
+                      ? boundContractId
+                      : null,
               tx: tx,
             );
             successCount++;
