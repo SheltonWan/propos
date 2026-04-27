@@ -1,10 +1,16 @@
 /// BuildingService 单元测试
 ///
 /// 覆盖场景：
-///   listBuildings()   — 空列表 / 非空列表
-///   getBuilding()     — 不存在 → BUILDING_NOT_FOUND / 成功返回
-///   createBuilding()  — 无效 propertyType / 零楼层数 / 零面积 / 成功
-///   updateBuilding()  — 无效 propertyType / DB 返回空 → NOT_FOUND / 成功
+///   listBuildings()                — 空列表 / 非空列表
+///   getBuilding()                  — 不存在 → BUILDING_NOT_FOUND / 成功返回
+///   createBuilding()               — 无效 propertyType / 零楼层数 / 零面积 / 成功
+///   updateBuilding()               — 无效 propertyType / DB 返回空 → NOT_FOUND /
+///                                    basementFloors 越界 / totalFloors 越界 /
+///                                    层数递减 → BUILDING_FLOOR_DECREASE_NOT_ALLOWED /
+///                                    成功（runTx 路径）
+///   createBuildingWithFloors()     — totalFloors 越界 / basementFloors 越界 / gfa=0 /
+///                                    成功（2F+B1 共 3 楼层）
+///   deleteBuilding()               — 不存在 / 有单元 / 有工单 / 有账单 / 成功
 library;
 
 import 'package:test/test.dart';
@@ -168,10 +174,253 @@ void main() {
     });
 
     test('合法更新 → 返回更新后 Building', () async {
-      pool.executeHandler = (q, p) =>
-          makeResult(kBuildingCols, [buildingRow(name: '更新后名称')]);
+      // updateBuilding 在事务中先查楼层列表再更新 buildings 表
+      var callIdx = 0;
+      pool.executeHandler = (q, p) {
+        callIdx++;
+        if (callIdx == 1)
+          return makeResult(kFloorCols, []); // findAll floors（空列表）
+        return makeResult(kBuildingCols, [buildingRow(name: '更新后名称')]);
+      };
       final b = await svc.updateBuilding('b-1', name: '更新后名称');
       expect(b.name, '更新后名称');
+      expect(pool.runTxCalled, isTrue);
+    });
+
+    test('basementFloors=-1 → ValidationException(地下层数不能为负)', () async {
+      await expectLater(
+        svc.updateBuilding('b-1', basementFloors: -1),
+        throwsA(isA<ValidationException>()),
+      );
+    });
+
+    test('basementFloors=21 → ValidationException(地下层数不得超过 20)', () async {
+      await expectLater(
+        svc.updateBuilding('b-1', basementFloors: 21),
+        throwsA(isA<ValidationException>()),
+      );
+    });
+
+    test('totalFloors=201 → ValidationException(地上层数不得超过 200)', () async {
+      await expectLater(
+        svc.updateBuilding('b-1', totalFloors: 201),
+        throwsA(isA<ValidationException>()),
+      );
+    });
+
+    test(
+        'totalFloors 小于当前层数 → ValidationException(BUILDING_FLOOR_DECREASE_NOT_ALLOWED)',
+        () async {
+      // 当前有 5 层地上，尝试减少到 3 层 → BUILDING_FLOOR_DECREASE_NOT_ALLOWED
+      pool.executeHandler = (q, p) => makeResult(
+            kFloorCols,
+            [for (var i = 1; i <= 5; i++) floorRow(id: 'f-$i', floorNumber: i)],
+          );
+      await expectLater(
+        svc.updateBuilding('b-1', totalFloors: 3),
+        throwsA(isA<ValidationException>().having(
+            (e) => e.code, 'code', 'BUILDING_FLOOR_DECREASE_NOT_ALLOWED')),
+      );
+    });
+  });
+
+  // ─── createBuildingWithFloors ─────────────────────────────────────────────
+
+  group('createBuildingWithFloors() 参数校验', () {
+    test('totalFloors=0 → ValidationException', () async {
+      await expectLater(
+        svc.createBuildingWithFloors(
+            name: 'T',
+            propertyType: 'office',
+            totalFloors: 0,
+            gfa: 1000,
+            nla: 800),
+        throwsA(isA<ValidationException>()),
+      );
+    });
+
+    test('totalFloors=201 → ValidationException', () async {
+      await expectLater(
+        svc.createBuildingWithFloors(
+            name: 'T',
+            propertyType: 'office',
+            totalFloors: 201,
+            gfa: 1000,
+            nla: 800),
+        throwsA(isA<ValidationException>()),
+      );
+    });
+
+    test('basementFloors=-1 → ValidationException', () async {
+      await expectLater(
+        svc.createBuildingWithFloors(
+            name: 'T',
+            propertyType: 'office',
+            totalFloors: 5,
+            gfa: 1000,
+            nla: 800,
+            basementFloors: -1),
+        throwsA(isA<ValidationException>()),
+      );
+    });
+
+    test('basementFloors=21 → ValidationException', () async {
+      await expectLater(
+        svc.createBuildingWithFloors(
+            name: 'T',
+            propertyType: 'office',
+            totalFloors: 5,
+            gfa: 1000,
+            nla: 800,
+            basementFloors: 21),
+        throwsA(isA<ValidationException>()),
+      );
+    });
+
+    test('gfa=0 → ValidationException', () async {
+      await expectLater(
+        svc.createBuildingWithFloors(
+            name: 'T',
+            propertyType: 'office',
+            totalFloors: 5,
+            gfa: 0,
+            nla: 800),
+        throwsA(isA<ValidationException>()),
+      );
+    });
+
+    test('合法参数(2F+B1) → runTx 被调用，返回楼栋及 3 个楼层', () async {
+      // call 1: buildings INSERT
+      // call 2: floor B1 INSERT
+      // call 3: floor 1F INSERT
+      // call 4: floor 2F INSERT
+      var callIdx = 0;
+      pool.executeHandler = (q, p) {
+        callIdx++;
+        if (callIdx == 1) return makeResult(kBuildingCols, [buildingRow()]);
+        return makeResult(kFloorCols, [floorRow(id: 'f-$callIdx')]);
+      };
+      final result = await svc.createBuildingWithFloors(
+        name: 'New Tower',
+        propertyType: 'office',
+        totalFloors: 2,
+        gfa: 1000,
+        nla: 800,
+        basementFloors: 1,
+      );
+      expect(result.building.id, 'b-1');
+      expect(result.floors, hasLength(3)); // B1 + 1F + 2F
+      expect(pool.runTxCalled, isTrue);
+    });
+  });
+
+  // ─── deleteBuilding ───────────────────────────────────────────────────────
+
+  group('deleteBuilding()', () {
+    test('楼栋不存在 → NotFoundException(BUILDING_NOT_FOUND)', () async {
+      pool.executeHandler = (q, p) => makeResult([], []);
+      await expectLater(
+        svc.deleteBuilding('b-x'),
+        throwsA(isA<NotFoundException>()
+            .having((e) => e.code, 'code', 'BUILDING_NOT_FOUND')),
+      );
+    });
+
+    test('楼栋有单元 → ValidationException(BUILDING_HAS_UNITS)', () async {
+      var callIdx = 0;
+      pool.executeHandler = (q, p) {
+        callIdx++;
+        if (callIdx == 1) return makeResult(kBuildingCols, [buildingRow()]);
+        return makeResult([
+          'c'
+        ], [
+          [3]
+        ]); // COUNT units = 3
+      };
+      await expectLater(
+        svc.deleteBuilding('b-1'),
+        throwsA(isA<ValidationException>()
+            .having((e) => e.code, 'code', 'BUILDING_HAS_UNITS')),
+      );
+    });
+
+    test('楼栋有工单 → ValidationException(BUILDING_HAS_WORKORDERS)', () async {
+      var callIdx = 0;
+      pool.executeHandler = (q, p) {
+        callIdx++;
+        if (callIdx == 1) return makeResult(kBuildingCols, [buildingRow()]);
+        if (callIdx == 2)
+          return makeResult([
+            'c'
+          ], [
+            [0]
+          ]); // COUNT units = 0
+        return makeResult([
+          'c'
+        ], [
+          [2]
+        ]); // COUNT workorders = 2
+      };
+      await expectLater(
+        svc.deleteBuilding('b-1'),
+        throwsA(isA<ValidationException>()
+            .having((e) => e.code, 'code', 'BUILDING_HAS_WORKORDERS')),
+      );
+    });
+
+    test('楼栋有账单 → ValidationException(BUILDING_HAS_INVOICES)', () async {
+      var callIdx = 0;
+      pool.executeHandler = (q, p) {
+        callIdx++;
+        if (callIdx == 1) return makeResult(kBuildingCols, [buildingRow()]);
+        if (callIdx == 2)
+          return makeResult([
+            'c'
+          ], [
+            [0]
+          ]); // COUNT units = 0
+        if (callIdx == 3)
+          return makeResult([
+            'c'
+          ], [
+            [0]
+          ]); // COUNT workorders = 0
+        return makeResult([
+          'c'
+        ], [
+          [1]
+        ]); // COUNT invoices = 1
+      };
+      await expectLater(
+        svc.deleteBuilding('b-1'),
+        throwsA(isA<ValidationException>()
+            .having((e) => e.code, 'code', 'BUILDING_HAS_INVOICES')),
+      );
+    });
+
+    test('无关联数据 → 删除成功，runTx 被调用', () async {
+      // call 1: findById; call 2/3/4: COUNT units/workorders/invoices;
+      // call 5/6: DELETE floor_plans/floors; call 7: DELETE buildings
+      var callIdx = 0;
+      pool.executeHandler = (q, p) {
+        callIdx++;
+        if (callIdx == 1) return makeResult(kBuildingCols, [buildingRow()]);
+        if (callIdx <= 4)
+          return makeResult([
+            'c'
+          ], [
+            [0]
+          ]); // 全部 COUNT = 0
+        if (callIdx <= 6)
+          return makeResult([], []); // DELETE floor_plans / DELETE floors
+        return makeResult([
+          'id'
+        ], [
+          ['b-1']
+        ]); // DELETE buildings（affectedRows=1）
+      };
+      await svc.deleteBuilding('b-1'); // 不应抛出异常
+      expect(pool.runTxCalled, isTrue);
     });
   });
 }

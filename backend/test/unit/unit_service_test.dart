@@ -235,18 +235,13 @@ void main() {
       );
     }
 
-    test('只含标题行（无数据）→ total_records=0', () async {
-      pool.executeHandler = (q, p) => fakeBatchRow(
-            totalRecords: 0,
-            successCount: 0,
-            failureCount: 0,
-            rollbackStatus: 'committed',
-            isDryRun: false,
-          );
+    test('只含标题行（无数据）→ 抛出 ValidationException(VALIDATION_ERROR)', () async {
       final bytes = _makeExcel(emptyBody: true);
-      final result = await svc.importUnits(fileBytes: bytes);
-      expect(result['total_records'], 0);
-      expect(result['success_count'], 0);
+      await expectLater(
+        svc.importUnits(filename: 'test.xlsx', fileBytes: bytes),
+        throwsA(isA<ValidationException>()
+            .having((e) => e.code, 'code', 'VALIDATION_ERROR')),
+      );
     });
 
     test('含一行必填字段缺失的行 → failure_count>0 & rollback_status=rolled_back',
@@ -264,60 +259,123 @@ void main() {
       final bytes = _makeExcel(rows: [
         ['b-1', null, null, 'office'],
       ]);
-      final result = await svc.importUnits(fileBytes: bytes);
+      final result =
+          await svc.importUnits(filename: 'test.xlsx', fileBytes: bytes);
       expect(result['failure_count'], greaterThan(0));
       expect(result['rollback_status'], 'rolled_back');
     });
 
     test('含无效 propertyType → failure_count=1', () async {
-      pool.executeHandler = (q, p) => fakeBatchRow(
-            totalRecords: 1,
-            successCount: 0,
-            failureCount: 1,
-            rollbackStatus: 'rolled_back',
-            isDryRun: false,
-            errorDetails: [
-              {'row': 2, 'field': 'property_type', 'error': '无效业态值: shop'},
-            ],
-          );
+      // 该行会触发楼栋/楼层查询后才进行业态校验；需要按调用顺序返回不同结果
+      var callIdx = 0;
+      pool.executeHandler = (q, p) {
+        callIdx++;
+        // call 1: 楼栋名称查询
+        if (callIdx == 1) {
+          return makeResult([
+            'id',
+            'property_type'
+          ], [
+            ['b-1', 'office']
+          ]);
+        }
+        // call 2: 楼层名称查询
+        if (callIdx == 2) {
+          return makeResult([
+            'id'
+          ], [
+            ['f-1']
+          ]);
+        }
+        // call 3: import_batches RETURNING（属性类型 'shop' 校验失败后写入回滚批次）
+        return fakeBatchRow(
+          totalRecords: 1,
+          successCount: 0,
+          failureCount: 1,
+          rollbackStatus: 'rolled_back',
+          isDryRun: false,
+          errorDetails: [
+            {'row': 2, 'field': 'property_type', 'error': '无效业态值: shop'},
+          ],
+        );
+      };
       final bytes = _makeExcel(rows: [
         ['b-1', 'f-1', '101', 'shop'],
       ]);
-      final result = await svc.importUnits(fileBytes: bytes);
+      final result =
+          await svc.importUnits(filename: 'test.xlsx', fileBytes: bytes);
       expect(result['failure_count'], 1);
       expect(result['error_details'], isA<List>());
     });
 
     test('dry_run=true → is_dry_run=true 且 success_count=有效行数', () async {
-      pool.executeHandler = (q, p) => fakeBatchRow(
-            totalRecords: 1,
-            successCount: 1,
-            failureCount: 0,
-            rollbackStatus: 'committed',
-            isDryRun: true,
-          );
+      // 合法行需要先查楼栋/楼层，再写入 dry_run 批次记录
+      var callIdx = 0;
+      pool.executeHandler = (q, p) {
+        callIdx++;
+        if (callIdx == 1)
+          return makeResult([
+            'id',
+            'property_type'
+          ], [
+            ['b-1', 'office']
+          ]);
+        if (callIdx == 2)
+          return makeResult([
+            'id'
+          ], [
+            ['f-1']
+          ]);
+        return fakeBatchRow(
+          totalRecords: 1,
+          successCount: 1,
+          failureCount: 0,
+          rollbackStatus: 'committed',
+          isDryRun: true,
+        );
+      };
       final bytes = _makeExcel(rows: [
         ['b-1', 'f-1', '101', 'office'],
       ]);
-      final result = await svc.importUnits(fileBytes: bytes, dryRun: true);
+      final result = await svc.importUnits(
+          filename: 'test.xlsx', fileBytes: bytes, dryRun: true);
       expect(result['is_dry_run'], isTrue);
       expect(result['success_count'], 1);
     });
 
     test('含合法行且 dryRun=false → 走事务路径（runTx 被调用）', () async {
-      // 事务内：bulkCreate 的 INSERT INTO units 与 import_batches 的 RETURNING
-      // 都通过同一 executeHandler 处理；这里返回带行的伪结果即可。
-      pool.executeHandler = (q, p) => fakeBatchRow(
-            totalRecords: 1,
-            successCount: 1,
-            failureCount: 0,
-            rollbackStatus: 'committed',
-            isDryRun: false,
-          );
+      // call 1/2: 楼栋/楼层查询；call 3: bulkCreate INSERT；call 4: import_batches RETURNING
+      var callIdx = 0;
+      pool.executeHandler = (q, p) {
+        callIdx++;
+        if (callIdx == 1)
+          return makeResult([
+            'id',
+            'property_type'
+          ], [
+            ['b-1', 'retail']
+          ]);
+        if (callIdx == 2)
+          return makeResult([
+            'id'
+          ], [
+            ['f-1']
+          ]);
+        if (callIdx == 3)
+          return makeResult([], []); // bulkCreate INSERT，affectedRows=0
+        return fakeBatchRow(
+          totalRecords: 1,
+          successCount: 1,
+          failureCount: 0,
+          rollbackStatus: 'committed',
+          isDryRun: false,
+        );
+      };
       final bytes = _makeExcel(rows: [
         ['b-1', 'f-1', '101', 'retail'],
       ]);
-      await svc.importUnits(fileBytes: bytes, dryRun: false);
+      await svc.importUnits(
+          filename: 'test.xlsx', fileBytes: bytes, dryRun: false);
       expect(pool.runTxCalled, isTrue);
     });
   });
