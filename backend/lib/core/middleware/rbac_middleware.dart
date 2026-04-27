@@ -102,6 +102,12 @@ const Map<String, Map<String, Set<String>>> _routePermissionMatrix = {
     },
     'PATCH': _kAssetWrite,
   },
+  // ── M1 楼栋级 CAD 导入任务（楼层匹配 + 手动指派）──────────────────────────
+  // 注：/api/buildings/:id/cad-upload 落在 /api/buildings 前缀下，由 _kAssetWrite 兜底
+  '/api/cad-import-jobs': {
+    'GET': _kAssetWrite,
+    'PATCH': _kAssetWrite,
+  },
   '/api/assets': {
     'GET': {
       'super_admin',

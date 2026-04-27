@@ -23,10 +23,12 @@ import 'package:propos_backend/modules/org/services/managed_scope_service.dart';
 
 // M1 资产模块
 import 'package:propos_backend/modules/assets/services/building_service.dart';
+import 'package:propos_backend/modules/assets/services/cad_import_service.dart';
 import 'package:propos_backend/modules/assets/services/floor_service.dart';
 import 'package:propos_backend/modules/assets/services/unit_service.dart';
 import 'package:propos_backend/modules/assets/services/renovation_service.dart';
 import 'package:propos_backend/modules/assets/controllers/building_controller.dart';
+import 'package:propos_backend/modules/assets/controllers/cad_import_controller.dart';
 import 'package:propos_backend/modules/assets/controllers/floor_controller.dart';
 import 'package:propos_backend/modules/assets/controllers/floor_plan_controller.dart';
 import 'package:propos_backend/modules/assets/controllers/unit_controller.dart';
@@ -94,18 +96,21 @@ Router buildRouter({required Pool db, required AppConfig config}) {
   final floorService = FloorService(db, config.fileStoragePath);
   final unitService = UnitService(db);
   final renovationService = RenovationService(db, config.fileStoragePath);
+  final cadImportService = CadImportService(db, config.fileStoragePath);
 
   final buildingController = BuildingController(buildingService);
   final floorController = FloorController(floorService);
   final floorPlanController = FloorPlanController(floorService);
   final unitController = UnitController(unitService);
   final renovationController = RenovationController(renovationService);
+  final cadImportController = CadImportController(cadImportService);
 
   router.mount('/api/', buildingController.router.call);
   router.mount('/api/', floorController.router.call);
   router.mount('/api/', floorPlanController.router.call);
   router.mount('/api/', unitController.router.call);
   router.mount('/api/', renovationController.router.call);
+  router.mount('/api/', cadImportController.router.call);
 
   // ── 通用文件代理 ─────────────────────────────────────────────────────────
   final fileService = FileService(
