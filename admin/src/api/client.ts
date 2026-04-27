@@ -131,6 +131,15 @@ export async function apiDelete(url: string): Promise<void> {
   await http.delete(url)
 }
 
+/** 获取原始响应体（跳过 JSON 信封解包），适用于 SVG/文本等非 JSON 资源 */
+export async function apiGetRaw<T>(
+  url: string,
+  config?: Record<string, unknown>,
+): Promise<T> {
+  const res = await http.get<T>(url, config)
+  return res.data
+}
+
 /** multipart/form-data 上传（Excel 导入、文件上传等） */
 export async function apiPostForm<T>(url: string, form: FormData): Promise<T> {
   const res = await http.post<ApiResponse<T>>(url, form, {

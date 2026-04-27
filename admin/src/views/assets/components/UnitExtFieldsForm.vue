@@ -34,7 +34,10 @@
         />
       </el-form-item>
       <el-form-item label="是否临街">
-        <el-switch v-model="retailFields.street_facing" />
+        <el-switch
+          :model-value="retailFields.street_facing ?? false"
+          @update:model-value="(v) => (retailFields.street_facing = v as boolean)"
+        />
       </el-form-item>
       <el-form-item label="商铺层高 (m)">
         <el-input-number
@@ -59,7 +62,10 @@
         />
       </el-form-item>
       <el-form-item label="独立卫生间">
-        <el-switch v-model="apartmentFields.en_suite_bathroom" />
+        <el-switch
+          :model-value="apartmentFields.en_suite_bathroom ?? false"
+          @update:model-value="(v) => (apartmentFields.en_suite_bathroom = v as boolean)"
+        />
       </el-form-item>
     </template>
   </div>

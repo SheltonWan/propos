@@ -122,8 +122,7 @@ REMOTE_NGINX_CONF="$4"
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     # 容器已存在：重载配置并重启
     echo "[远程] 重启 ${CONTAINER_NAME} 容器..."
-    # 先将最新 nginx.conf 复制进容器，再重载（避免完全停服）
-    docker cp "${REMOTE_NGINX_CONF}" "${CONTAINER_NAME}:/etc/nginx/conf.d/default.conf"
+    # nginx.conf 通过 bind mount 已对容器可见，无需 docker cp，直接校验并热重载
     docker exec "${CONTAINER_NAME}" nginx -t 2>&1 | sed 's/^/  /'
     docker exec "${CONTAINER_NAME}" nginx -s reload
     echo "[远程] ✓ Nginx 配置已热重载"

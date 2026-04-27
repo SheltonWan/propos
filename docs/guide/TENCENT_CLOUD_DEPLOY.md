@@ -1,6 +1,6 @@
 # PropOS 腾讯云轻量服务器部署指南
 
-> **文档版本**：v1.3  
+> **文档版本**：v1.4  
 > **更新日期**：2026-04-27  
 > **目标服务器**：腾讯云轻量应用服务器，公网 IP `111.230.112.246`，OpenCloudOS 8，Docker 26.1.3  
 > **适用范围**：backend（Dart/Shelf AOT）+ admin（Vue 3 SPA）单机部署
@@ -91,6 +91,7 @@ bash scripts/setup_server.sh
 6. **远程创建 Docker 网络**：`propos-net`
 7. **远程启动 PostgreSQL**：容器 `propos-postgres`，数据卷 `propos-pgdata`
 8. **自动生成生产环境 `.env`**：直接在服务器 `/opt/propos/.env` 写入正确生产配置，`JWT_SECRET` / `ENCRYPTION_KEY` 随机生成，`DATABASE_URL` host 使用容器名 `propos-postgres`
+9. **自动执行数据库迁移**：上传 `backend/migrations/*.sql` 到服务器，按序执行，已执行的自动跳过（幂等）
 
 ### 3.2 确认生产环境变量（脚本已自动生成）
 
@@ -112,24 +113,26 @@ bash scripts/setup_server.sh
 > ssh propos-server cat /opt/propos/.env
 > ```
 
-### 3.3 运行数据库迁移
+### 3.3 数据库迁移（脚本已自动执行）
 
-backend 容器首次启动后，在**服务器**上执行迁移：
+`setup_server.sh` 在 PostgreSQL 就绪后自动完成以下操作：
+
+1. 将 `backend/migrations/*.sql` 上传至服务器 `/opt/propos/migrations/`
+2. 创建 `_schema_migrations` 记录表追踪已执行的迁移文件（**幂等**：重复执行脚本时已执行的迁移自动跳过）
+3. 按文件名升序执行所有 `.sql` 文件（`001_` → `022_`）
+
+**重新执行迁移（新增迁移文件后）**：
 
 ```bash
-# 登录服务器
-ssh propos-server
+# 手动上传并执行新增的迁移文件
+rsync -az --include='*.sql' --exclude='*' backend/migrations/ propos-server:/opt/propos/migrations/
+ssh propos-server bash /opt/propos/migrations/../scripts/run_migrations.sh
+```
 
-# 检查 backend 容器是否运行
-docker ps | grep propos-backend
+或直接重新运行初始化脚本（已执行的迁移会自动跳过）：
 
-# 在容器内执行迁移（backend 支持 migrate 子命令，或手动导入 SQL）
-# 方法一：若 backend 支持自动迁移（启动时自动执行）则无需操作
-# 方法二：手动导入迁移文件
-for f in /opt/propos/migrations/*.sql; do
-  echo "运行: $f"
-  docker exec propos-postgres psql -U propos -d propos -f /dev/stdin < "$f"
-done
+```bash
+bash scripts/setup_server.sh
 ```
 
 ---

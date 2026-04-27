@@ -7,9 +7,17 @@
 set -euo pipefail
 
 # ============================================================
-# 配置区（按需修改）
+# 配置区（从 .deploy.env 读取，仅 SSH_KEY_PATH 为本地固定路径）
 # ============================================================
-readonly SERVER_HOST="111.230.112.246"
+DEPLOY_ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)/.deploy.env"
+
+# 从 .deploy.env 读取服务器地址（部署到不同服务器只需改 .deploy.env）
+SERVER_HOST=$(grep -E '^SERVER_HOST=' "${DEPLOY_ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '"'\''  ' | xargs)
+if [[ -z "${SERVER_HOST}" ]]; then
+    error ".deploy.env 中未设置 SERVER_HOST，请先填写目标服务器公网 IP"
+fi
+readonly SERVER_HOST
+
 readonly SERVER_USER="root"
 readonly SSH_KEY_PATH="$HOME/.ssh/id_ed25519"
 readonly SSH_ALIAS="propos-server"
@@ -56,11 +64,10 @@ fi
 if ssh -o BatchMode=yes -o ConnectTimeout=5 "${SERVER_USER}@${SERVER_HOST}" "echo ok" &>/dev/null; then
     success "SSH 密钥认证已生效，跳过 ssh-copy-id"
 else
-    # 从 .deploy.env 读取 SERVER_SSH_PASSWORD（可选）
-    DEPLOY_ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.deploy.env"
+    # 从 .deploy.env 读取 SERVER_SSH_PASSWORD（可选，DEPLOY_ENV_FILE 已在配置区定义）
     _SSH_PASS=""
     if [[ -f "${DEPLOY_ENV_FILE}" ]]; then
-        _SSH_PASS=$(grep -E '^SERVER_SSH_PASSWORD=' "${DEPLOY_ENV_FILE}" | cut -d= -f2- | tr -d '"'\''  | xargs)
+        _SSH_PASS=$(grep -E '^SERVER_SSH_PASSWORD=' "${DEPLOY_ENV_FILE}" | cut -d= -f2- | tr -d '"'"'" | xargs)
     fi
 
     if [[ -n "${_SSH_PASS}" ]] && command -v sshpass &>/dev/null; then
@@ -120,8 +127,7 @@ fi
 echo ""
 info "配置服务器端 Docker 镜像仓库登录凭据..."
 
-# 优先从项目根目录 .deploy.env 自动读取 TCR 凭据
-DEPLOY_ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.deploy.env"
+# 优先从项目根目录 .deploy.env 自动读取 TCR 凭据（DEPLOY_ENV_FILE 已在配置区定义）
 TCR_USER=""
 TCR_PASSWORD=""
 
@@ -216,6 +222,117 @@ echo "[远程] ✓ 目录 ${REMOTE_BASE} 已准备"
 echo "[远程] 创建文件存储卷..."
 docker volume create propos-uploads 2>/dev/null || echo "[远程] ✓ 卷 propos-uploads 已存在"
 REMOTE_SCRIPT
+
+# D. 上传并执行数据库迁移（幂等：已建表则 SQL 中的 CREATE 语句不会重复执行）
+info "上传数据库迁移文件..."
+MIGRATIONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/backend/migrations"
+REMOTE_MIGRATIONS="${REMOTE_BASE}/migrations"
+
+# 确保远端目录存在
+ssh "${SSH_ALIAS}" "mkdir -p ${REMOTE_MIGRATIONS}"
+
+# 仅上传 .sql 文件（忽略 .gitkeep 等）
+rsync -az --include='*.sql' --exclude='*' "${MIGRATIONS_DIR}/" "${SSH_ALIAS}:${REMOTE_MIGRATIONS}/"
+success "迁移文件已上传至 ${REMOTE_MIGRATIONS}"
+
+# 读取超管账号凭据（migration 020 需要通过 psql -v 注入，不得硬编码在 SQL 文件中）
+_ADMIN_EMAIL=$(grep -E '^ADMIN_EMAIL=' "${DEPLOY_ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '"'"'"' | xargs)
+_ADMIN_PASSWORD_HASH=$(grep -E '^ADMIN_PASSWORD_HASH=' "${DEPLOY_ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '"'"'"' | xargs)
+
+if [[ -z "${_ADMIN_EMAIL}" ]]; then
+    echo ""
+    warn "未在 .deploy.env 中找到 ADMIN_EMAIL，需要手动输入"
+    read -r -p "  超级管理员登录邮箱: " _ADMIN_EMAIL
+fi
+if [[ -z "${_ADMIN_EMAIL}" ]]; then
+    _ADMIN_EMAIL="admin@propos.cn"
+    warn "邮箱留空，使用默认值：${_ADMIN_EMAIL}"
+fi
+
+if [[ -z "${_ADMIN_PASSWORD_HASH}" ]]; then
+    echo ""
+    warn "未在 .deploy.env 中找到 ADMIN_PASSWORD_HASH（bcrypt hash，cost≥12）"
+    warn "留空则使用开发默认 hash（明文 ChangeMe@2026!），生产环境请在首次登录后立即修改密码"
+    read -r -s -p "  粘贴 bcrypt hash（留空使用默认）: " _ADMIN_PASSWORD_HASH
+    echo ""
+    if [[ -z "${_ADMIN_PASSWORD_HASH}" ]]; then
+        # 开发默认 hash，对应明文 ChangeMe@2026!（bcrypt cost=12）
+        _ADMIN_PASSWORD_HASH='$2a$12$cWEz0fB8xeh7o8WtGOqQi.TZCC9Cc2cWbOgG18qgLg3RJa8hCr9Sq'
+        warn "使用开发默认密码 hash，首次登录后请立即修改密码"
+    fi
+fi
+
+info "执行数据库迁移..."
+# _ADMIN_PASSWORD_HASH 含 $ 字符，使用 base64 编码安全传递到服务器，避免 SSH 参数传递时的 shell 展开
+_ADMIN_PASSWORD_HASH_B64=$(printf '%s' "${_ADMIN_PASSWORD_HASH}" | base64 | tr -d '\n')
+
+ssh "${SSH_ALIAS}" bash -s -- "${PG_USER}" "${PG_DB}" "${REMOTE_MIGRATIONS}" "${_ADMIN_EMAIL}" "${_ADMIN_PASSWORD_HASH_B64}" << 'RUN_MIGRATIONS'
+set -euo pipefail
+PG_USER="$1"; PG_DB="$2"; MIGRATIONS_DIR="$3"; ADMIN_EMAIL="$4"; ADMIN_PASSWORD_HASH_B64="$5"
+# base64 解码还原 hash 原始值（含 $ 字符），避免 SSH 参数传递时被 shell 展开
+ADMIN_PASSWORD_HASH=$(printf '%s' "${ADMIN_PASSWORD_HASH_B64}" | base64 -d)
+
+# 创建迁移记录表（若不存在），含 file_hash 列用于检测已应用迁移被篡改
+docker exec propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" -c "
+CREATE TABLE IF NOT EXISTS _schema_migrations (
+    filename   TEXT PRIMARY KEY,
+    file_hash  TEXT NOT NULL DEFAULT '',
+    applied_at TIMESTAMPTZ DEFAULT NOW()
+);
+-- 兼容旧表（无 file_hash 列时补充）
+ALTER TABLE _schema_migrations ADD COLUMN IF NOT EXISTS file_hash TEXT NOT NULL DEFAULT '';
+" > /dev/null
+
+echo "[迁移] 开始执行..."
+for f in $(ls "${MIGRATIONS_DIR}"/*.sql 2>/dev/null | sort); do
+    filename=$(basename "$f")
+    # 计算文件 MD5（Linux md5sum，取第一列）
+    current_hash=$(md5sum "$f" | cut -d' ' -f1)
+
+    # 检查是否已执行
+    row=$(docker exec propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" -tAc \
+        "SELECT file_hash FROM _schema_migrations WHERE filename='${filename}';")
+
+    if [[ -n "${row}" ]]; then
+        # 已执行：检测文件内容是否被修改（防止静默跳过已篡改的迁移）
+        if [[ "${row}" != "${current_hash}" && "${row}" != "" ]]; then
+            echo "[迁移] ✗ 危险：${filename} 已应用但文件内容已被修改！"
+            echo "         已记录 hash：${row}"
+            echo "         当前文件 hash：${current_hash}"
+            echo "         迁移应为只追加（append-only），请创建新的迁移文件而非修改已有文件。"
+            exit 1
+        fi
+        echo "[迁移] ✓ 跳过（已执行）：${filename}"
+        continue
+    fi
+
+    echo "[迁移] → 执行：${filename}"
+    # migration 020 需要注入超管账号变量，使用 psql -v 传参
+    if [[ "${filename}" == "020_seed_reference_data.sql" ]]; then
+        docker exec -i propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" \
+            -v "admin_email=${ADMIN_EMAIL}" \
+            -v "admin_password_hash=${ADMIN_PASSWORD_HASH}" \
+            -v ON_ERROR_STOP=1 < "$f"
+        # 020 执行后验证超管账号确实已入库，防止变量注入失败被静默记录
+        admin_count=$(docker exec propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" -tAc \
+            "SELECT COUNT(*) FROM users WHERE role='super_admin';")
+        if [[ "${admin_count}" -lt 1 ]]; then
+            echo "[迁移] ✗ 020 执行后超管账号未入库，可能是变量注入失败，终止并回滚记录。"
+            exit 1
+        fi
+    else
+        docker exec -i propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" \
+            -v ON_ERROR_STOP=1 < "$f"
+    fi
+
+    # 记录已执行（含文件 hash，供后续篡改检测使用）
+    docker exec propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" -c \
+        "INSERT INTO _schema_migrations (filename, file_hash) VALUES ('${filename}', '${current_hash}');" > /dev/null
+    echo "[迁移] ✓ 完成：${filename}"
+done
+echo "[迁移] 所有迁移执行完毕"
+RUN_MIGRATIONS
+success "数据库迁移完成（超管账号：${_ADMIN_EMAIL}）"
 
 # B. 在服务器上生成生产环境 .env（与本地开发 .env 有关键差异，不能直接复制）
 info "生成服务器生产环境 .env..."
