@@ -81,6 +81,9 @@ if [[ -z "${ADMIN_PASSWORD_HASH:-}" ]]; then
     ADMIN_PASSWORD_HASH='$2a$12$cWEz0fB8xeh7o8WtGOqQi.TZCC9Cc2cWbOgG18qgLg3RJa8hCr9Sq'
 fi
 
+# 顶级企业名称（migration 023 注入，开发机可通过环境变量覆盖）
+COMPANY_NAME="${COMPANY_NAME:-PropOS 物业管理}"
+
 # -----------------------------------------------------------------------------
 # 运行时标志（由命令行参数控制）
 # -----------------------------------------------------------------------------
@@ -291,8 +294,8 @@ SQL
 }
 
 # 以业务角色（propos）身份对业务库执行 SQL 文件（migrations / seed）
-# -v admin_email / -v admin_password_hash 对所有 migration 透明传递，
-# 仅 020_seed_reference_data.sql 实际引用这两个变量，其余文件忽略多余变量不报错
+# -v admin_email / -v admin_password_hash / -v company_name 对所有 migration 透明传递，
+# 各文件只引用自己需要的变量，其余忽略多余变量不报错
 run_app_file() {
     local description="$1"
     local file_path="$2"
@@ -300,13 +303,14 @@ run_app_file() {
     info "$description: $file_path"
     if [[ "$DRY_RUN" == true ]]; then
         info "dry-run 模式下跳过文件执行"
-        info "  psql -v admin_email=\"$ADMIN_EMAIL\" -v admin_password_hash=\"***\" ..."
+        info "  psql -v admin_email=\"$ADMIN_EMAIL\" -v admin_password_hash=\"***\" -v company_name=\"$COMPANY_NAME\" ..."
         return 0
     fi
 
     PGPASSWORD="$APP_DB_PASSWORD" PAGER=cat psql -X -v ON_ERROR_STOP=1 \
         -v admin_email="$ADMIN_EMAIL" \
         -v admin_password_hash="$ADMIN_PASSWORD_HASH" \
+        -v company_name="$COMPANY_NAME" \
         "${APP_PSQL_ARGS[@]}" -f "$file_path"
 }
 

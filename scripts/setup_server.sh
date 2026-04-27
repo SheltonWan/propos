@@ -236,8 +236,15 @@ rsync -az --include='*.sql' --exclude='*' "${MIGRATIONS_DIR}/" "${SSH_ALIAS}:${R
 success "迁移文件已上传至 ${REMOTE_MIGRATIONS}"
 
 # 读取超管账号凭据（migration 020 需要通过 psql -v 注入，不得硬编码在 SQL 文件中）
-_ADMIN_EMAIL=$(grep -E '^ADMIN_EMAIL=' "${DEPLOY_ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '"'"'"' | xargs)
-_ADMIN_PASSWORD_HASH=$(grep -E '^ADMIN_PASSWORD_HASH=' "${DEPLOY_ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '"'"'"' | xargs)
+_ADMIN_EMAIL=$(grep -E '^ADMIN_EMAIL=' "${DEPLOY_ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d "\"'" | xargs)
+_ADMIN_PASSWORD_HASH=$(grep -E '^ADMIN_PASSWORD_HASH=' "${DEPLOY_ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d "\"'" | xargs)
+
+# 读取顶级企业名称（migration 023 需要通过 psql -v 注入）
+_COMPANY_NAME=$(grep -E '^COMPANY_NAME=' "${DEPLOY_ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d "\"'" | xargs)
+if [[ -z "${_COMPANY_NAME}" ]]; then
+    _COMPANY_NAME="PropOS 物业管理"
+    warn "未在 .deploy.env 中找到 COMPANY_NAME，使用默认值：${_COMPANY_NAME}"
+fi
 
 if [[ -z "${_ADMIN_EMAIL}" ]]; then
     echo ""
@@ -263,14 +270,16 @@ if [[ -z "${_ADMIN_PASSWORD_HASH}" ]]; then
 fi
 
 info "执行数据库迁移..."
-# _ADMIN_PASSWORD_HASH 含 $ 字符，使用 base64 编码安全传递到服务器，避免 SSH 参数传递时的 shell 展开
+# 含特殊字符或空格的参数统一 base64 编码后传递，避免 SSH word-split 或 shell 展开
 _ADMIN_PASSWORD_HASH_B64=$(printf '%s' "${_ADMIN_PASSWORD_HASH}" | base64 | tr -d '\n')
+_COMPANY_NAME_B64=$(printf '%s' "${_COMPANY_NAME}" | base64 | tr -d '\n')
 
-ssh "${SSH_ALIAS}" bash -s -- "${PG_USER}" "${PG_DB}" "${REMOTE_MIGRATIONS}" "${_ADMIN_EMAIL}" "${_ADMIN_PASSWORD_HASH_B64}" << 'RUN_MIGRATIONS'
+ssh "${SSH_ALIAS}" bash -s -- "${PG_USER}" "${PG_DB}" "${REMOTE_MIGRATIONS}" "${_ADMIN_EMAIL}" "${_ADMIN_PASSWORD_HASH_B64}" "${_COMPANY_NAME_B64}" << 'RUN_MIGRATIONS'
 set -euo pipefail
-PG_USER="$1"; PG_DB="$2"; MIGRATIONS_DIR="$3"; ADMIN_EMAIL="$4"; ADMIN_PASSWORD_HASH_B64="$5"
-# base64 解码还原 hash 原始值（含 $ 字符），避免 SSH 参数传递时被 shell 展开
+PG_USER="$1"; PG_DB="$2"; MIGRATIONS_DIR="$3"; ADMIN_EMAIL="$4"; ADMIN_PASSWORD_HASH_B64="$5"; COMPANY_NAME_B64="$6"
+# base64 解码还原原始值（含 $ 字符、空格等），避免 SSH 参数传递时被 shell 展开或 word-split
 ADMIN_PASSWORD_HASH=$(printf '%s' "${ADMIN_PASSWORD_HASH_B64}" | base64 -d)
+COMPANY_NAME=$(printf '%s' "${COMPANY_NAME_B64}" | base64 -d)
 
 # 创建迁移记录表（若不存在），含 file_hash 列用于检测已应用迁移被篡改
 docker exec propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" -c "
@@ -320,6 +329,11 @@ for f in $(ls "${MIGRATIONS_DIR}"/*.sql 2>/dev/null | sort); do
             echo "[迁移] ✗ 020 执行后超管账号未入库，可能是变量注入失败，终止并回滚记录。"
             exit 1
         fi
+    # migration 023 需要注入顶级企业名称
+    elif [[ "${filename}" == "023_seed_company_node.sql" ]]; then
+        docker exec -i propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" \
+            -v "company_name=${COMPANY_NAME}" \
+            -v ON_ERROR_STOP=1 < "$f"
     else
         docker exec -i propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" \
             -v ON_ERROR_STOP=1 < "$f"
