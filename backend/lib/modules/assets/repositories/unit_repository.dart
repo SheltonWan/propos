@@ -257,17 +257,23 @@ class UnitRepository {
     final db = tx ?? _db;
     var inserted = 0;
     for (final row in rows) {
+      final extFields = row['ext_fields'];
+      final extFieldsJson =
+          extFields != null ? jsonEncode(extFields) : jsonEncode({});
       final result = await db.execute(
         Sql.named('''
           INSERT INTO units (
             floor_id, building_id, unit_number, property_type,
-            gross_area, net_area, decoration_status, is_leasable
+            gross_area, net_area, orientation, ceiling_height,
+            decoration_status, is_leasable,
+            market_rent_reference, ext_fields
           )
           VALUES (
             @floorId::UUID, @buildingId::UUID, @unitNumber,
             @propertyType::property_type,
-            @grossArea, @netArea,
-            @decorationStatus::unit_decoration, @isLeasable
+            @grossArea, @netArea, @orientation, @ceilingHeight,
+            @decorationStatus::unit_decoration, @isLeasable,
+            @marketRentReference, @extFields::JSONB
           )
           ON CONFLICT (building_id, unit_number) DO NOTHING
         '''),
@@ -278,8 +284,12 @@ class UnitRepository {
           'propertyType': row['property_type'],
           'grossArea': row['gross_area'],
           'netArea': row['net_area'],
+          'orientation': row['orientation'],
+          'ceilingHeight': row['ceiling_height'],
           'decorationStatus': row['decoration_status'] ?? 'blank',
           'isLeasable': row['is_leasable'] ?? true,
+          'marketRentReference': row['market_rent_reference'],
+          'extFields': extFieldsJson,
         },
       );
       inserted += result.affectedRows;
