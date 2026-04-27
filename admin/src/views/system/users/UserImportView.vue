@@ -36,7 +36,7 @@
         <div class="upload-text">点击或拖拽上传 Excel 文件</div>
         <template #tip>
           <div class="upload-tip">
-            支持 .xlsx / .xls / .csv。模板列：姓名、邮箱、初始密码、角色（英文标识）、部门名称、主合同编号（仅二房东角色）
+            支持 .xlsx / .xls / .csv。模板列：姓名、邮箱、初始密码、角色（英文标识）、部门名称、主合同编号（可选，填写则必须存在）
           </div>
         </template>
       </el-upload>

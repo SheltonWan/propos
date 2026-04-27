@@ -16,7 +16,7 @@ import '../repositories/user_admin_repository.dart';
 ///   - 初始密码：由导入人填写，后端直接进行 bcrypt(cost=12) 散列存储
 ///   - 角色：英文标识，如 leasing_specialist
 ///   - 部门名称：系统中已有的部门名称，sub_landlord 角色可留空
-///   - 主合同编号：仅 sub_landlord 角色必填，格式如 HT-2024-OFFICE-SUB-001
+///   - 主合同编号：可选；填写则必须在库中存在，留空允许导入后在管理界面延迟绑定
 ///   - dry_run 时不落库；有任意错误时整批回滚
 class UserImportService {
   final Pool _db;
@@ -102,10 +102,7 @@ class UserImportService {
               throw const ValidationException(
                   'VALIDATION_ERROR', '部门名称不能为空');
             }
-            if (role == 'sub_landlord' && contractNo.isEmpty) {
-              throw const ValidationException(
-                  'BOUND_CONTRACT_REQUIRED', '二房东必须填写主合同编号');
-            }
+            // 二房东合同编号可选：填了必须存在，留空则延迟绑定
 
             // 按部门名称反查 UUID
             String? departmentId;
@@ -118,9 +115,9 @@ class UserImportService {
               }
             }
 
-            // 按合同编号反查合同 UUID（仅 sub_landlord）
+            // 按合同编号反查合同 UUID（sub_landlord Ꮶ选）
             String? boundContractId;
-            if (role == 'sub_landlord' && contractNo.isNotEmpty) {
+            if (contractNo.isNotEmpty) {
               boundContractId =
                   await _resolveContractByNo(contractNo, tx: tx);
               if (boundContractId == null) {
