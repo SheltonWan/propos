@@ -292,14 +292,24 @@ class UnitService {
       final buildingPropertyType = buildingInfo['property_type']!;
 
       // ── 楼层名称解析（带缓存）─────────────────────────────────────────
+      // 容错：除按 floor_name 精确匹配外，再用解析出来的 floor_number 兜底，
+      // 兼容历史 floor_name=NULL 的楼栋（如早期通过 SQL 直接插入的 floors）。
+      // 支持 "6F"/"6" → 6，"B1"/"-1" → -1
       final floorCacheKey = '$buildingId:$floorName';
       if (!floorCache.containsKey(floorCacheKey)) {
+        final fallbackNumber = _parseFloorNumber(floorName);
         final r = await _db.execute(
           Sql.named(
             'SELECT id::TEXT FROM floors '
-            'WHERE building_id = @bid::UUID AND floor_name = @name LIMIT 1',
+            'WHERE building_id = @bid::UUID '
+            '  AND (floor_name = @name OR floor_number = @num) '
+            'LIMIT 1',
           ),
-          parameters: {'bid': buildingId, 'name': floorName},
+          parameters: {
+            'bid': buildingId,
+            'name': floorName,
+            'num': fallbackNumber ?? -9999,
+          },
         );
         floorCache[floorCacheKey] =
             r.isEmpty ? null : r.first.toColumnMap()['id'] as String;
@@ -610,6 +620,23 @@ class UnitService {
       'apartment': 'apartment',
     };
     return map[value.toLowerCase()] ?? map[value];
+  }
+
+  /// 楼层名称→楼层序号；解析失败返回 null。
+  /// 支持 "1F"/"1"/"6F" → 正数；"B1"/"-1" → 负数。
+  int? _parseFloorNumber(String value) {
+    final v = value.trim().toUpperCase();
+    if (v.isEmpty) return null;
+    // 纯数字（含负号）
+    final asInt = int.tryParse(v);
+    if (asInt != null) return asInt;
+    // "<数字>F" 形式 → 正数
+    final upMatch = RegExp(r'^(\d+)F$').firstMatch(v);
+    if (upMatch != null) return int.parse(upMatch.group(1)!);
+    // "B<数字>" 形式 → 负数
+    final downMatch = RegExp(r'^B(\d+)$').firstMatch(v);
+    if (downMatch != null) return -int.parse(downMatch.group(1)!);
+    return null;
   }
 
   /// 朝向中文→英文枚举；不在映射表内时返回 null

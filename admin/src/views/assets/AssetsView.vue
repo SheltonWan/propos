@@ -82,15 +82,20 @@
           </template>
         </el-table-column>
         <el-table-column prop="address" label="地址" min-width="180" show-overflow-tooltip />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click.stop="goBuilding(row)">查看详情</el-button>
+            <el-button type="primary" link @click.stop="goBuilding(row)">详情</el-button>
+            <el-button type="primary" link @click.stop="openEdit(row)">编辑</el-button>
+            <el-button type="danger" link :loading="deletingId === row.id" @click.stop="onDelete(row)">
+              删除
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
     <BuildingCreateDialog v-model="showCreate" @created="store.fetchAll()" />
+    <BuildingEditDialog v-model="showEdit" :building="editingBuilding" @updated="store.fetchAll()" />
   </div>
 </template>
 
@@ -98,15 +103,21 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Upload, Download, Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAssetOverviewStore } from '@/stores'
+import { deleteBuilding } from '@/api/modules/assets'
+import { ApiError } from '@/types/api'
 import type { Building, BuildingPropertyType } from '@/types/asset'
 import BuildingCreateDialog from './components/BuildingCreateDialog.vue'
+import BuildingEditDialog from './components/BuildingEditDialog.vue'
 
 const store = useAssetOverviewStore()
 const router = useRouter()
 const exporting = ref(false)
 const showCreate = ref(false)
+const showEdit = ref(false)
+const editingBuilding = ref<Building | null>(null)
+const deletingId = ref<string | null>(null)
 
 const propertyTypeStats = computed(() => store.overview?.by_property_type ?? [])
 
@@ -116,6 +127,34 @@ onMounted(() => {
 
 function goBuilding(row: Building): void {
   router.push({ name: 'building-detail', params: { id: row.id } })
+}
+
+function openEdit(row: Building): void {
+  editingBuilding.value = row
+  showEdit.value = true
+}
+
+async function onDelete(row: Building): Promise<void> {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除楼栋「${row.name}」吗？同时会删除该楼栋下的所有楼层及图纸。\n\n该操作不可逆。仅未关联单元/工单/账单的楼栋可删除。`,
+      '删除确认',
+      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch {
+    return // 用户取消
+  }
+  deletingId.value = row.id
+  try {
+    await deleteBuilding(row.id)
+    ElMessage.success(`楼栋「${row.name}」已删除`)
+    await store.fetchAll()
+  } catch (e) {
+    const msg = e instanceof ApiError ? e.message : '删除失败，请重试'
+    ElMessage.error(msg)
+  } finally {
+    deletingId.value = null
+  }
 }
 
 function goImport(): void {

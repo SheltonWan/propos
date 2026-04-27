@@ -27,6 +27,7 @@ class BuildingController {
     r.post('/buildings/with-floors', _createWithFloors);
     r.get('/buildings/<id>', _getOne);
     r.patch('/buildings/<id>', _update);
+    r.delete('/buildings/<id>', _delete);
     return r;
   }
 
@@ -57,8 +58,8 @@ class BuildingController {
   }
 
   /// POST /api/buildings/with-floors
-  /// 创建楼栋并自动批量创建 1F~NF 共 N 个楼层（事务）。
-  /// Body: { name, property_type, total_floors, gfa, nla, address?, built_year? }
+  /// 创建楼栋并自动批量创建地下/地上楼层（事务）。
+  /// Body: { name, property_type, total_floors, gfa, nla, address?, built_year?, basement_floors? }
   /// 返回: { data: { building, floors: [...] } }
   Future<Response> _createWithFloors(Request request) async {
     final body = await _parseBody(request);
@@ -70,6 +71,7 @@ class BuildingController {
       nla: _requireDouble(body, 'nla'),
       address: body['address'] as String?,
       builtYear: body['built_year'] as int?,
+      basementFloors: (body['basement_floors'] as num?)?.toInt() ?? 0,
     );
     return _jsonResponse(201, {
       'data': {
@@ -105,6 +107,13 @@ class BuildingController {
       builtYear: body['built_year'] as int?,
     );
     return _jsonResponse(200, {'data': building.toJson()});
+  }
+
+  /// DELETE /api/buildings/:id
+  /// 仅可删除未关联单元/工单/账单的楼栋；楼层及图纸级联删除。
+  Future<Response> _delete(Request request, String id) async {
+    await _service.deleteBuilding(id);
+    return _jsonResponse(200, {'data': {'id': id, 'deleted': true}});
   }
 
   // ─── 辅助 ─────────────────────────────────────────────────────────────────

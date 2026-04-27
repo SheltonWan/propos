@@ -3,7 +3,7 @@
  * 端点清单：参考 docs/backend/API_INVENTORY_v1.7.md L66-88
  */
 
-import { apiGet, apiGetList, apiPost, apiPatch, apiPostForm } from '@/api/client'
+import { apiGet, apiGetList, apiPost, apiPatch, apiDelete, apiPostForm } from '@/api/client'
 import http from '@/api/client'
 import type { ApiListResponse } from '@/types/api'
 import type {
@@ -64,7 +64,7 @@ export async function createBuilding(payload: {
   return apiPost<Building>(API_BUILDINGS, payload)
 }
 
-/** POST /api/buildings/with-floors — 创建楼栋并自动批量创建 1F~NF 楼层（事务） */
+/** POST /api/buildings/with-floors — 创建楼栋并自动批量创建地下/地上楼层（事务） */
 export async function createBuildingWithFloors(payload: {
   name: string
   property_type: string
@@ -73,6 +73,7 @@ export async function createBuildingWithFloors(payload: {
   nla: number
   address?: string | null
   built_year?: number | null
+  basement_floors?: number
 }): Promise<{ building: Building; floors: Floor[] }> {
   return apiPost<{ building: Building; floors: Floor[] }>(
     `${API_BUILDINGS}/with-floors`,
@@ -94,6 +95,11 @@ export async function updateBuilding(
   }>,
 ): Promise<Building> {
   return apiPatch<Building>(`${API_BUILDINGS}/${id}`, payload)
+}
+
+/** DELETE /api/buildings/:id — 删除楼栋（仅可删除未关联单元/工单/账单的楼栋） */
+export async function deleteBuilding(id: string): Promise<void> {
+  return apiDelete(`${API_BUILDINGS}/${id}`)
 }
 
 // ─── 楼层 ──────────────────────────────────────────────

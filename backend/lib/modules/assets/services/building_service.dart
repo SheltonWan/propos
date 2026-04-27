@@ -91,6 +91,63 @@ class BuildingService {
     return updated;
   }
 
+  /// 删除楼栋。
+  ///
+  /// 安全策略：仅允许删除「未关联业务数据」的楼栋。
+  /// 关联数据指：units（任何单元）/ workorders / invoices。
+  /// floors / floor_plans 在事务中自动级联删除（楼栋建立时由系统自动生成）。
+  Future<void> deleteBuilding(String id) async {
+    await _db.runTx<void>((tx) async {
+      // 1. 存在性校验
+      final building = await BuildingRepository(tx).findById(id);
+      if (building == null) {
+        throw const NotFoundException('BUILDING_NOT_FOUND', '楼栋不存在');
+      }
+
+      // 2. 业务关联校验：不允许删除已有单元/工单/账单的楼栋
+      Future<int> count(String table) async {
+        final r = await tx.execute(
+          Sql.named('SELECT COUNT(*)::INT AS c FROM $table WHERE building_id = @id'),
+          parameters: {'id': id},
+        );
+        return r.first.toColumnMap()['c'] as int;
+      }
+
+      final unitCount = await count('units');
+      if (unitCount > 0) {
+        throw ValidationException(
+            'BUILDING_HAS_UNITS', '楼栋下仍有 $unitCount 个单元，请先删除单元再删除楼栋');
+      }
+      final workOrderCount = await count('workorders');
+      if (workOrderCount > 0) {
+        throw ValidationException(
+            'BUILDING_HAS_WORKORDERS', '楼栋下仍有 $workOrderCount 个工单，无法删除');
+      }
+      final invoiceCount = await count('invoices');
+      if (invoiceCount > 0) {
+        throw ValidationException(
+            'BUILDING_HAS_INVOICES', '楼栋下仍有 $invoiceCount 张账单,无法删除');
+      }
+
+      // 3. 级联删除楼栋自动生成的图纸/楼层（可能尚未上传图纸，floor_plans 可空）
+      await tx.execute(
+        Sql.named(
+            'DELETE FROM floor_plans WHERE floor_id IN (SELECT id FROM floors WHERE building_id = @id)'),
+        parameters: {'id': id},
+      );
+      await tx.execute(
+        Sql.named('DELETE FROM floors WHERE building_id = @id'),
+        parameters: {'id': id},
+      );
+
+      // 4. 删除楼栋
+      final affected = await BuildingRepository(tx).delete(id);
+      if (affected == 0) {
+        throw const NotFoundException('BUILDING_NOT_FOUND', '楼栋不存在');
+      }
+    });
+  }
+
   // ─── 辅助 ─────────────────────────────────────────────────────────────────
 
   /// 创建楼栋并同事务批量创建 N 个楼层（floor_number 从 1 到 totalFloors）。
@@ -105,6 +162,7 @@ class BuildingService {
     required double nla,
     String? address,
     int? builtYear,
+    int basementFloors = 0,
   }) async {
     _validatePropertyType(propertyType);
     if (totalFloors <= 0) {
@@ -112,6 +170,12 @@ class BuildingService {
     }
     if (totalFloors > 200) {
       throw const ValidationException('VALIDATION_ERROR', '总楼层数不得超过 200');
+    }
+    if (basementFloors < 0) {
+      throw const ValidationException('VALIDATION_ERROR', '地下层数不能为负');
+    }
+    if (basementFloors > 20) {
+      throw const ValidationException('VALIDATION_ERROR', '地下层数不得超过 20');
     }
     if (gfa <= 0 || nla <= 0) {
       throw const ValidationException('VALIDATION_ERROR', '建筑面积/净可租面积必须大于 0');
@@ -130,10 +194,21 @@ class BuildingService {
 
       final floors = <Floor>[];
       final floorRepo = FloorRepository(tx);
+      // 地下层：B{N} ~ B1 对应 floor_number = -N ~ -1（按楼号升序入库便于排序）
+      for (var n = basementFloors; n >= 1; n--) {
+        final floor = await floorRepo.create(
+          buildingId: building.id,
+          floorNumber: -n,
+          floorName: 'B$n',
+        );
+        floors.add(floor);
+      }
+      // 地上层：1F ~ NF
       for (var n = 1; n <= totalFloors; n++) {
         final floor = await floorRepo.create(
           buildingId: building.id,
           floorNumber: n,
+          floorName: '${n}F',
         );
         floors.add(floor);
       }

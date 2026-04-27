@@ -123,6 +123,7 @@ const Map<String, Map<String, Set<String>>> _routePermissionMatrix = {
     },
     'POST': _kAssetWrite,
     'PATCH': _kAssetWrite,
+    'DELETE': _kMgmt,
   },
   '/api/floors': {
     'GET': {

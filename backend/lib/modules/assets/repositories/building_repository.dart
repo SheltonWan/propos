@@ -114,4 +114,14 @@ class BuildingRepository {
     if (result.isEmpty) return null;
     return Building.fromColumnMap(result.first.toColumnMap());
   }
+
+  /// 删除楼栋（仅删除楼栋本身，调用方应在事务中先删除关联的 floor_plans/floors）。
+  /// 返回受影响行数：0 表示不存在，1 表示成功。
+  Future<int> delete(String id) async {
+    final result = await _db.execute(
+      Sql.named('DELETE FROM buildings WHERE id = @id'),
+      parameters: {'id': id},
+    );
+    return result.affectedRows;
+  }
 }
