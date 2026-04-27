@@ -153,6 +153,7 @@ class UnitController {
     final dryRun = parsed.optionalField('dry_run') == 'true';
 
     final result = await _service.importUnits(
+      filename: file.filename,
       fileBytes: file.bytes,
       dryRun: dryRun,
       userId: ctx.userId,
