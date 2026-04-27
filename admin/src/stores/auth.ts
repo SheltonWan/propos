@@ -5,7 +5,6 @@ import { ApiError } from '@/types/api'
 import { apiGet } from '@/api/client'
 import { login as apiLogin, logout as apiLogout, clearTokens } from '@/api/modules/auth'
 import { API_AUTH_ME } from '@/constants/api_paths'
-
 export interface UserProfile {
   id: string
   name: string
@@ -34,6 +33,10 @@ export const useAuthStore = defineStore('auth', () => {
       await router.replace(redirect)
     } catch (e) {
       error.value = e instanceof ApiError ? e.message : '登录失败，请重试'
+      // fetchMe 抛出 403 时不执行 logout；清除刚获取的 token，保持在登录页显示错误
+      if (e instanceof ApiError && e.statusCode === 403) {
+        clearTokens()
+      }
       throw e
     } finally {
       loading.value = false
@@ -48,8 +51,12 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       profile.value = await apiGet<UserProfile>(API_AUTH_ME)
     } catch (e) {
-      error.value = e instanceof ApiError ? e.message : '获取用户信息失败'
-      await logout(false)
+      // 403 表示 token 有效但账户受限（如二房东未绑定合同）
+      // 不执行 logout，由调用方（login）决定如何处理并展示错误
+      if (!(e instanceof ApiError && e.statusCode === 403)) {
+        await logout(false)
+      }
+      throw e // 始终重新抛出，禁止静默吞掉
     } finally {
       loading.value = false
     }
