@@ -147,6 +147,20 @@ class UnitService {
 
   /// 解析 Excel 文件并批量导入单元。
   ///
+  /// 列映射（与 unit_import_template.ts 的 OFFICE/RETAIL/APARTMENT_TEMPLATE 严格对齐）：
+  ///   0: 楼栋名称   → 通过 buildings.name 解析为 building_id，并推导 property_type
+  ///   1: 楼层名称   → 通过 floors.floor_name + building_id 解析为 floor_id
+  ///   2: 单元编号   → unit_number
+  ///   3: 建筑面积   → gross_area
+  ///   4: 套内面积   → net_area
+  ///   5: 朝向       → orientation（东/南/西/北 → east/south/west/north）
+  ///   6: 层高       → ceiling_height
+  ///   7: 装修状态   → decoration_status（精装/简装/毛坯/原始）
+  ///   8: 是否可租   → is_leasable（是→true）
+  ///   9: 参考租金   → market_rent_reference
+  ///  10-11: 业态专属 ext_fields（写字楼: 工位数/分隔间数；商铺: 门面宽/是否临街；
+  ///          公寓: 卧室数/独立卫生间；商铺col12: 商铺层高）
+  ///
   /// 行为契约：
   ///   - `dryRun=true`：仅校验，不入库；写入一条 `is_dry_run=true` 的批次记录，
   ///     `rollback_status='committed'`，`success_count` 为校验通过行数，
@@ -175,44 +189,114 @@ class UnitService {
       throw const ValidationException('VALIDATION_ERROR', 'Excel 文件为空');
     }
 
-    final totalRecords = rows.length - 1; // 第一行为标题行
-    if (totalRecords < 0) {
-      throw const ValidationException('VALIDATION_ERROR', 'Excel 文件为空');
-    }
-
-    // ── ② 行级校验 ───────────────────────────────────────────────────────
+    // ── ② 行级校验（含楼栋/楼层名称解析，跳过注释行和空行）───────────────
     final errorDetails = <Map<String, dynamic>>[];
     final validRows = <Map<String, dynamic>>[];
 
+    // 楼栋/楼层名称解析缓存；避免同名重复查询
+    final buildingCache = <String, Map<String, String>?>{}; // 楼栋名→{id,property_type}
+    final floorCache = <String, String?>{};                 // "$buildingId:楼层名"→floor_id
+
     for (var i = 1; i < rows.length; i++) {
       final row = rows[i];
+
+      // 跳过空行（全列为空）
+      if (row.every((c) =>
+          c == null ||
+          c.value == null ||
+          c.value.toString().trim().isEmpty)) {
+        continue;
+      }
+
+      // 跳过模板提示行（首列以 # 开头）
+      final firstCell = _cellStr(row, 0);
+      if (firstCell != null && firstCell.startsWith('#')) continue;
+
       final rowNum = i + 1;
 
-      final buildingId = _cellStr(row, 0);
-      final floorId = _cellStr(row, 1);
-      final unitNumber = _cellStr(row, 2);
-      final propertyType = _cellStr(row, 3);
+      // ── 必填字段 ────────────────────────────────────────────────────────
+      final buildingName = firstCell;
+      if (buildingName == null) {
+        errorDetails.add(_err(rowNum, '楼栋名称', '楼栋名称不能为空'));
+        continue;
+      }
 
-      if (buildingId == null) {
-        errorDetails.add(_err(rowNum, 'building_id', '楼栋ID不能为空'));
+      final floorName = _cellStr(row, 1);
+      if (floorName == null) {
+        errorDetails.add(_err(rowNum, '楼层名称', '楼层名称不能为空'));
         continue;
       }
-      if (floorId == null) {
-        errorDetails.add(_err(rowNum, 'floor_id', '楼层ID不能为空'));
-        continue;
-      }
+
+      final unitNumber = _cellStr(row, 2);
       if (unitNumber == null) {
-        errorDetails.add(_err(rowNum, 'unit_number', '单元编号不能为空'));
+        errorDetails.add(_err(rowNum, '单元编号', '单元编号不能为空'));
         continue;
       }
-      if (propertyType == null) {
-        errorDetails.add(_err(rowNum, 'property_type', '业态不能为空'));
+
+      // ── 楼栋名称解析（带缓存）─────────────────────────────────────────
+      if (!buildingCache.containsKey(buildingName)) {
+        final r = await _db.execute(
+          Sql.named(
+            'SELECT id::TEXT, property_type::TEXT FROM buildings '
+            'WHERE name = @name AND archived_at IS NULL LIMIT 1',
+          ),
+          parameters: {'name': buildingName},
+        );
+        buildingCache[buildingName] = r.isEmpty
+            ? null
+            : {
+                'id': r.first.toColumnMap()['id'] as String,
+                'property_type':
+                    r.first.toColumnMap()['property_type'] as String,
+              };
+      }
+      final buildingInfo = buildingCache[buildingName];
+      if (buildingInfo == null) {
+        errorDetails.add(_err(rowNum, '楼栋名称', '楼栋不存在: $buildingName'));
         continue;
       }
-      if (!_validPropertyTypes.contains(propertyType)) {
-        errorDetails
-            .add(_err(rowNum, 'property_type', '无效业态值: $propertyType'));
+      final buildingId = buildingInfo['id']!;
+      final propertyType = buildingInfo['property_type']!;
+
+      // ── 楼层名称解析（带缓存）─────────────────────────────────────────
+      final floorCacheKey = '$buildingId:$floorName';
+      if (!floorCache.containsKey(floorCacheKey)) {
+        final r = await _db.execute(
+          Sql.named(
+            'SELECT id::TEXT FROM floors '
+            'WHERE building_id = @bid::UUID AND floor_name = @name LIMIT 1',
+          ),
+          parameters: {'bid': buildingId, 'name': floorName},
+        );
+        floorCache[floorCacheKey] =
+            r.isEmpty ? null : r.first.toColumnMap()['id'] as String;
+      }
+      final floorId = floorCache[floorCacheKey];
+      if (floorId == null) {
+        errorDetails.add(_err(
+            rowNum, '楼层名称', '楼层不存在: $floorName（楼栋: $buildingName）'));
         continue;
+      }
+
+      // ── 业态专属扩展字段 ─────────────────────────────────────────────────
+      final extFields = <String, dynamic>{};
+      if (propertyType == 'office') {
+        final workstations = _cellInt(row, 10);
+        if (workstations != null) extFields['workstations'] = workstations;
+        final partitions = _cellInt(row, 11);
+        if (partitions != null) extFields['partitions'] = partitions;
+      } else if (propertyType == 'retail') {
+        final shopWidth = _cellDouble(row, 10);
+        if (shopWidth != null) extFields['shopWidth'] = shopWidth;
+        extFields['isStreetside'] = (_cellStr(row, 11) ?? '') == '是';
+        final shopCeilingHeight = _cellDouble(row, 12);
+        if (shopCeilingHeight != null) {
+          extFields['shopCeilingHeight'] = shopCeilingHeight;
+        }
+      } else if (propertyType == 'apartment') {
+        final bedroomCount = _cellInt(row, 10);
+        if (bedroomCount != null) extFields['bedroomCount'] = bedroomCount;
+        extFields['privateBathroom'] = (_cellStr(row, 11) ?? '') == '是';
       }
 
       validRows.add({
@@ -220,11 +304,21 @@ class UnitService {
         'floor_id': floorId,
         'unit_number': unitNumber,
         'property_type': propertyType,
-        'gross_area': _cellDouble(row, 4),
-        'net_area': _cellDouble(row, 5),
-        'decoration_status': _cellStr(row, 6) ?? 'blank',
-        'is_leasable': _cellStr(row, 7)?.toLowerCase() != 'false',
+        'gross_area': _cellDouble(row, 3),
+        'net_area': _cellDouble(row, 4),
+        'orientation': _parseOrientation(_cellStr(row, 5)),
+        'ceiling_height': _cellDouble(row, 6),
+        'decoration_status': _parseDecoration(_cellStr(row, 7)),
+        'is_leasable': (_cellStr(row, 8) ?? '是') == '是',
+        'market_rent_reference': _cellDouble(row, 9),
+        'ext_fields': extFields,
       });
+    }
+
+    // totalRecords = 实际参与校验的数据行数（不含注释行/空行）
+    final totalRecords = validRows.length + errorDetails.length;
+    if (totalRecords == 0) {
+      throw const ValidationException('VALIDATION_ERROR', 'Excel 文件中无有效数据行');
     }
 
     // 批次名称：units_<UTC ISO 紧凑格式>
@@ -421,5 +515,28 @@ class UnitService {
     if (v is DoubleCellValue) return v.value;
     if (v is IntCellValue) return v.value.toDouble();
     return double.tryParse(v.toString());
+  }
+
+  /// 从单元格读取整数（兼容 String/Int/Double 格）
+  int? _cellInt(List<Data?> row, int col) {
+    return _cellDouble(row, col)?.round();
+  }
+
+  /// 朝向中文→英文枚举；不在映射表内时返回 null
+  String? _parseOrientation(String? value) {
+    if (value == null) return null;
+    const map = {'东': 'east', '南': 'south', '西': 'west', '北': 'north'};
+    return map[value];
+  }
+
+  /// 装修状态中文→英文枚举；无法识别时回退到 'blank'
+  String _parseDecoration(String? value) {
+    const map = {
+      '精装': 'refined',
+      '简装': 'simple',
+      '毛坯': 'blank',
+      '原始': 'raw',
+    };
+    return map[value] ?? 'blank';
   }
 }
