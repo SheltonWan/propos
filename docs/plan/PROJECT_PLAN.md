@@ -283,14 +283,56 @@
 
 #### Day 14 · 4月27日（周一）— CAD 导入后端（难点）
 
-- 安装配置 ODA File Converter（DWG→DXF）+ `ezdxf[draw]`（Python，DXF→SVG），验证两步转换链路可用
-- `cad_import_service.dart`：接收 `.dwg` 文件 → `Process.run` 调度 ODA File Converter（DWG→DXF）→ `Process.run` 调度 `ezdxf draw`（DXF→SVG）→ SVG 输出写入 `FILE_STORAGE_PATH/floors/{buildingId}/{floorId}.svg`
-- `PUT /api/floors/:id/cad-upload`（multipart 大文件，异步任务，上传完成后返回 SVG 预览 URL）
-- `GET /api/files/*`（鉴权后返回本地文件流，不直接暴露存储路径）
+> **方案决议（2026-04-28）**：放弃服务端 DWG 解析，统一接收 **DXF**。
+> 理由：DWG 是 Autodesk 私有格式，唯一可靠的解析工具 ODA File Converter 不能通过包管理器安装、商业授权条款受限；而 DXF 是公开交换格式，AutoCAD / 天正 / 中望 / 浩辰等所有客户端 CAD 软件均支持「另存为 DXF」，对客户负担极小。
+> 服务端转换链简化为：**DXF（上传） → ezdxf 切分 → 多楼层 SVG**，唯一依赖只有 Python + `ezdxf` + `lxml`，与本地 `scripts/build_floors.sh` 的 Step 2 完全一致，输出 SVG 与本地脚本效果一致。
+
+##### 14.1 容器镜像基础升级（必要前置）
+
+- 当前 `backend/Dockerfile` 最终镜像为 `FROM scratch`，无法运行 Python；需替换基础镜像
+- 改造方案：`FROM python:3.12-slim` 作为运行时基础镜像（Debian bookworm，与 `dart:stable` 构建阶段 libc 同族，AOT 二进制兼容）
+- 安装两个 Python 依赖：`pip install --no-cache-dir ezdxf lxml`（pip wheel 含预编译 manylinux 二进制，无需系统 libxml2/libxslt 单独安装）
+- 把 `scripts/split_dxf_by_floor.py` 复制进镜像 `/app/scripts/`
+- 镜像体积估算：scratch ~25MB → python:3.12-slim ~177MB（基础镜像 ~130MB + ezdxf/lxml ~22MB + Dart 运行时 ~25MB），腾讯云容器镜像可接受
+- 部署目标确认：腾讯云服务器 OpenCloudOS 8 + Docker 26.1.3，linux/amd64 架构，与 python:3.12-slim 官方支持完全兼容
+
+##### 14.2 后端服务实现
+
+- `cad_import_service.dart`：
+  - 接收楼栋级 `.dxf` 文件（multipart upload，单文件 ≤ 50MB，校验扩展名 + magic bytes）
+  - 持久化原始 DXF：`FILE_STORAGE_PATH/cad/{buildingId}/{uploadId}.dxf`
+  - `Process.run('python3', ['/app/scripts/split_dxf_by_floor.py', dxfPath, outputDir, '--prefix', prefix])` 异步调度切分
+  - 解析脚本输出，扫描 `outputDir` 中生成的 `<prefix>_<楼层标识>.svg` 文件
+  - 文件名楼层标识自动匹配 `floors` 表的 `floor_number` / `floor_name`（如 `F11` → 11 层、`屋顶` → 屋顶层）
+  - SVG 最终路径写入 `FILE_STORAGE_PATH/floors/{buildingId}/{floorId}.svg`，更新 `floor_plans.svg_path` + 设为当前生效版本
+  - 切分失败 / 楼层匹配不上的 SVG 写入 `cad_import_jobs.unmatched_svgs` 字段，前端可在 admin 上手动指定归属楼层
+- 路由：
+  - `POST /api/buildings/:id/cad-upload`（楼栋级，multipart，立即返回 `cad_import_job_id`，状态机：`uploaded` → `splitting` → `done` / `failed`）
+  - `GET /api/cad-import-jobs/:id`（轮询任务状态 + 已生成楼层 SVG 列表 + 未匹配 SVG 列表）
+  - `PATCH /api/cad-import-jobs/:id/assign`（管理员手动指派未匹配 SVG 到具体楼层）
+  - `GET /api/files/*`（鉴权后返回本地文件流，不直接暴露存储路径，用 `path.canonicalize()` + `FILE_STORAGE_PATH` 前缀检查防路径穿越）
+- 数据库迁移 `026_create_cad_import_jobs.sql`：新增 `cad_import_jobs` 表（id / building_id / status / dxf_path / unmatched_svgs(jsonb) / error_message / created_by / created_at）
+
+##### 14.3 admin 上传入口调整
+
+- `BuildingDetailView.vue` 增加「上传整栋图纸（DXF）」按钮（页头操作区）
+- `<el-upload>` 接受 `.dxf` 单文件，禁用 `.dwg`（如用户选 DWG，弹出引导文案：请用 AutoCAD/天正/中望另存为 DXF）
+- 上传成功后跳转任务详情页 `CadImportJobView.vue`，轮询 `/api/cad-import-jobs/:id`，展示：
+  - 已自动匹配的楼层 SVG（缩略图 + 楼层名）
+  - 未匹配 SVG 列表（缩略图 + 下拉框选择目标楼层 → 调 `/assign`）
+  - 失败原因（如有）
+- `FloorPlanView.vue` 现有的楼层级 `.dwg` 上传入口保留为「补丁上传」用途（替换某一层 SVG），accept 改为 `.svg,.dxf`
 
 > 💬 **Copilot 提示语**（模板：`/backend-module`）：
-> 实现 `cad_import_service.dart`，通过两步 `Process.run` 链路（ODA Converter→DXF，ezdxf→SVG）进行 CAD 转换。SVG 输出路径严格遵守 `floors/{buildingId}/{floorId}.svg` 格式（UUID，非业务号）；**转换为异步任务**，上传端点立即返回任务 ID，通过轮询或回调获取结果。`GET /api/files/*` 必须验证 JWT，文件路径必须在 `FILE_STORAGE_PATH` 目录沙箱内（防路径穿越），用 `path.canonicalize()` + 前缀检查。
-> 附：`@file:.github/copilot-instructions.md`（文件存储约定）`@file:docs/ARCH.md`
+> 实现 `cad_import_service.dart`，**只接收 DXF**（不再接 DWG）。通过 `Process.run('python3', ['/app/scripts/split_dxf_by_floor.py', ...])` 异步调度切分。SVG 输出路径严格遵守 `floors/{buildingId}/{floorId}.svg` 格式（UUID，非业务号）；上传端点立即返回 `cad_import_job_id`，状态机 uploaded→splitting→done/failed；自动按文件名楼层标识匹配 `floors` 表，未匹配的 SVG 进入 `unmatched_svgs` 待管理员手动指派。`GET /api/files/*` 必须验证 JWT，文件路径必须在 `FILE_STORAGE_PATH` 目录沙箱内（防路径穿越），用 `path.canonicalize()` + 前缀检查。
+> 附：`@file:.github/copilot-instructions.md`（文件存储约定）`@file:docs/ARCH.md``@file:scripts/split_dxf_by_floor.py`（脚本契约）`@file:backend/Dockerfile`（基础镜像改造）
+
+##### 14.4 交付文档（产品交付时给客户的说明）
+
+- 在 `docs/guide/` 下新增「CAD 图纸交付指南」：
+  - DXF 导出步骤截图（AutoCAD / 天正 / 中望 CAD 三种主流软件各一组截图）
+  - 命名约定：每栋楼一个 DXF，Model Space 内须包含「X 层平面图」标题文字（脚本依赖此文字定位切分边界）
+  - 不支持的情况：扫描件 PDF、JPG 平面图（无法切分）、加密 DXF
 
 #### Day 15 · 4月28日（周二）— M1 前端类型定义 + API 函数
 
