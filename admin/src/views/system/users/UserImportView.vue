@@ -158,7 +158,7 @@ function onReset(): void {
 
 function onDownloadTemplate(): void {
   const headers = ['姓名', '邮箱', '初始密码', '角色', '部门ID', '绑定主合同ID']
-  const sample = ['张三', 'zhangsan@propos.cn', 'Init@1234', 'leasing_specialist', '', '']
+  const sample = ['张三', 'zhangsan@propos.cn', 'Init@1234', 'leasing_specialist', 'de000000-0000-0000-0000-000000000005', '']
   const csv = [headers.join(','), sample.join(',')].join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
