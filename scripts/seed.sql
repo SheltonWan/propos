@@ -15,7 +15,7 @@ DECLARE
     -- =====================================================================
     -- Departments (6) — de 前缀
     -- =====================================================================
-    v_dept_root         UUID := 'de000000-0000-0000-0000-000000000001'; -- D-ROOT  深圳市宝安旭联实业有限公司
+    v_dept_root         UUID := 'de000000-0000-0000-0000-000000000001'; -- D-ROOT  旭联实业
     v_dept_lease        UUID := 'de000000-0000-0000-0000-000000000002'; -- D-LEASE 租务部
     v_dept_fin          UUID := 'de000000-0000-0000-0000-000000000003'; -- D-FIN   财务部
     v_dept_ops          UUID := 'de000000-0000-0000-0000-000000000004'; -- D-OPS   物业运营部
@@ -184,7 +184,7 @@ BEGIN
 -- is_active 有 DDL 默认值 TRUE，无需显式插入
 INSERT INTO departments (id, name, parent_id, level, sort_order)
 VALUES
-    (v_dept_root,         '深圳市宝安旭联实业有限公司', NULL,           1, 1),
+    (v_dept_root,         '旭联实业', NULL,           1, 1),
     (v_dept_lease,        '租务部',           v_dept_root,    2, 1),
     (v_dept_fin,          '财务部',           v_dept_root,    2, 2),
     (v_dept_ops,          '物业运营部',       v_dept_root,    2, 3),
