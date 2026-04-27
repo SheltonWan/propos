@@ -44,7 +44,11 @@ class UserImportService {
       throw const ValidationException('IMPORT_FILE_INVALID', '文件内容为空');
     }
     _validateHeader(rows.first);
-    final dataRows = rows.skip(1).toList();
+    // 过滤掉全空行（CSV 末尾换行符会产生幽灵空行）
+    final dataRows = rows
+        .skip(1)
+        .where((r) => r.any((c) => c?.toString().trim().isNotEmpty == true))
+        .toList();
 
     final errorDetails = <Map<String, dynamic>>[];
     int successCount = 0;
@@ -173,7 +177,9 @@ class UserImportService {
       batchName: actualBatchName,
       dataType: 'users',
       totalRecords: dataRows.length,
-      successCount: errorDetails.isEmpty ? successCount : 0,
+      // dry_run 显示实际逐行通过数；正式提交有错误则整批回滚，通过数归零
+      successCount:
+          dryRun ? successCount : (errorDetails.isEmpty ? successCount : 0),
       failureCount: errorDetails.length,
       rollbackStatus: rollbackStatus,
       isDryRun: dryRun,
