@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
 import 'package:postgres/postgres.dart';
 
@@ -171,23 +174,42 @@ class UnitService {
   ///
   /// 返回结构与 admin/`ImportBatchDetail` 字段严格对齐。
   Future<Map<String, dynamic>> importUnits({
+    required String filename,
     required List<int> fileBytes,
     bool dryRun = false,
     String? userId,
   }) async {
-    // ── ① 解析 Excel ─────────────────────────────────────────────────────
-    final Excel excel;
-    try {
-      excel = Excel.decodeBytes(fileBytes);
-    } catch (_) {
+    // ── ① 解析文件（CSV / xlsx / xls 均支持）────────────────────────────
+    final List<List<dynamic>> rawRows;
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.csv')) {
+      final text = utf8
+          .decode(fileBytes)
+          .replaceAll('\r\n', '\n')
+          .replaceAll('\r', '\n');
+      rawRows = const CsvToListConverter(eol: '\n').convert(text);
+    } else if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+      final Excel excel;
+      try {
+        excel = Excel.decodeBytes(fileBytes);
+      } catch (_) {
+        throw const ValidationException(
+            'INVALID_FILE_FORMAT', '文件格式不支持，请上传 .csv / .xlsx 文件');
+      }
+      final sheet = excel.tables.values.first;
+      rawRows = sheet.rows.map((r) => r.map((c) => c?.value).toList()).toList();
+    } else {
       throw const ValidationException(
-          'INVALID_FILE_FORMAT', '文件格式不支持，请上传 .xlsx 格式文件');
+          'INVALID_FILE_FORMAT', '仅支持 .csv / .xlsx / .xls 文件');
     }
-    final sheet = excel.tables.values.first;
-    final rows = sheet.rows;
-    if (rows.isEmpty) {
-      throw const ValidationException('VALIDATION_ERROR', 'Excel 文件为空');
+
+    if (rawRows.isEmpty) {
+      throw const ValidationException('VALIDATION_ERROR', '文件内容为空');
     }
+
+    // 将 rawRows 转为统一的 List<List<dynamic>>，用于后续按列索引访问
+    // 跳过表头行（rawRows[0]）
+    final rows = rawRows;
 
     // ── ② 行级校验（含楼栋/楼层名称解析，跳过注释行和空行）───────────────
     final errorDetails = <Map<String, dynamic>>[];
@@ -203,13 +225,12 @@ class UnitService {
       // 跳过空行（全列为空）
       if (row.every((c) =>
           c == null ||
-          c.value == null ||
-          c.value.toString().trim().isEmpty)) {
+          c.toString().trim().isEmpty)) {
         continue;
       }
 
       // 跳过模板提示行（首列以 # 开头）
-      final firstCell = _cellStr(row, 0);
+      final firstCell = _cellStrRaw(row, 0);
       if (firstCell != null && firstCell.startsWith('#')) continue;
 
       final rowNum = i + 1;
@@ -501,24 +522,32 @@ class UnitService {
     }
   }
 
-  String? _cellStr(List<Data?> row, int col) {
+  /// 从单元格读取字符串（兼容 CSV 原生类型 和 Excel CellValue 对象）
+  String? _cellStr(List<dynamic> row, int col) {
     if (col >= row.length) return null;
-    final v = row[col]?.value;
+    final v = row[col];
     if (v == null) return null;
-    return v.toString().trim().isEmpty ? null : v.toString().trim();
+    final s = v.toString().trim();
+    return s.isEmpty ? null : s;
   }
 
-  double? _cellDouble(List<Data?> row, int col) {
+  /// _cellStr 的别名，语义上强调读取原始字符串
+  String? _cellStrRaw(List<dynamic> row, int idx) => _cellStr(row, idx);
+
+  double? _cellDouble(List<dynamic> row, int col) {
     if (col >= row.length) return null;
-    final v = row[col]?.value;
+    final v = row[col];
     if (v == null) return null;
+    // CSV 路径：CsvToListConverter 已将数字解析为 num
+    if (v is num) return v.toDouble();
+    // Excel 路径：c?.value 返回 CellValue 子类
     if (v is DoubleCellValue) return v.value;
     if (v is IntCellValue) return v.value.toDouble();
     return double.tryParse(v.toString());
   }
 
   /// 从单元格读取整数（兼容 String/Int/Double 格）
-  int? _cellInt(List<Data?> row, int col) {
+  int? _cellInt(List<dynamic> row, int col) {
     return _cellDouble(row, col)?.round();
   }
 

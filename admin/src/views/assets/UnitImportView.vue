@@ -36,7 +36,7 @@
         drag
         :auto-upload="false"
         :limit="1"
-        accept=".xlsx,.xls"
+        accept=".xlsx,.xls,.csv"
         :file-list="fileList"
         :on-change="onFileChange"
         :on-remove="onFileRemove"
@@ -44,7 +44,7 @@
         <el-icon class="upload-icon"><UploadFilled /></el-icon>
         <div class="upload-text">点击或拖拽上传 Excel 文件</div>
         <template #tip>
-          <div class="upload-tip">支持 .xlsx / .xls，单元台账导入采用整批回滚模式</div>
+          <div class="upload-tip">支持 .xlsx / .xls / .csv，单元台账导入采用整批回滚模式</div>
         </template>
       </el-upload>
 
@@ -56,7 +56,7 @@
         <el-button type="primary" link @click="onDownloadTemplate('retail')">商铺</el-button>
         <el-divider direction="vertical" />
         <el-button type="primary" link @click="onDownloadTemplate('apartment')">公寓</el-button>
-        <span class="template-hint">CSV 格式，使用 Excel 打开后另存为 .xlsx 再上传</span>
+        <span class="template-hint">CSV / Excel 格式均可直接上传</span>
       </div>
 
       <div class="actions">
