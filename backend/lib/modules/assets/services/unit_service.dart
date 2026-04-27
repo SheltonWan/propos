@@ -259,7 +259,7 @@ class UnitService {
         final r = await _db.execute(
           Sql.named(
             'SELECT id::TEXT, property_type::TEXT FROM buildings '
-            'WHERE name = @name AND archived_at IS NULL LIMIT 1',
+            'WHERE name = @name LIMIT 1',
           ),
           parameters: {'name': buildingName},
         );
