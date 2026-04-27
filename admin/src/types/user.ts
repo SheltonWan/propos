@@ -74,12 +74,15 @@ export interface UserUpdateRequest {
   email?: string
 }
 
-/** 用户导入批次结果（与单元导入响应结构一致） */
+/** 用户导入批次结果（对齐 API_CONTRACT_v1.7 §1.15 UserImportResult） */
 export interface UserImportResult {
+  batch_id: string
   batch_name: string
+  dry_run: boolean
   total_records: number
   success_count: number
   failure_count: number
-  rollback_status: 'committed' | 'rolled_back' | 'partial'
-  error_details: { row: number; field: string; error: string }[]
+  /** 试运行恒为 'none'；正式提交：成功为 'committed'，含失败行为 'rolled_back' */
+  rollback_status: 'none' | 'committed' | 'rolled_back'
+  error_details: { row: number; code: string; message: string }[]
 }
