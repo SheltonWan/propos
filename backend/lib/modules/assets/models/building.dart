@@ -9,7 +9,7 @@ double? _pd(dynamic v) {
 class Building {
   final String id;
   final String name;
-  /// 主业态：'office' | 'retail' | 'apartment'
+  /// 标签业态：'office' | 'retail' | 'apartment' | 'mixed'（综合体）
   final String propertyType;
   final int totalFloors;
   /// 总建筑面积（m²）

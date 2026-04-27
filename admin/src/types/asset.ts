@@ -3,8 +3,11 @@
  * 与 backend/lib/modules/assets/models/*.dart 字段一一对应
  */
 
-/** 主业态 */
+/** 业态枚举 — units/统计层面仅含三类 */
 export type PropertyType = 'office' | 'retail' | 'apartment'
+
+/** 楼栋标签业态 — 在 PropertyType 基础上额外允许 'mixed'（综合体） */
+export type BuildingPropertyType = PropertyType | 'mixed'
 
 /** 单元出租状态 */
 export type UnitStatus =
@@ -26,7 +29,7 @@ export type Orientation = 'east' | 'south' | 'west' | 'north'
 export interface Building {
   id: string
   name: string
-  property_type: PropertyType
+  property_type: BuildingPropertyType
   total_floors: number
   gfa: number
   nla: number

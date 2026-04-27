@@ -10,21 +10,24 @@
       ref="formRef"
       :model="form"
       :rules="rules"
-      label-width="120px"
+      label-width="140px"
       label-position="right"
     >
       <el-form-item label="楼栋名称" prop="name">
         <el-input v-model="form.name" placeholder="如：融创智汇大厦A座" maxlength="64" />
       </el-form-item>
 
-      <el-form-item label="主业态" prop="property_type">
+      <el-form-item label="标签业态" prop="property_type">
         <el-select v-model="form.property_type" placeholder="请选择" style="width: 100%">
           <el-option label="写字楼 (office)" value="office" />
           <el-option label="商铺 (retail)" value="retail" />
           <el-option label="公寓 (apartment)" value="apartment" />
+          <el-option label="综合体 (mixed) — 一栋楼多种业态" value="mixed" />
         </el-select>
         <div class="tip">
-          综合体（多业态混合）请选「写字楼」作为主业态；具体业态在导入单元时按行指定。
+          仅作为楼栋统计/筛选标签，<b>不限制单元业态</b>。<br />
+          单一业态楼栋按实际选择；一栋楼内多种业态请选「综合体」。<br />
+          每个单元的业态在「批量导入单元」时按行指定。
         </div>
       </el-form-item>
 
@@ -114,7 +117,7 @@ const submitting = ref(false)
 
 interface FormState {
   name: string
-  property_type: 'office' | 'retail' | 'apartment'
+  property_type: 'office' | 'retail' | 'apartment' | 'mixed'
   total_floors: number
   gfa: number
   nla: number
@@ -125,7 +128,7 @@ interface FormState {
 function defaultForm(): FormState {
   return {
     name: '',
-    property_type: 'office',
+    property_type: 'mixed',
     total_floors: 1,
     gfa: 1000,
     nla: 800,
@@ -138,7 +141,7 @@ const form = reactive<FormState>(defaultForm())
 
 const rules: FormRules<FormState> = {
   name: [{ required: true, message: '请输入楼栋名称', trigger: 'blur' }],
-  property_type: [{ required: true, message: '请选择主业态', trigger: 'change' }],
+  property_type: [{ required: true, message: '请选择标签业态', trigger: 'change' }],
   total_floors: [{ required: true, type: 'number', min: 1, max: 200, message: '总楼层数 1-200', trigger: 'change' }],
   gfa: [{ required: true, type: 'number', min: 0.01, message: '请填写建筑面积', trigger: 'blur' }],
   nla: [{ required: true, type: 'number', min: 0.01, message: '请填写净可租面积', trigger: 'blur' }],

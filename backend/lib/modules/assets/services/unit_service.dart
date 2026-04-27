@@ -324,6 +324,12 @@ class UnitService {
             '无效业态值: $rawPt（合法值: 写字楼/商铺/公寓 或 office/retail/apartment）'));
         continue;
       }
+      // 综合体（mixed）楼栋的每个单元必须显式指定具体业态，不能继承楼栋标签
+      if (propertyType == 'mixed') {
+        errorDetails.add(_err(rowNum, '业态',
+            '综合体楼栋的每行必须指定业态（写字楼/商铺/公寓 或 office/retail/apartment），不能留空'));
+        continue;
+      }
 
       // ── 业态专属扩展字段（snake_case，对齐 admin 编辑表单和数据库 JSONB）
       // 新模板列序：col11=字段1, col12=字段2, col13=字段3

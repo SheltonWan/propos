@@ -100,7 +100,7 @@ import { useRouter } from 'vue-router'
 import { Upload, Download, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAssetOverviewStore } from '@/stores'
-import type { Building, PropertyType } from '@/types/asset'
+import type { Building, BuildingPropertyType } from '@/types/asset'
 import BuildingCreateDialog from './components/BuildingCreateDialog.vue'
 
 const store = useAssetOverviewStore()
@@ -134,12 +134,12 @@ async function onExport(): Promise<void> {
   }
 }
 
-function propertyTypeLabel(t: PropertyType): string {
-  return ({ office: '写字楼', retail: '商铺', apartment: '公寓' } as const)[t]
+function propertyTypeLabel(t: BuildingPropertyType): string {
+  return ({ office: '写字楼', retail: '商铺', apartment: '公寓', mixed: '综合体' } as const)[t]
 }
 
-function propertyTypeTag(t: PropertyType): 'primary' | 'success' | 'warning' {
-  return ({ office: 'primary', retail: 'success', apartment: 'warning' } as const)[t]
+function propertyTypeTag(t: BuildingPropertyType): 'primary' | 'success' | 'warning' | 'info' {
+  return ({ office: 'primary', retail: 'success', apartment: 'warning', mixed: 'info' } as const)[t]
 }
 
 function formatRate(rate: number): string {

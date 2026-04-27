@@ -439,7 +439,7 @@ function statusFillColor(s: UnitStatus): string {
 }
 
 function propertyTypeLabel(t: PropertyType): string {
-  return ({ office: '写字楼', retail: '商铺', apartment: '公寓' } as const)[t]
+  return ({ office: '写字楼', retail: '商铺', apartment: '公寓', mixed: '综合体' } as const)[t]
 }
 
 function formatDate(v: string | null): string {

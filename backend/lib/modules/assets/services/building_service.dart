@@ -143,12 +143,16 @@ class BuildingService {
 
   // ─── 内部 ─────────────────────────────────────────────────────────────────
 
-  static const _validPropertyTypes = {'office', 'retail', 'apartment'};
+  /// buildings 层允许的业态标签值
+  /// - office / retail / apartment：单一业态楼栋
+  /// - mixed：综合体（楼栋下单元各自有具体业态，按行指定）
+  /// 注意：units.property_type 仍只允许前三种，禁止使用 mixed。
+  static const _validPropertyTypes = {'office', 'retail', 'apartment', 'mixed'};
 
   void _validatePropertyType(String pt) {
     if (!_validPropertyTypes.contains(pt)) {
       throw ValidationException(
-          'VALIDATION_ERROR', '无效的业态值: $pt（合法值: office/retail/apartment）');
+          'VALIDATION_ERROR', '无效的业态值: $pt（合法值: office/retail/apartment/mixed）');
     }
   }
 }
