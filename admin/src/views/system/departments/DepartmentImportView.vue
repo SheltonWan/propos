@@ -27,7 +27,7 @@
         drag
         :auto-upload="false"
         :limit="1"
-        accept=".xlsx,.xls"
+        accept=".xlsx,.xls,.csv"
         :file-list="fileList"
         :on-change="onFileChange"
         :on-remove="onFileRemove"
@@ -36,14 +36,14 @@
         <div class="upload-text">点击或拖拽上传 Excel 文件</div>
         <template #tip>
           <div class="upload-tip">
-            支持 .xlsx / .xls。模板列：部门名称、上级部门名称、层级（1~3）、排序号；同级不允许重名
+            支持 .xlsx / .xls / .csv。模板列：部门名称、上级部门名称、层级（1~3）、排序号；同级不允许重名
           </div>
         </template>
       </el-upload>
 
       <div class="template-row">
         <el-button type="primary" link @click="onDownloadTemplate">下载导入模板（CSV）</el-button>
-        <span class="template-hint">CSV 用 Excel 打开后另存为 .xlsx 再上传</span>
+        <span class="template-hint">CSV / Excel 格式均可直接上传</span>
       </div>
 
       <div class="actions">
@@ -67,8 +67,8 @@
         max-height="320"
       >
         <el-table-column prop="row" label="行号" width="80" />
-        <el-table-column prop="field" label="字段" width="160" />
-        <el-table-column prop="error" label="错误原因" />
+        <el-table-column prop="code" label="错误码" width="220" />
+        <el-table-column prop="message" label="错误原因" />
       </el-table>
       <el-empty v-else description="暂无错误明细" />
 

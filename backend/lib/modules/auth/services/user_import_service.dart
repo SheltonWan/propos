@@ -277,6 +277,8 @@ class UserImportService {
     bool dryRun,
     List<Map<String, dynamic>> errorDetails,
   ) {
+    // 契约 §1.15：试运行恒返回 'none'，不体现实际 DB 存储值
+    final rollbackStatus = dryRun ? 'none' : batch['rollback_status'];
     return {
       'batch_id': batch['id'],
       'batch_name': batch['batch_name'],
@@ -284,7 +286,7 @@ class UserImportService {
       'total_records': batch['total_records'],
       'success_count': batch['success_count'],
       'failure_count': batch['failure_count'],
-      'rollback_status': batch['rollback_status'],
+      'rollback_status': rollbackStatus,
       'error_details': errorDetails,
     };
   }
