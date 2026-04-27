@@ -85,6 +85,10 @@
 |--------|------|---------|------|
 | `FLOOR_ALREADY_EXISTS` | 409 | `POST /api/floors` | 同一楼栋下楼层号已存在 |
 | `BUILDING_NOT_FOUND` | 404 | 资产相关 | 楼栋不存在 |
+| `BUILDING_FLOOR_DECREASE_NOT_ALLOWED` | 422 | `PATCH /api/buildings/:id` | 传入层数小于当前已有层数，禁止减少 |
+| `BUILDING_HAS_UNITS` | 422 | `DELETE /api/buildings/:id` | 楼栋下仍有单元，无法删除 |
+| `BUILDING_HAS_WORKORDERS` | 422 | `DELETE /api/buildings/:id` | 楼栋下仍有工单，无法删除 |
+| `BUILDING_HAS_INVOICES` | 422 | `DELETE /api/buildings/:id` | 楼栋下仍有账单，无法删除 |
 | `FLOOR_NOT_FOUND` | 404 | 资产相关 | 楼层不存在 |
 | `UNIT_NOT_FOUND` | 404 | 资产相关 | 单元不存在 |
 | `INVALID_CAD_FILE` | 400 | `POST /api/floors/:id/cad` | 不是有效的 DWG 文件 |

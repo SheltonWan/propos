@@ -631,8 +631,9 @@
 |------|------|------|
 | `id` | string(uuid) | 楼栋 ID |
 | `name` | string | 楼栋名称（如"A座"） |
-| `property_type` | string(enum) | 主业态：`office` / `retail` / `apartment` |
-| `total_floors` | integer | 总楼层数 |
+| `property_type` | string(enum) | 主业态：`office` / `retail` / `apartment` / `mixed` |
+| `total_floors` | integer | 地上层数（1F~NF） |
+| `basement_floors` | integer | 地下层数（B1~BN），默认 0 |
 | `gfa` | number | 总建筑面积（m²） |
 | `nla` | number | 净可租面积（m²） |
 | `address` | string? | 地址 |
@@ -653,8 +654,9 @@
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `name` | string | 是 | 楼栋名称（最大 100 字符） |
-| `property_type` | string(enum) | 是 | 主业态 |
-| `total_floors` | integer | 是 | 总楼层数（>0） |
+| `property_type` | string(enum) | 是 | 主业态（`office`/`retail`/`apartment`/`mixed`） |
+| `total_floors` | integer | 是 | 地上层数（>0，最大 200） |
+| `basement_floors` | integer | 否 | 地下层数（≥0，最大 20，默认 0） |
 | `gfa` | number | 是 | 总建筑面积（m²，>0） |
 | `nla` | number | 是 | 净可租面积（m²，>0） |
 | `address` | string | 否 | 地址 |
@@ -682,13 +684,49 @@
 |------|------|------|------|
 | `name` | string | 否 | 楼栋名称 |
 | `property_type` | string(enum) | 否 | 主业态 |
-| `total_floors` | integer | 否 | 总楼层数 |
+| `total_floors` | integer | 否 | 地上层数（仅可增不可减；增加时自动补齐 1F~NF 楼层行） |
+| `basement_floors` | integer | 否 | 地下层数（仅可增不可减；增加时自动补齐 B1~BN 楼层行） |
 | `gfa` | number | 否 | 总建筑面积 |
 | `nla` | number | 否 | 净可租面积 |
 | `address` | string | 否 | 地址 |
 | `built_year` | integer | 否 | 建成年份 |
 
 **Response 200** — `BuildingSummary`
+
+**错误码**
+
+| 错误码 | 说明 |
+|--------|------|
+| `BUILDING_NOT_FOUND` | 楼栋不存在 |
+| `BUILDING_FLOOR_DECREASE_NOT_ALLOWED` | 传入层数小于当前已有层数，禁止减少 |
+
+---
+
+### 2.5_del `DELETE /api/buildings/:id` — 删除楼栋
+
+**权限**: `management`（`super_admin` / `operations_manager`）
+
+**业务规则**: 仅允许删除无关联业务数据的楼栋。有以下任一情况则拒绝删除：
+- 楼栋下存在任何 `units`
+- 楼栋下存在任何 `workorders`
+- 楼栋下存在任何 `invoices`
+
+删除成功时，自动级联删除 `floor_plans` 和 `floors`。
+
+**Response 200**
+
+```json
+{ "data": { "id": "<uuid>", "deleted": true } }
+```
+
+**错误码**
+
+| 错误码 | 说明 |
+|--------|------|
+| `BUILDING_NOT_FOUND` | 楼栋不存在 |
+| `BUILDING_HAS_UNITS` | 楼栋下仍有单元，无法删除 |
+| `BUILDING_HAS_WORKORDERS` | 楼栋下仍有工单，无法删除 |
+| `BUILDING_HAS_INVOICES` | 楼栋下仍有账单，无法删除 |
 
 ---
 

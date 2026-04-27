@@ -59,12 +59,18 @@ class BuildingService {
     );
   }
 
-  /// 更新楼栋，不存在则抛 BUILDING_NOT_FOUND
+  /// 更新楼栋，不存在则抛 BUILDING_NOT_FOUND。
+  ///
+  /// 当 [totalFloors] / [basementFloors] 大于楼栋当前的地上/地下层数时，
+  /// 自动在事务中补齐缺失的楼层（floor_name = 1F~NF / B1~Bn）。
+  /// 当传入值小于当前层数时，抛出 [ValidationException]，禁止减少
+  /// （避免误删存量楼层及关联单元数据；如需减层，请人工先删除单元再删楼层）。
   Future<Building> updateBuilding(
     String id, {
     String? name,
     String? propertyType,
     int? totalFloors,
+    int? basementFloors,
     double? gfa,
     double? nla,
     String? address,
@@ -73,22 +79,87 @@ class BuildingService {
   }) async {
     if (propertyType != null) _validatePropertyType(propertyType);
     if (totalFloors != null && totalFloors <= 0) {
-      throw const ValidationException('VALIDATION_ERROR', '总楼层数必须大于 0');
+      throw const ValidationException('VALIDATION_ERROR', '地上层数必须大于 0');
     }
-    final updated = await BuildingRepository(_db).update(
-      id,
-      name: name,
-      propertyType: propertyType,
-      totalFloors: totalFloors,
-      gfa: gfa,
-      nla: nla,
-      address: addressSet ? address : null,
-      builtYear: builtYear,
-    );
-    if (updated == null) {
-      throw const NotFoundException('BUILDING_NOT_FOUND', '楼栋不存在');
+    if (totalFloors != null && totalFloors > 200) {
+      throw const ValidationException('VALIDATION_ERROR', '地上层数不得超过 200');
     }
-    return updated;
+    if (basementFloors != null && basementFloors < 0) {
+      throw const ValidationException('VALIDATION_ERROR', '地下层数不能为负');
+    }
+    if (basementFloors != null && basementFloors > 20) {
+      throw const ValidationException('VALIDATION_ERROR', '地下层数不得超过 20');
+    }
+
+    return await _db.runTx<Building>((tx) async {
+      final floorRepo = FloorRepository(tx);
+
+      // 1. 计算当前地上 / 地下层数
+      final existing = await floorRepo.findAll(buildingId: id);
+      final currentAbove = existing.where((f) => f.floorNumber > 0).length;
+      final currentBelow = existing.where((f) => f.floorNumber < 0).length;
+
+      // 2. 校验非递减
+      if (totalFloors != null && totalFloors < currentAbove) {
+        throw ValidationException(
+          'BUILDING_FLOOR_DECREASE_NOT_ALLOWED',
+          '当前地上层数为 $currentAbove，禁止降低到 $totalFloors；如需减层请先删除对应楼层及单元',
+        );
+      }
+      if (basementFloors != null && basementFloors < currentBelow) {
+        throw ValidationException(
+          'BUILDING_FLOOR_DECREASE_NOT_ALLOWED',
+          '当前地下层数为 $currentBelow，禁止降低到 $basementFloors',
+        );
+      }
+
+      // 3. 更新 buildings 表
+      final updated = await BuildingRepository(tx).update(
+        id,
+        name: name,
+        propertyType: propertyType,
+        totalFloors: totalFloors,
+        basementFloors: basementFloors,
+        gfa: gfa,
+        nla: nla,
+        address: address,
+        addressSet: addressSet,
+        builtYear: builtYear,
+      );
+      if (updated == null) {
+        throw const NotFoundException('BUILDING_NOT_FOUND', '楼栋不存在');
+      }
+
+      // 4. 补齐缺失的地上层（仅创建当前没有的 floor_number）
+      if (totalFloors != null && totalFloors > currentAbove) {
+        final existingNumbers = existing.map((f) => f.floorNumber).toSet();
+        for (var n = 1; n <= totalFloors; n++) {
+          if (!existingNumbers.contains(n)) {
+            await floorRepo.create(
+              buildingId: id,
+              floorNumber: n,
+              floorName: '${n}F',
+            );
+          }
+        }
+      }
+
+      // 5. 补齐缺失的地下层（floor_number 为负数）
+      if (basementFloors != null && basementFloors > currentBelow) {
+        final existingNumbers = existing.map((f) => f.floorNumber).toSet();
+        for (var n = 1; n <= basementFloors; n++) {
+          if (!existingNumbers.contains(-n)) {
+            await floorRepo.create(
+              buildingId: id,
+              floorNumber: -n,
+              floorName: 'B$n',
+            );
+          }
+        }
+      }
+
+      return updated;
+    });
   }
 
   /// 删除楼栋。
@@ -186,6 +257,7 @@ class BuildingService {
         name: name,
         propertyType: propertyType,
         totalFloors: totalFloors,
+        basementFloors: basementFloors,
         gfa: gfa,
         nla: nla,
         address: address,

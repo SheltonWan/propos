@@ -448,7 +448,8 @@ CREATE TABLE buildings (
     -- 主业态：仅作楼栋整体定性（如综合体填主导业态）；
     -- 实际业态以 units.property_type 为准，单元导入未指定业态时回退使用此值
     property_type property_type NOT NULL,
-    total_floors  SMALLINT     NOT NULL,
+    total_floors  SMALLINT     NOT NULL,           -- 地上层数（1F~NF）
+    basement_floors SMALLINT   NOT NULL DEFAULT 0, -- 地下层数（B1~BN），migration 025 新增
     gfa           NUMERIC(10,2) NOT NULL,          -- 总建筑面积（m²）
     nla           NUMERIC(10,2) NOT NULL,          -- 净可租面积（m²）
     address       TEXT,

@@ -100,6 +100,7 @@ class BuildingController {
       name: body['name'] as String?,
       propertyType: body['property_type'] as String?,
       totalFloors: body['total_floors'] as int?,
+      basementFloors: (body['basement_floors'] as num?)?.toInt(),
       gfa: (body['gfa'] as num?)?.toDouble(),
       nla: (body['nla'] as num?)?.toDouble(),
       address: hasAddress ? addressValue : null,

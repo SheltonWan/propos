@@ -31,6 +31,8 @@ export interface Building {
   name: string
   property_type: BuildingPropertyType
   total_floors: number
+  /** 地下层数（B1~Bn），对应 buildings.basement_floors */
+  basement_floors: number
   gfa: number
   nla: number
   address: string | null

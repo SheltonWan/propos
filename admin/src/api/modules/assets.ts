@@ -81,13 +81,14 @@ export async function createBuildingWithFloors(payload: {
   )
 }
 
-/** PATCH /api/buildings/:id — 更新楼栋 */
+/** PATCH /api/buildings/:id — 更新楼栋（可传 total_floors / basement_floors 调整地上/地下层数，仅可增不可减） */
 export async function updateBuilding(
   id: string,
   payload: Partial<{
     name: string
     property_type: string
     total_floors: number
+    basement_floors: number
     gfa: number
     nla: number
     address: string | null

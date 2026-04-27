@@ -68,7 +68,8 @@
 | GET | /api/buildings | 楼栋列表 | assets.read |
 | POST | /api/buildings | 创建楼栋 | assets.write |
 | GET | /api/buildings/:id | 楼栋详情 | assets.read |
-| PATCH | /api/buildings/:id | 更新楼栋 | assets.write |
+| PATCH | /api/buildings/:id | 更新楼栋（自动补齐楼层） | assets.write |
+| DELETE | /api/buildings/:id | 删除楼栋（无业务数据时） | management |
 | GET | /api/floors | 楼层列表 | assets.read |
 | POST | /api/floors | 创建楼层 | assets.write |
 | GET | /api/floors/:id | 楼层详情 | assets.read |
