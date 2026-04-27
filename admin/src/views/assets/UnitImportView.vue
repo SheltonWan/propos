@@ -56,7 +56,9 @@
         <el-button type="primary" link @click="onDownloadTemplate('retail')">商铺</el-button>
         <el-divider direction="vertical" />
         <el-button type="primary" link @click="onDownloadTemplate('apartment')">公寓</el-button>
-        <span class="template-hint">CSV / Excel 格式均可直接上传</span>
+        <el-divider direction="vertical" />
+        <el-button type="primary" link @click="onDownloadTemplate('mixed')">综合体示例</el-button>
+        <span class="template-hint">表格第4列"业态"可按行指定，适合底层商铺+高层写字楼/公寓的综合体楼栋</span>
       </div>
 
       <div class="actions">
@@ -207,7 +209,7 @@ function goAssets(): void {
   router.push({ name: 'assets' })
 }
 
-function onDownloadTemplate(t: PropertyType): void {
+function onDownloadTemplate(t: PropertyType | 'mixed'): void {
   downloadUnitImportTemplate(t)
 }
 </script>

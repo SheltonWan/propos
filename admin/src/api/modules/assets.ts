@@ -64,6 +64,22 @@ export async function createBuilding(payload: {
   return apiPost<Building>(API_BUILDINGS, payload)
 }
 
+/** POST /api/buildings/with-floors — 创建楼栋并自动批量创建 1F~NF 楼层（事务） */
+export async function createBuildingWithFloors(payload: {
+  name: string
+  property_type: string
+  total_floors: number
+  gfa: number
+  nla: number
+  address?: string | null
+  built_year?: number | null
+}): Promise<{ building: Building; floors: Floor[] }> {
+  return apiPost<{ building: Building; floors: Floor[] }>(
+    `${API_BUILDINGS}/with-floors`,
+    payload,
+  )
+}
+
 /** PATCH /api/buildings/:id — 更新楼栋 */
 export async function updateBuilding(
   id: string,

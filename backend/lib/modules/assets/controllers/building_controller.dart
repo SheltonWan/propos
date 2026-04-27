@@ -24,6 +24,7 @@ class BuildingController {
     final r = Router();
     r.get('/buildings', _list);
     r.post('/buildings', _create);
+    r.post('/buildings/with-floors', _createWithFloors);
     r.get('/buildings/<id>', _getOne);
     r.patch('/buildings/<id>', _update);
     return r;
@@ -53,6 +54,29 @@ class BuildingController {
       builtYear: body['built_year'] as int?,
     );
     return _jsonResponse(201, {'data': building.toJson()});
+  }
+
+  /// POST /api/buildings/with-floors
+  /// 创建楼栋并自动批量创建 1F~NF 共 N 个楼层（事务）。
+  /// Body: { name, property_type, total_floors, gfa, nla, address?, built_year? }
+  /// 返回: { data: { building, floors: [...] } }
+  Future<Response> _createWithFloors(Request request) async {
+    final body = await _parseBody(request);
+    final result = await _service.createBuildingWithFloors(
+      name: _requireString(body, 'name'),
+      propertyType: _requireString(body, 'property_type'),
+      totalFloors: _requireInt(body, 'total_floors'),
+      gfa: _requireDouble(body, 'gfa'),
+      nla: _requireDouble(body, 'nla'),
+      address: body['address'] as String?,
+      builtYear: body['built_year'] as int?,
+    );
+    return _jsonResponse(201, {
+      'data': {
+        'building': result.building.toJson(),
+        'floors': result.floors.map((f) => f.toJson()).toList(),
+      },
+    });
   }
 
   /// GET /api/buildings/:id

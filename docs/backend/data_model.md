@@ -445,7 +445,9 @@ CREATE INDEX idx_job_logs_started_at  ON job_execution_logs(started_at DESC);
 CREATE TABLE buildings (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name          VARCHAR(100) NOT NULL,           -- 'A座', '商铺区', '公寓楼'
-    property_type property_type NOT NULL,          -- 主业态（楼栋整体定性）
+    -- 主业态：仅作楼栋整体定性（如综合体填主导业态）；
+    -- 实际业态以 units.property_type 为准，单元导入未指定业态时回退使用此值
+    property_type property_type NOT NULL,
     total_floors  SMALLINT     NOT NULL,
     gfa           NUMERIC(10,2) NOT NULL,          -- 总建筑面积（m²）
     nla           NUMERIC(10,2) NOT NULL,          -- 净可租面积（m²）
