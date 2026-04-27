@@ -32,6 +32,7 @@ Building fakeBuilding({
   String name = 'Test Tower',
   String propertyType = 'office',
   int totalFloors = 10,
+  int basementFloors = 0,
   double gfa = 5000.0,
   double nla = 4000.0,
   String? address,
@@ -41,6 +42,7 @@ Building fakeBuilding({
       name: name,
       propertyType: propertyType,
       totalFloors: totalFloors,
+      basementFloors: basementFloors,
       gfa: gfa,
       nla: nla,
       address: address,
@@ -133,7 +135,11 @@ RenovationRecord fakeRenovationRecord({
 
 /// buildings 表查询的列名（与 BuildingRepository SQL 保持一致）
 const kBuildingCols = [
-  'id', 'name', 'property_type', 'total_floors',
+  'id',
+  'name',
+  'property_type',
+  'total_floors',
+  'basement_floors',
   'gfa', 'nla', 'address', 'built_year', 'created_at', 'updated_at'
 ];
 
@@ -142,12 +148,25 @@ List<Object?> buildingRow({
   String name = 'Test Tower',
   String propertyType = 'office',
   int totalFloors = 10,
+  int basementFloors = 0,
   double gfa = 5000.0,
   double nla = 4000.0,
   String? address,
   int? builtYear,
 }) =>
-    [id, name, propertyType, totalFloors, gfa, nla, address, builtYear, _t, _t];
+    [
+      id,
+      name,
+      propertyType,
+      totalFloors,
+      basementFloors,
+      gfa,
+      nla,
+      address,
+      builtYear,
+      _t,
+      _t
+    ];
 
 /// floors 表查询的列名（与 FloorRepository SQL 保持一致）
 const kFloorCols = [
@@ -248,6 +267,7 @@ class FakeBuildingService extends BuildingService {
   AppException? shouldThrow;
   List<Building> listResult = [];
   Building? itemResult;
+  List<Floor> floorsResult = [];
 
   FakeBuildingService() : super(FakePool());
 
@@ -286,6 +306,7 @@ class FakeBuildingService extends BuildingService {
     String? name,
     String? propertyType,
     int? totalFloors,
+    int? basementFloors,
     double? gfa,
     double? nla,
     String? address,
@@ -297,6 +318,26 @@ class FakeBuildingService extends BuildingService {
       throw const NotFoundException('BUILDING_NOT_FOUND', '楼栋不存在');
     }
     return itemResult!;
+  }
+
+  @override
+  Future<({Building building, List<Floor> floors})> createBuildingWithFloors({
+    required String name,
+    required String propertyType,
+    required int totalFloors,
+    required double gfa,
+    required double nla,
+    String? address,
+    int? builtYear,
+    int basementFloors = 0,
+  }) async {
+    if (shouldThrow != null) throw shouldThrow!;
+    return (building: itemResult!, floors: floorsResult);
+  }
+
+  @override
+  Future<void> deleteBuilding(String id) async {
+    if (shouldThrow != null) throw shouldThrow!;
   }
 }
 
@@ -388,6 +429,12 @@ class FakeUnitService extends UnitService {
   List<int> exportBytes = [];
   AssetOverviewStats? overviewResult;
 
+  // 参数捕获字段（用于校验 Controller 层的参数解析正确性）
+  bool? capturedIsLeasable;
+  bool capturedIncludeArchived = false;
+  DateTime? capturedArchivedAt;
+  bool capturedArchivedAtSet = false;
+
   FakeUnitService() : super(FakePool());
 
   @override
@@ -401,6 +448,8 @@ class FakeUnitService extends UnitService {
     int page = 1,
     int pageSize = 20,
   }) async {
+    capturedIsLeasable = isLeasable;
+    capturedIncludeArchived = includeArchived;
     if (shouldThrow != null) throw shouldThrow!;
     return listResult ??
         PaginatedResult(
@@ -454,6 +503,8 @@ class FakeUnitService extends UnitService {
     DateTime? archivedAt,
     bool archivedAtSet = false,
   }) async {
+    capturedArchivedAt = archivedAt;
+    capturedArchivedAtSet = archivedAtSet;
     if (shouldThrow != null) throw shouldThrow!;
     if (itemResult == null) {
       throw const NotFoundException('UNIT_NOT_FOUND', '单元不存在');
@@ -463,6 +514,7 @@ class FakeUnitService extends UnitService {
 
   @override
   Future<Map<String, dynamic>> importUnits({
+    required String filename,
     required List<int> fileBytes,
     bool dryRun = false,
     String? userId,

@@ -1,12 +1,16 @@
 /// UnitController 单元测试
 ///
-/// 覆盖场景（共 11 个）：
-///   GET  /units              — 返回列表 + meta / 带过滤参数
+/// 覆盖场景（共 16 个）：
+///   GET  /units              — 返回列表 + meta / 带过滤参数 /
+///                              is_leasable=false 解析为 bool false /
+///                              include_archived=true 解析为 bool true
 ///   POST /units              — 缺 floor_id / 缺 unit_number / 成功 201
 ///   GET  /units/export       — 成功 200 返回 xlsx 字节
 ///   POST /units/import       — 缺少文件 → 400 / dry_run=true → 200
 ///   GET  /units/:id          — NOT_FOUND → 404 / 成功
-///   PATCH /units/:id         — NOT_FOUND → 404 / 成功
+///   PATCH /units/:id         — NOT_FOUND → 404 / 成功 /
+///                              archived_at 合法 ISO 字符串解析为 DateTime /
+///                              archived_at=null 清空字段（archivedAtSet=true）
 ///   GET  /assets/overview    — 成功 200 含 total_units
 library;
 
@@ -108,6 +112,19 @@ void main() {
       expect(resp.statusCode, 200);
       expect((json['data'] as List), hasLength(2));
       expect((json['meta'] as Map)['total'], 2);
+    });
+
+    test('is_leasable=false → Service 接收到 isLeasable=false（非 null）', () async {
+      final resp = await handler(makeReq('GET', '/units?is_leasable=false'));
+      expect(resp.statusCode, 200);
+      expect(svc.capturedIsLeasable, isFalse);
+    });
+
+    test('include_archived=true → Service 接收到 includeArchived=true', () async {
+      final resp =
+          await handler(makeReq('GET', '/units?include_archived=true'));
+      expect(resp.statusCode, 200);
+      expect(svc.capturedIncludeArchived, isTrue);
     });
   });
 
@@ -267,6 +284,28 @@ void main() {
 
       expect(resp.statusCode, 200);
       expect((json['data'] as Map)['is_leasable'], isFalse);
+    });
+
+    test('archived_at 合法 ISO 字符串 → Service 接收到解析后的 DateTime', () async {
+      svc.itemResult = fakeUnit();
+      const iso = '2025-03-01T08:00:00Z';
+
+      final resp = await handler(
+          makeReq('PATCH', '/units/u-1', body: {'archived_at': iso}));
+      expect(resp.statusCode, 200);
+      expect(svc.capturedArchivedAtSet, isTrue);
+      expect(svc.capturedArchivedAt, equals(DateTime.parse(iso)));
+    });
+
+    test('archived_at=null → archivedAtSet=true 且 archivedAt=null（清空字段）',
+        () async {
+      svc.itemResult = fakeUnit();
+
+      final resp = await handler(
+          makeReq('PATCH', '/units/u-1', body: {'archived_at': null}));
+      expect(resp.statusCode, 200);
+      expect(svc.capturedArchivedAtSet, isTrue);
+      expect(svc.capturedArchivedAt, isNull);
     });
   });
 

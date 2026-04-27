@@ -1,6 +1,7 @@
 /// FloorService 单元测试
 ///
 /// 覆盖场景：
+///   listFloors()     — 空列表 / 非空列表 / 按 buildingId 过滤
 ///   getFloor()       — 不存在 → FLOOR_NOT_FOUND
 ///   createFloor()    — 楼栋不存在 / 楼层号重复 → FLOOR_ALREADY_EXISTS / 成功
 ///   getHeatmap()     — 不存在 → FLOOR_NOT_FOUND / 返回热区数据
@@ -219,6 +220,39 @@ void main() {
         svc.setCurrentPlan('fp-x'),
         throwsA(isA<NotFoundException>()),
       );
+    });
+  });
+
+  // ─── listFloors ───────────────────────────────────────────────────────────
+
+  group('listFloors()', () {
+    test('DB 返回空 → 空列表', () async {
+      pool.executeHandler = (q, p) => makeResult([], []);
+      expect(await svc.listFloors(), isEmpty);
+    });
+
+    test('DB 返回 2 行 → 列表长度 2', () async {
+      pool.executeHandler = (q, p) => makeResult(
+            kFloorCols,
+            [
+              floorRow(id: 'f-1', floorNumber: 1),
+              floorRow(id: 'f-2', floorNumber: 2),
+            ],
+          );
+      final result = await svc.listFloors();
+      expect(result, hasLength(2));
+      expect(result.first.id, 'f-1');
+      expect(result.last.id, 'f-2');
+    });
+
+    test('传入 buildingId 过滤 → 返回该楼栋的楼层', () async {
+      pool.executeHandler = (q, p) => makeResult(
+            kFloorCols,
+            [floorRow(id: 'f-3', buildingId: 'b-2', floorNumber: 3)],
+          );
+      final result = await svc.listFloors(buildingId: 'b-2');
+      expect(result, hasLength(1));
+      expect(result.first.buildingId, 'b-2');
     });
   });
 }
