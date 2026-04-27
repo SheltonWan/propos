@@ -67,8 +67,8 @@
         max-height="320"
       >
         <el-table-column prop="row" label="行号" width="80" />
-        <el-table-column prop="field" label="字段" width="160" />
-        <el-table-column prop="error" label="错误原因" />
+        <el-table-column prop="code" label="错误码" width="220" />
+        <el-table-column prop="message" label="错误原因" />
       </el-table>
       <el-empty v-else description="暂无错误明细" />
 
