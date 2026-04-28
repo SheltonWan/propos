@@ -21,14 +21,15 @@ ENV PUB_HOSTED_URL=https://pub.flutter-io.cn
 ENV FLUTTER_STORAGE_BASE_URL=https://storage.flutter-io.cn
 
 # 解析依赖：先复制 path 依赖包的 pubspec
+# 构建上下文为项目根目录，backend/ 为前缀
 WORKDIR /app
-COPY pubspec.* ./
-COPY packages/kpi_scorer/pubspec.yaml packages/kpi_scorer/pubspec.yaml
-COPY packages/rent_escalation_engine/pubspec.yaml packages/rent_escalation_engine/pubspec.yaml
+COPY backend/pubspec.* ./
+COPY backend/packages/kpi_scorer/pubspec.yaml packages/kpi_scorer/pubspec.yaml
+COPY backend/packages/rent_escalation_engine/pubspec.yaml packages/rent_escalation_engine/pubspec.yaml
 RUN dart pub get
 
-# 复制源码并 AOT 编译
-COPY . .
+# 复制 backend 源码并 AOT 编译
+COPY backend/ .
 RUN dart build cli --target bin/server.dart -o output
 
 # =============================================================================
