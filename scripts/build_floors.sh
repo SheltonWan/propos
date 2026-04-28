@@ -8,6 +8,7 @@
 #   2. DXF → 多个 SVG：cad_intermediate/<building>/<name>.dxf
 #      → cad_intermediate/<building>/floors/<prefix>_*.svg
 #   3. （可选）SVG → PNG 预览：cad_intermediate/<building>/floors/preview/*.png
+#   4. DXF + SVG/JSON → 热区标注：识别房间轮廓，写入 unit-hotspots 层及 units[]
 #
 # 用法:
 #   bash scripts/build_floors.sh <building> [--dxf <file>] [--prefix <name>]
@@ -191,6 +192,30 @@ if [[ "$GEN_PNG" -eq 1 ]]; then
 else
   echo ""
   echo "=== [3/3] SVG → PNG 预览  (跳过，加 --png 启用) ==="
+fi
+
+# --- Step 4: 热区标注 ---
+ANNOTATE_SCRIPT="scripts/annotate_hotzone.py"
+echo ""
+if [[ -f "$ANNOTATE_SCRIPT" ]]; then
+  echo "=== [4/4] 热区标注（annotate_hotzone.py）==="
+  python3 "$ANNOTATE_SCRIPT" "$DXF_PATH" "$FLOORS_DIR" --prefix "$PREFIX" 2>&1 \
+    | grep -v "DIMASSOC" \
+    || true
+  ROOM_COUNT=$(python3 -c "
+import json, glob, os
+total = 0
+for f in glob.glob('${FLOORS_DIR}/${PREFIX}_*.json'):
+    try:
+        d = json.load(open(f))
+        total += len(d.get('units', []))
+    except Exception:
+        pass
+print(total)
+" 2>/dev/null || echo "?")
+  echo "=== 热区标注完成：共识别 ${ROOM_COUNT} 个房间单元 ==="
+else
+  echo "=== [4/4] 热区标注  (跳过：$ANNOTATE_SCRIPT 不存在) ==="
 fi
 
 echo ""
