@@ -1,4 +1,4 @@
-export { apiDelete, apiGet, apiPatch, apiPost, apiPut } from './client'
+export { apiDelete, apiGet, apiGetList, apiPatch, apiPost, apiPut } from './client'
 export * from './modules/assets'
 export * from './modules/auth'
 export * from './modules/contracts'

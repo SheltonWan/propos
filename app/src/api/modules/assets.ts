@@ -1,46 +1,55 @@
-import type { ApiListResponse, ListParams } from '@/types/api'
+import type { ApiListResponse } from '@/types/api'
+import type {
+  Building,
+  Floor,
+  FloorHeatmap,
+  FloorPlan,
+  Unit,
+  UnitListParams,
+} from '@/types/assets'
 import { BUILDINGS, FLOORS, UNITS } from '@/constants/api_paths'
-import { apiDelete, apiGet, apiPost, apiPut } from '../client'
+import { apiGet, apiGetList, apiPatch } from '../client'
 
-// ─── 楼宇 ─────────────────────────────────────────────────────────────────
-export function getBuildings(params?: ListParams) {
-  return apiGet<ApiListResponse<unknown>>(BUILDINGS, params as Record<string, unknown>)
+// ─── 楼栋 ───────────────────────────────────────────────────────────────────
+
+/** 楼栋列表（不分页，<10 栋） */
+export function fetchBuildings(): Promise<Building[]> {
+  return apiGet<Building[]>(BUILDINGS)
 }
 
-export function getBuilding(id: string) {
-  return apiGet<unknown>(`${BUILDINGS}/${id}`)
+export function fetchBuilding(id: string): Promise<Building> {
+  return apiGet<Building>(`${BUILDINGS}/${id}`)
 }
 
-export function createBuilding(data: Record<string, unknown>) {
-  return apiPost<unknown>(BUILDINGS, data)
+// ─── 楼层 ───────────────────────────────────────────────────────────────────
+
+export function fetchFloors(buildingId?: string): Promise<Floor[]> {
+  const params = buildingId ? { building_id: buildingId } : undefined
+  return apiGet<Floor[]>(FLOORS, params)
 }
 
-export function updateBuilding(id: string, data: Record<string, unknown>) {
-  return apiPut<unknown>(`${BUILDINGS}/${id}`, data)
+export function fetchFloor(id: string): Promise<Floor> {
+  return apiGet<Floor>(`${FLOORS}/${id}`)
 }
 
-export function deleteBuilding(id: string) {
-  return apiDelete(`${BUILDINGS}/${id}`)
+export function fetchFloorHeatmap(floorId: string): Promise<FloorHeatmap> {
+  return apiGet<FloorHeatmap>(`${FLOORS}/${floorId}/heatmap`)
 }
 
-// ─── 楼层 ─────────────────────────────────────────────────────────────────
-export function getFloors(params?: ListParams) {
-  return apiGet<ApiListResponse<unknown>>(FLOORS, params as Record<string, unknown>)
+export function fetchFloorPlans(floorId: string): Promise<FloorPlan[]> {
+  return apiGet<FloorPlan[]>(`${FLOORS}/${floorId}/plans`)
 }
 
-export function getFloor(id: string) {
-  return apiGet<unknown>(`${FLOORS}/${id}`)
+// ─── 房源 ───────────────────────────────────────────────────────────────────
+
+export function fetchUnits(params: UnitListParams = {}): Promise<ApiListResponse<Unit>> {
+  return apiGetList<Unit>(UNITS, params as Record<string, unknown>)
 }
 
-// ─── 房源 ─────────────────────────────────────────────────────────────────
-export function getUnits(params?: ListParams) {
-  return apiGet<ApiListResponse<unknown>>(UNITS, params as Record<string, unknown>)
+export function fetchUnit(id: string): Promise<Unit> {
+  return apiGet<Unit>(`${UNITS}/${id}`)
 }
 
-export function getUnit(id: string) {
-  return apiGet<unknown>(`${UNITS}/${id}`)
-}
-
-export function updateUnit(id: string, data: Record<string, unknown>) {
-  return apiPut<unknown>(`${UNITS}/${id}`, data)
+export function patchUnit(id: string, payload: Partial<Unit>): Promise<Unit> {
+  return apiPatch<Unit>(`${UNITS}/${id}`, payload)
 }

@@ -1,0 +1,206 @@
+import type { PaginationMeta } from '@/types/api'
+import type {
+  Building,
+  BuildingOccupancy,
+  Floor,
+  FloorHeatmap,
+  Unit,
+  UnitListParams,
+} from '@/types/assets'
+import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
+import {
+  fetchBuilding,
+  fetchBuildings,
+  fetchFloor,
+  fetchFloorHeatmap,
+  fetchFloors,
+  fetchUnit,
+  fetchUnits,
+} from '@/api/modules/assets'
+import { ApiError } from '@/types/api'
+
+const LARGE_PAGE_SIZE = 1000
+
+/** 从单元集合聚合楼栋出租率（前端聚合，不依赖后端） */
+function aggregateOccupancy(units: Unit[]): Record<string, BuildingOccupancy> {
+  const grouped: Record<string, BuildingOccupancy> = {}
+  for (const u of units) {
+    if (u.current_status === 'non_leasable') continue
+    const g = grouped[u.building_id] ?? { total: 0, leased: 0, vacant: 0, rate: 0 }
+    g.total += 1
+    if (u.current_status === 'leased' || u.current_status === 'expiring_soon' || u.current_status === 'pre_lease') {
+      g.leased += 1
+    } else {
+      g.vacant += 1
+    }
+    grouped[u.building_id] = g
+  }
+  for (const k of Object.keys(grouped)) {
+    const g = grouped[k]
+    g.rate = g.total > 0 ? g.leased / g.total : 0
+  }
+  return grouped
+}
+
+// ─── Store 1：楼栋总览（资产首页） ─────────────────────────────────────────
+
+export const useAssetOverviewStore = defineStore('assetOverview', () => {
+  // State
+  const list = ref<Building[]>([])
+  const buildingOccupancy = ref<Record<string, BuildingOccupancy>>({})
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+
+  // Getters
+  const totalUnits = computed(() =>
+    Object.values(buildingOccupancy.value).reduce((acc, g) => acc + g.total, 0),
+  )
+  const totalLeased = computed(() =>
+    Object.values(buildingOccupancy.value).reduce((acc, g) => acc + g.leased, 0),
+  )
+  const overallRate = computed(() =>
+    totalUnits.value > 0 ? totalLeased.value / totalUnits.value : 0,
+  )
+
+  // Actions
+  async function fetchAll(): Promise<void> {
+    loading.value = true
+    error.value = null
+    try {
+      const [buildings, unitsRes] = await Promise.all([
+        fetchBuildings(),
+        fetchUnits({ page: 1, pageSize: LARGE_PAGE_SIZE }),
+      ])
+      list.value = buildings
+      buildingOccupancy.value = aggregateOccupancy(unitsRes.data)
+    } catch (e) {
+      error.value = e instanceof ApiError ? e.message : '资产数据加载失败'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return {
+    list,
+    buildingOccupancy,
+    loading,
+    error,
+    totalUnits,
+    totalLeased,
+    overallRate,
+    fetchAll,
+  }
+})
+
+// ─── Store 2：楼栋详情 + 楼层列表 ──────────────────────────────────────────
+
+export const useBuildingDetailStore = defineStore('buildingDetail', () => {
+  const item = ref<Building | null>(null)
+  const floors = ref<Floor[]>([])
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+
+  async function fetchDetail(buildingId: string): Promise<void> {
+    loading.value = true
+    error.value = null
+    try {
+      const [b, fls] = await Promise.all([
+        fetchBuilding(buildingId),
+        fetchFloors(buildingId),
+      ])
+      item.value = b
+      floors.value = fls.sort((a, c) => c.floor_number - a.floor_number)
+    } catch (e) {
+      error.value = e instanceof ApiError ? e.message : '楼栋数据加载失败'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { item, floors, loading, error, fetchDetail }
+})
+
+// ─── Store 3：楼层热区图 ──────────────────────────────────────────────────
+
+export const useFloorMapStore = defineStore('floorMap', () => {
+  const item = ref<Floor | null>(null)
+  const heatmap = ref<FloorHeatmap | null>(null)
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+
+  async function fetchDetail(floorId: string): Promise<void> {
+    loading.value = true
+    error.value = null
+    try {
+      const [floor, heatmapData] = await Promise.all([
+        fetchFloor(floorId),
+        fetchFloorHeatmap(floorId),
+      ])
+      item.value = floor
+      heatmap.value = heatmapData
+    } catch (e) {
+      error.value = e instanceof ApiError ? e.message : '楼层数据加载失败'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { item, heatmap, loading, error, fetchDetail }
+})
+
+// ─── Store 4：房源列表（带分页与筛选） ────────────────────────────────────
+
+export const useUnitListStore = defineStore('unitList', () => {
+  const list = ref<Unit[]>([])
+  const meta = ref<PaginationMeta | null>(null)
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+  const currentParams = ref<UnitListParams>({})
+
+  async function fetchList(params: UnitListParams = {}): Promise<void> {
+    loading.value = true
+    error.value = null
+    currentParams.value = params
+    try {
+      const res = await fetchUnits({ page: 1, pageSize: 20, ...params })
+      list.value = res.data
+      meta.value = res.meta
+    } catch (e) {
+      error.value = e instanceof ApiError ? e.message : '房源列表加载失败'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  function reset(): void {
+    list.value = []
+    meta.value = null
+    error.value = null
+    currentParams.value = {}
+  }
+
+  return { list, meta, loading, error, currentParams, fetchList, reset }
+})
+
+// ─── Store 5：房源详情 ────────────────────────────────────────────────────
+
+export const useUnitDetailStore = defineStore('unitDetail', () => {
+  const item = ref<Unit | null>(null)
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+
+  async function fetchDetail(unitId: string): Promise<void> {
+    loading.value = true
+    error.value = null
+    try {
+      item.value = await fetchUnit(unitId)
+    } catch (e) {
+      error.value = e instanceof ApiError ? e.message : '房源详情加载失败'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { item, loading, error, fetchDetail }
+})

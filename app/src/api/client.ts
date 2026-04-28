@@ -1,6 +1,6 @@
 import type { HttpData, HttpError, HttpRequestConfig, HttpResponse } from 'luch-request'
 import type { MockMethod } from './mock/types'
-import type { ApiErrorResponse, ApiResponse } from '@/types/api'
+import type { ApiErrorResponse, ApiListResponse, ApiResponse } from '@/types/api'
 import Request from 'luch-request'
 import { AUTH_REFRESH } from '@/constants/api_paths'
 import { ApiError } from '@/types/api'
@@ -176,6 +176,20 @@ export async function apiGet<T>(url: string, params?: Record<string, unknown>): 
   if (mock.hit) return mock.data
   const res = await http.get<ApiResponse<T>>(url, { params })
   return res.data.data
+}
+
+/**
+ * 分页列表 GET，保留 meta 信息。
+ * 服务端返回 `{ data: T[], meta: {...} }`，本方法直接返回该信封。
+ */
+export async function apiGetList<T>(
+  url: string,
+  params?: Record<string, unknown>,
+): Promise<ApiListResponse<T>> {
+  const mock = await tryMock<ApiListResponse<T>>('GET', url, params)
+  if (mock.hit) return mock.data
+  const res = await http.get<ApiListResponse<T>>(url, { params })
+  return res.data
 }
 
 export async function apiPost<T>(url: string, data?: unknown): Promise<T> {
