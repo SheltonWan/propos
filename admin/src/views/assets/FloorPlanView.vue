@@ -75,14 +75,21 @@
         </el-table>
       </div>
 
-      <!-- SVG 热区（内联渲染以支持点击） -->
-      <div class="svg-container">
+      <!-- SVG 热区（内联渲染以支持点击；支持鼠标拖拽平移） -->
+      <div
+        class="svg-container"
+        :class="{ dragging: isDragging }"
+        @mousedown.prevent="onPanStart"
+        @mousemove="onPanMove"
+        @mouseup="onPanEnd"
+        @mouseleave="onPanEnd"
+      >
         <div v-if="!store.heatmap?.svg_path" class="empty">该楼层暂未上传图纸</div>
         <div
           v-else-if="svgContent"
           ref="svgWrapper"
           class="svg-wrapper"
-          :style="{ transform: `scale(${zoomLevel})`, transformOrigin: 'top left' }"
+          :style="{ transform: `translate(${panX}px, ${panY}px) scale(${zoomLevel})`, transformOrigin: '0 0' }"
           v-html="svgContent"
         />
         <div v-else class="empty">图纸加载中…</div>
@@ -178,6 +185,12 @@ const selectedHeatmap = ref<HeatmapUnit | null>(null)
 const svgContent = ref<string>('')
 const svgWrapper = ref<HTMLElement | null>(null)
 const zoomLevel = ref(1)
+// 平移偏移量（像素）
+const panX = ref(0)
+const panY = ref(0)
+// 拖拽状态
+const isDragging = ref(false)
+const dragStart = ref({ x: 0, y: 0, px: 0, py: 0 })
 
 const drawerUnit = computed(() => drawerStore.unit)
 
@@ -304,6 +317,26 @@ function zoom(delta: number): void {
 
 function resetZoom(): void {
   zoomLevel.value = 1
+  panX.value = 0
+  panY.value = 0
+}
+
+// 拖拽平移：记录起始位置
+function onPanStart(e: MouseEvent): void {
+  isDragging.value = true
+  dragStart.value = { x: e.clientX, y: e.clientY, px: panX.value, py: panY.value }
+}
+
+// 拖拽平移：实时更新偏移
+function onPanMove(e: MouseEvent): void {
+  if (!isDragging.value) return
+  panX.value = dragStart.value.px + (e.clientX - dragStart.value.x)
+  panY.value = dragStart.value.py + (e.clientY - dragStart.value.y)
+}
+
+// 拖拽平移：结束
+function onPanEnd(): void {
+  isDragging.value = false
 }
 
 function rowClass({ row }: { row: HeatmapUnit }): string {
@@ -400,8 +433,13 @@ function goBack(): void {
   background: var(--el-fill-color-lighter);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 4px;
-  overflow: auto;
+  overflow: hidden;
   padding: 16px;
+  cursor: grab;
+  user-select: none;
+}
+.svg-container.dragging {
+  cursor: grabbing;
 }
 .svg-wrapper {
   display: block;

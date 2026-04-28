@@ -101,6 +101,13 @@
       <div class="actions">
         <el-button @click="goBackStep">上一步</el-button>
         <el-button
+          v-if="(store.dryRunResult?.failure_count ?? 0) > 0"
+          :icon="Download"
+          @click="downloadErrorReport"
+        >
+          下载错误报告
+        </el-button>
+        <el-button
           type="primary"
           :disabled="commitDisabled"
           :loading="store.loading"
@@ -130,7 +137,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Document, UploadFilled } from '@element-plus/icons-vue'
+import { Document, Download, UploadFilled } from '@element-plus/icons-vue'
 import type { UploadFile } from 'element-plus'
 import { useUnitImportStore } from '@/stores'
 import { downloadUnitImportTemplate } from './utils/unit_import_template'
@@ -211,6 +218,27 @@ function goAssets(): void {
 
 function onDownloadTemplate(t: PropertyType | 'mixed'): void {
   downloadUnitImportTemplate(t)
+}
+
+// 将预校验错误明细导出为 CSV—UTF-8 BOM 确保 Excel 正确识别中文
+function downloadErrorReport(): void {
+  const errors = store.dryRunResult?.error_details ?? []
+  if (errors.length === 0) return
+  const bom = '\uFEFF'
+  const header = '行号,字段,错误原因\n'
+  const rows = errors
+    .map((e) => `${e.row},"${e.field}","${e.error.replace(/"/g, '""')}"`)
+    .join('\n')
+  const csv = bom + header + rows
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `导入错误报告_${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 </script>
 
