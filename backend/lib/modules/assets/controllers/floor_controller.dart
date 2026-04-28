@@ -15,7 +15,8 @@ import '../services/floor_service.dart';
 ///   POST /api/floors                          — 新建楼层
 ///   GET  /api/floors/:id                      — 楼层详情
 ///   POST /api/floors/:id/cad                  — 上传 CAD 文件
-///   GET  /api/floors/:id/heatmap              — 楼层热区状态图
+///   GET  /api/floors/:id/heatmap              — 楼层热区状态图（含 svg_path + units[]）
+///   GET  /api/floors/:id/units                — 楼层单元状态列表（热区绑定专用，无分页）
 ///   GET  /api/floors/:id/plans                — 图纸版本列表
 ///
 /// 所有端点受 RBAC 中间件保护，Controller 不做角色判断。
@@ -31,6 +32,7 @@ class FloorController {
     r.get('/floors/<id>', _getOne);
     r.post('/floors/<id>/cad', _uploadCad);
     r.get('/floors/<id>/heatmap', _heatmap);
+    r.get('/floors/<id>/units', _unitsByFloor);
     r.get('/floors/<id>/plans', _plans);
     return r;
   }
@@ -89,6 +91,16 @@ class FloorController {
   Future<Response> _heatmap(Request request, String id) async {
     final heatmap = await _service.getHeatmap(id);
     return _jsonResponse(200, {'data': heatmap.toJson()});
+  }
+
+  /// GET /api/floors/:id/units
+  /// 热区绑定专用端点：返回该楼层全部单元状态列表，无分页。
+  /// 前端 加载 SVG 后通过 data-unit-id 属性匹配 DB 单元 UUID 覆盖热区状态色。
+  Future<Response> _unitsByFloor(Request request, String id) async {
+    final heatmap = await _service.getHeatmap(id);
+    return _jsonResponse(200, {
+      'data': heatmap.units.map((u) => u.toJson()).toList(),
+    });
   }
 
   /// GET /api/floors/:id/plans

@@ -393,6 +393,7 @@ def inject_hotspots_to_svg(
         attrib: dict[str, str] = {
             "class": "unit-hotspot unit-vacant",
             "data-unit-id": unit_id,
+            "data-unit-number": no,
         }
         if room["room_name"]:
             attrib["data-room-name"] = room["room_name"]
@@ -474,14 +475,19 @@ def update_json_units(
 
         units.append({
             "unit_id": unit_id,
-            "room_no": no,
+            "unit_number": no,
             "room_name": room["room_name"],
             "area_m2": room["area_m2"],
+            "shape": "circle",
             "hotspot": {
                 "type": "circle",
                 "cx": round(svg_cx),
                 "cy": round(svg_cy),
                 "r":  round(hotspot_r),
+            },
+            "label_position": {
+                "x": round(svg_cx),
+                "y": round(svg_cy),
             },
             "status": "vacant",  # 默认空置，前端根据租务数据覆盖
         })
