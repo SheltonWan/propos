@@ -34,7 +34,7 @@ RUN dart build cli --target bin/server.dart -o output
 
 # =============================================================================
 # 运行阶段：基于 python:3.12-slim（替换原 scratch 基础镜像）
-# 镜像体积估算 ~177MB（基础 ~130MB + ezdxf/lxml ~22MB + Dart 运行时 ~25MB）
+# 镜像体积估算 ~200MB（基础 ~130MB + ezdxf/lxml/Pillow ~45MB + Dart 运行时 ~25MB）
 # =============================================================================
 FROM python:3.12-slim
 
@@ -53,9 +53,10 @@ RUN pip install --no-cache-dir --upgrade \
 
 # 安装 DXF → SVG 切分所需的 Python 依赖
 # 注：使用清华 PyPI 镜像加速；--no-cache-dir 减小镜像体积
+# Pillow 是 ezdxf drawing 插件的隐式依赖（PIL.Image）
 RUN pip install --no-cache-dir \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    ezdxf lxml
+    ezdxf lxml Pillow
 
 # Dart AOT 运行时（python:3.12-slim 基于 Debian Bookworm，usrmerge 导致 /lib 是
 # /usr/lib 的符号链接；Docker BuildKit COPY 不跟随符号链接目录，直接写入实际目录
