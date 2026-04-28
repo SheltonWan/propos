@@ -40,13 +40,13 @@ FROM python:3.12-slim
 
 # 升级 base 镜像系统包到最新安全补丁，修复 Debian 基础层的 CVE
 # fonts-dejavu-core 是 ezdxf drawing 渲染器的字体依赖（slim 镜像无字体会报 no default font found）
+# 注：python:3.12-slim 不含 fontconfig，无需 fc-cache
 # 必须与 apt-get update 在同一 RUN 中，并清理 apt 缓存以减小镜像体积
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         fonts-dejavu-core \
-    && fc-cache -f \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
