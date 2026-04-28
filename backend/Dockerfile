@@ -57,8 +57,10 @@ RUN pip install --no-cache-dir \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
     ezdxf lxml
 
-# Dart AOT 运行时（从 dart:stable 复制 /runtime 内容到根）
-COPY --from=build /runtime/ /
+# Dart AOT 运行时（python:3.12-slim 基于 Debian Bookworm，usrmerge 导致 /lib 是
+# /usr/lib 的符号链接；Docker BuildKit COPY 不跟随符号链接目录，直接写入实际目录
+# /usr/lib/ 来绕过 "cannot copy to non-directory" 错误）
+COPY --from=build /runtime/lib/ /usr/lib/
 
 # Dart 编译产物
 COPY --from=build /app/output/bundle/ /app/
