@@ -489,12 +489,14 @@ function goBack(): void {
   padding: 16px;
 }
 .svg-wrapper {
-  display: inline-block;
+  display: block;
+  width: 100%;
   transition: transform 0.15s ease;
 }
 .svg-wrapper :deep(svg) {
-  max-width: 100%;
+  width: 100%;
   height: auto;
+  display: block;
 }
 .empty {
   color: var(--el-text-color-secondary);
