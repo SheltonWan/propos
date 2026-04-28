@@ -1,0 +1,18 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:5173",
+      "localStorage": [
+        {
+          "name": "refresh_token",
+          "value": "e2e-mock-refresh-token"
+        },
+        {
+          "name": "access_token",
+          "value": "e2e-mock-access-token"
+        }
+      ]
+    }
+  ]
+}
