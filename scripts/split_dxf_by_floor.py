@@ -86,6 +86,79 @@ _setup_cjk_font_synonyms()
 from ezdxf.math import BoundingBox2d, Vec2, Vec3
 from lxml import etree
 
+# ── CJK 字体补丁常量与函数 ──────────────────────────────────────────────────────
+# MTEXT 内联字体代码正则：匹配 \f<fontname>.shx[|...]; 格式
+# 中文 CAD MTEXT 中常见格式示例：{\fhztxt.shx|b0|i0|c134|p48;汉字文本}
+_MTEXT_SHX_RE = re.compile(r'\\f([^|;{}\s]+\.(?:shx|shp))(\|[^;]*)?;', re.IGNORECASE)
+_WQY_FILE = "wqy-microhei.ttc"
+
+
+def _patch_doc_styles_for_cjk(doc) -> None:
+    """将 DXF STYLE 表中 SHX+BigFont 组合替换为 WQY TTF，修复中文字符无法渲染的根本问题。
+
+    中文 CAD 标准配置：
+      font    = "simplex.shx"  (ASCII 基础字体)
+      bigfont = "gbcbig.shx"  / "hztxt.shx"  (中文大字体，存放汉字字形)
+
+    ezdxf 1.4.x 的 get_entity_font_face() 只读 style.dxf.font，**完全忽略 bigfont**，
+    导致 SHX BigFont 中的全部汉字字形无法渲染，文本在 SVG 中输出为空白路径。
+
+    修复策略：bigfont 字段非空 → 判定为中文文字样式
+      → font 替换为 WQY TTF，清空 bigfont
+      → ezdxf 渲染层改为用 WQY 的 Unicode 字形描出 SVG filled paths。
+
+    本地开发环境未安装 WQY 时静默跳过，不影响主流程。
+    """
+    try:
+        from ezdxf.fonts import fonts as _ffonts
+        if not _ffonts.font_manager.has_font(_WQY_FILE):
+            return
+    except Exception:
+        return
+
+    patched = 0
+    for style in doc.styles:
+        bigfont = style.dxf.get("bigfont", "")
+        if bigfont and bigfont.strip():
+            style.dxf.font = _WQY_FILE
+            style.dxf.bigfont = ""
+            patched += 1
+    if patched:
+        print(f"  [CJK字体] {patched} 个 SHX+BigFont 样式 → {_WQY_FILE}")
+
+
+def _patch_mtext_shx_fonts(msp) -> None:
+    """修补 MTEXT 实体中内联 \\f 字体代码，将 SHX 字体替换为 WQY TTF。
+
+    MTEXT 支持内联格式控制码覆盖当前样式的字体，例如：
+      {\\fhztxt.shx|b0|i0|c134|p48;汉字文本}
+    此时 STYLE 表中的字体替换不生效，必须同时修补文本内容本身。
+
+    处理后变为：{\\fwqy-microhei.ttc|b0|i0|c134|p48;汉字文本}
+    保留 |b0|i0|... 参数段，仅替换字体文件名部分。
+    """
+    try:
+        from ezdxf.fonts import fonts as _ffonts
+        if not _ffonts.font_manager.has_font(_WQY_FILE):
+            return
+    except Exception:
+        return
+
+    patched = 0
+    for e in msp:
+        if e.dxftype() != "MTEXT":
+            continue
+        raw_text = e.text
+        if not raw_text or not _MTEXT_SHX_RE.search(raw_text):
+            continue
+        e.text = _MTEXT_SHX_RE.sub(
+            lambda m: f'\\\\f{_WQY_FILE}' + (m.group(2) or '') + ';',
+            raw_text,
+        )
+        patched += 1
+    if patched:
+        print(f"  [CJK字体] {patched} 个 MTEXT 内联 SHX 字体代码 → {_WQY_FILE}")
+
 # SVG 命名空间（ezdxf SVGBackend 输出使用默认 SVG 命名空间）
 SVG_NS = "http://www.w3.org/2000/svg"
 SVG = f"{{{SVG_NS}}}"
@@ -636,6 +709,11 @@ def main():
     print(f"读取 DXF: {args.input}")
     doc = ezdxf.readfile(args.input)
     msp = doc.modelspace()
+
+    # 修复中文字体：SHX+BigFont → WQY TTF（必须在 RenderContext 创建前完成）
+    print("修复中文字体引用...")
+    _patch_doc_styles_for_cjk(doc)
+    _patch_mtext_shx_fonts(msp)
 
     # 把墙图层、HATCH/SOLID 重映射为标记 RGB（使用 entity.rgb / true_color，覆盖 ACI/图层色）。
     # 后处理阶段在生成的 SVG CSS 中反查该颜色对应的 class 名后，动态添加样式覆盖。
