@@ -83,7 +83,7 @@ def _setup_cjk_font_synonyms() -> None:
 
 
 _setup_cjk_font_synonyms()
-from ezdxf.math import BoundingBox2d, Vec2, Vec3
+from ezdxf.math import BoundingBox, BoundingBox2d, Vec2, Vec3
 from lxml import etree
 
 # ── CJK 字体补丁常量与函数 ──────────────────────────────────────────────────────
@@ -758,8 +758,20 @@ def main():
     print(f"  填充归一: {hatch_count} 个 HATCH/SOLID → RGB={HATCH_MARKER_HEX}")
 
     # 计算 Model Space 总体 extents
+    # 逐条容错：Proxy 实体中 ARC/CIRCLE 非均匀缩放会抛 ProxyGraphicError，跳过即可
     print("计算 Model Space 包围盒...")
-    msp_bb = bbox.extents(msp)
+    _bb_cache = bbox.Cache()
+    _bb_skipped = 0
+    msp_bb = BoundingBox()
+    for _e in msp:
+        try:
+            _eb = bbox.extents([_e], cache=_bb_cache)
+            if _eb.has_data:
+                msp_bb.extend([_eb.extmin, _eb.extmax])
+        except Exception:
+            _bb_skipped += 1
+    if _bb_skipped:
+        print(f"  包围盒计算：跳过 {_bb_skipped} 个问题实体（Proxy/非均匀缩放）")
     if not msp_bb.has_data:
         print("错误: Model Space 无可计算包围盒", file=sys.stderr)
         sys.exit(1)
