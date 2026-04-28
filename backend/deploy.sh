@@ -79,7 +79,8 @@ echo ""
 docker build \
     --platform linux/amd64 \
     -t "${FULL_IMAGE}" \
-    "${BACKEND_DIR}"
+    -f "${BACKEND_DIR}/Dockerfile" \
+    "$(cd "${BACKEND_DIR}/.." && pwd)"
 
 success "镜像构建完成：${FULL_IMAGE}"
 

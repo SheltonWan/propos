@@ -1,0 +1,47 @@
+# Docker 构建上下文过滤（构建上下文为项目根目录，仅保留 backend/ 和 scripts/ 所需文件）
+# 排除与后端构建无关的目录，减少发送到 Docker daemon 的数据量
+
+# 前端目录
+admin/
+app/
+flutter_app/
+frontend/
+
+# 文档与脚本（不含 scripts/split_dxf_by_floor.py）
+docs/
+pdfdocs/
+cad_source/
+cad_intermediate/
+
+# 脚本目录中只需要 split_dxf_by_floor.py，其余排除
+scripts/build_floors.sh
+scripts/cad_to_dxf.sh
+scripts/check_env.sh
+scripts/docx2pdf.py
+scripts/dxf_to_svg.py
+scripts/gen_kickoff_templates.py
+scripts/gen_requirements_matrix.py
+scripts/init_local_postgres.sh
+scripts/md_to_excel.py
+scripts/md_to_pdf.sh
+scripts/md2word.py
+scripts/postprocess_svg.py
+scripts/seed_buildings_24f.sql
+scripts/seed.sql
+scripts/setup_server.sh
+
+# 后端构建产物与临时文件
+backend/build/
+backend/.dart_tool/
+backend/.packages
+backend/.git/
+backend/.github/
+backend/.idea/
+
+# 根目录无关文件
+*.code-workspace
+floor_preview.html
+.git/
+.github/
+.gitignore
+.deploy.env
