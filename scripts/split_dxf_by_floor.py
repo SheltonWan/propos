@@ -38,6 +38,51 @@ from ezdxf import bbox
 from ezdxf.addons.drawing import Frontend, RenderContext
 from ezdxf.addons.drawing import layout as drawing_layout
 from ezdxf.addons.drawing.svg import SVGBackend
+
+
+def _setup_cjk_font_synonyms() -> None:
+    """将常见 Windows 中文字体名映射到 Docker 中已安装的文泉驿微米黑（wqy-microhei.ttc）。
+
+    DXF 平面图通常引用 simsun.ttc / simhei.ttf 等 Windows 专有字体；这些字体在
+    Linux slim 镜像中不存在，ezdxf 会回退到 DejaVu（无 CJK 字形），中文显示为空框。
+    通过 add_synonyms 将常见中文字体名（文件名形式 + 无扩展名 family 形式）重定向到
+    已安装的 wqy-microhei.ttc，使平面图中文标注能在 Docker 容器内正常渲染。
+
+    注：本地开发环境未安装 WQY 字体时此函数静默跳过，不影响主流程。
+    """
+    try:
+        from ezdxf.fonts import fonts as _ezdxf_fonts
+        mgr = _ezdxf_fonts.font_manager
+        WQY_FILE = "wqy-microhei.ttc"
+        # 首次运行新容器时字体缓存可能尚未包含 WQY，触发重建以扫描系统字体目录
+        if not mgr.has_font(WQY_FILE):
+            _ezdxf_fonts.build_system_font_cache()
+        if not mgr.has_font(WQY_FILE):
+            return  # WQY 未安装（本地开发环境），跳过
+        # 文件名形式（DXF STYLE 表中引用 .ttf/.ttc 文件名的情况）
+        _filename_aliases = (
+            "simsun.ttc", "simsun.ttf",          # 宋体
+            "simhei.ttf",                         # 黑体
+            "simfang.ttf", "simfang_gb2312.ttf",  # 仿宋
+            "simkai.ttf",                         # 楷体
+            "msyh.ttf", "msyhbd.ttc", "msyhl.ttc",  # 微软雅黑系列
+            "dengb.ttf", "dengl.ttf",             # 等线
+            "方正仿宋_gbk.ttf", "方正黑体_gbk.ttf",  # 方正系列
+        )
+        # Family / 无扩展名形式（DXF STYLE 表中仅写字体族名的情况）
+        _family_aliases = (
+            "SimSun", "SimHei", "FangSong", "KaiTi",
+            "Microsoft YaHei", "Microsoft JhengHei",
+            "DengXian", "YouYuan", "NSimSun",
+            "宋体", "黑体", "仿宋", "楷体",  # 中文名（极少数旧格式 DXF）
+        )
+        for alias in _filename_aliases + _family_aliases:
+            mgr.add_synonyms({WQY_FILE: alias}, reverse=False)
+    except Exception:
+        pass  # 字体同义词配置失败不中断主流程，ezdxf 仍会尽力回退
+
+
+_setup_cjk_font_synonyms()
 from ezdxf.math import BoundingBox2d, Vec2, Vec3
 from lxml import etree
 
