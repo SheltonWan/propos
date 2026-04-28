@@ -14,7 +14,8 @@
 # 部署目标：腾讯云容器镜像服务，OpenCloudOS 8 + Docker 26.1.3
 # =============================================================================
 
-FROM dart:stable AS build
+# 使用 DaoCloud 镜像加速，解决国内构建环境无法访问 docker.io 的问题
+FROM docker.m.daocloud.io/library/dart:stable AS build
 
 # 国内 pub 镜像，解决 Docker 构建环境无法访问 pub.dev 的问题
 ENV PUB_HOSTED_URL=https://pub.flutter-io.cn
@@ -36,7 +37,8 @@ RUN dart build cli --target bin/server.dart -o output
 # 运行阶段：基于 python:3.12-slim（替换原 scratch 基础镜像）
 # 镜像体积估算 ~210MB（基础 ~130MB + ezdxf/lxml/Pillow ~45MB + DejaVu ~4MB + WQY中文字体 ~5MB + Dart运行时 ~25MB）
 # =============================================================================
-FROM python:3.12-slim
+# 使用 DaoCloud 镜像加速
+FROM docker.m.daocloud.io/library/python:3.12-slim
 
 # 升级 base 镜像系统包到最新安全补丁，修复 Debian 基础层的 CVE
 # fonts-dejavu-core：ezdxf drawing 渲染器的西文字体基线（无此包报 no default font found）
