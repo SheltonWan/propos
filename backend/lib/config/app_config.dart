@@ -34,6 +34,13 @@ class AppConfig {
   /// 生产部署时**绝对不能**设为 true
   final bool allowTestEndpoints;
 
+  /// DXF 切分脚本绝对路径（可选，缺省使用容器内路径）
+  /// 本地开发须在 .env 中设置 SPLIT_SCRIPT_PATH 指向项目内脚本
+  final String splitScriptPath;
+
+  /// Python 解释器路径（可选，默认 python3）
+  final String pythonExecutable;
+
   AppConfig._({
     required this.databaseUrl,
     required this.jwtSecret,
@@ -52,6 +59,8 @@ class AppConfig {
     required this.adminWebBaseUrl,
     required this.dbSslMode,
     required this.allowTestEndpoints,
+    required this.splitScriptPath,
+    required this.pythonExecutable,
   });
 
   static AppConfig load({String? Function(String)? get}) {
@@ -122,6 +131,11 @@ class AppConfig {
 
       // 测试辅助端点开关：仅接受显式 'true'，其他任何值均视为 false
       allowTestEndpoints: lookup('ALLOW_TEST_ENDPOINTS')?.toLowerCase() == 'true',
+
+      // DXF 切分配置（可选，本地开发通过 .env 覆盖）
+      splitScriptPath:
+          lookup('SPLIT_SCRIPT_PATH') ?? '/app/scripts/split_dxf_by_floor.py',
+      pythonExecutable: lookup('PYTHON_EXECUTABLE') ?? 'python3',
 
     );
   }

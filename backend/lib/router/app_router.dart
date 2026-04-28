@@ -98,7 +98,12 @@ Router buildRouter({required Pool db, required AppConfig config}) {
   final unitService = UnitService(db);
   final unitImportService = UnitImportService(db);
   final renovationService = RenovationService(db, config.fileStoragePath);
-  final cadImportService = CadImportService(db, config.fileStoragePath);
+  final cadImportService = CadImportService(
+    db,
+    config.fileStoragePath,
+    splitScriptPath: config.splitScriptPath,
+    pythonExecutable: config.pythonExecutable,
+  );
 
   final buildingController = BuildingController(buildingService);
   final floorController = FloorController(floorService);
