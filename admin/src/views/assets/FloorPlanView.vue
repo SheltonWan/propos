@@ -166,16 +166,16 @@
             drag
             :auto-upload="false"
             :limit="1"
-            accept=".dwg"
+            accept=".svg,.dxf,.SVG,.DXF"
             :file-list="uploadFileList"
             :on-change="onUploadFileChange"
             :on-remove="onUploadFileRemove"
           >
             <el-icon class="upload-icon"><UploadFilled /></el-icon>
-            <div class="upload-text">点击或拖拽上传 .dwg 文件</div>
+            <div class="upload-text">点击或拖拽上传 .svg 或 .dxf 文件</div>
             <template #tip>
               <div class="upload-tip">
-                上传后后端异步转换为 SVG/PNG，转换完成后自动设为当前生效版本
+                上传 SVG 直接生效；上传 DXF 将在后端转换后自动设为当前生效版本
               </div>
             </template>
           </el-upload>

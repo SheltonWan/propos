@@ -69,6 +69,9 @@ class CadImportService {
           'INVALID_CAD_FILE', '只接受 .dxf 格式文件，请先在 CAD 软件中另存为 DXF 后再上传');
     }
 
+    // 校验文件头（magic bytes）：DXF 是纯文本格式，含非打印控制字符则判定为二进制（如 DWG）
+    _validateDxfMagic(fileBytes);
+
     // 创建任务记录（先得到 jobId 才能确定 dxf_path 命名）
     // 用临时 dxf_path 占位，落盘后立即更新
     final repo = CadImportJobRepository(_db);
@@ -311,6 +314,34 @@ class CadImportService {
   /// 拼接相对路径，保持正斜杠分隔（与 DB 中存储格式一致）
   String _joinRel(List<String> parts) =>
       parts.where((e) => e.isNotEmpty).join('/');
+
+  /// 校验 DXF magic bytes：DXF 为纯文本（ASCII/UTF-8），二进制文件（DWG 等）将被拒绝。
+  ///
+  /// 规则：
+  ///   1. 前 512 字节不得含非打印控制字符（允许 TAB/LF/CR）
+  ///   2. 前 512 字节内必须出现 "SECTION" 关键字（DXF 结构标志）
+  void _validateDxfMagic(List<int> bytes) {
+    if (bytes.isEmpty) {
+      throw const ValidationException('INVALID_CAD_FILE', '文件为空');
+    }
+    final header = bytes.length > 512 ? bytes.sublist(0, 512) : bytes;
+    // 允许 TAB(9) LF(10) CR(13)，其余 < 32 的控制字符及 DEL(127) 视为二进制标志
+    final nonPrintCount = header
+        .where((b) =>
+            b < 9 || b == 11 || b == 12 || (b > 13 && b < 32) || b == 127)
+        .length;
+    if (nonPrintCount > 0) {
+      throw const ValidationException(
+          'INVALID_CAD_FILE',
+          'DXF 文件为纯文本格式，检测到二进制内容（请勿上传 DWG 格式，应另存为 DXF 后重新上传）');
+    }
+    // DXF 结构校验：前 512 字节内必须出现 SECTION 关键字
+    final headerStr = String.fromCharCodes(header);
+    if (!headerStr.contains('SECTION')) {
+      throw const ValidationException(
+          'INVALID_CAD_FILE', '文件内容不符合 DXF 格式（缺少 SECTION 结构标记，请确认文件为标准 DXF）');
+    }
+  }
 
   // ─── 辅助：文件名 / 楼层匹配 ─────────────────────────────────────────────
 
