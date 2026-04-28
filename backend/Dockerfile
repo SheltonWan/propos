@@ -34,19 +34,21 @@ RUN dart build cli --target bin/server.dart -o output
 
 # =============================================================================
 # 运行阶段：基于 python:3.12-slim（替换原 scratch 基础镜像）
-# 镜像体积估算 ~205MB（基础 ~130MB + ezdxf/lxml/Pillow ~45MB + DejaVu字体 ~4MB + Dart 运行时 ~25MB）
+# 镜像体积估算 ~210MB（基础 ~130MB + ezdxf/lxml/Pillow ~45MB + DejaVu ~4MB + WQY中文字体 ~5MB + Dart运行时 ~25MB）
 # =============================================================================
 FROM python:3.12-slim
 
 # 升级 base 镜像系统包到最新安全补丁，修复 Debian 基础层的 CVE
-# fonts-dejavu-core 是 ezdxf drawing 渲染器的字体依赖（slim 镜像无字体会报 no default font found）
-# 注：python:3.12-slim 不含 fontconfig，无需 fc-cache
+# fonts-dejavu-core：ezdxf drawing 渲染器的西文字体基线（无此包报 no default font found）
+# fonts-wqy-microhei：文泉驿微米黑，提供 CJK 字形支持（~5MB），解决 DXF 平面图中文乱码/空框
+# 注：python:3.12-slim 不含 fontconfig，无需 fc-cache；ezdxf 直接扫描 /usr/share/fonts 目录
 # 必须与 apt-get update 在同一 RUN 中，并清理 apt 缓存以减小镜像体积
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         fonts-dejavu-core \
+        fonts-wqy-microhei \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
