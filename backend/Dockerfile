@@ -76,6 +76,8 @@ COPY --from=build /app/output/bundle/ /app/
 
 # 切分脚本（Python，由 CadImportService 调用）
 COPY scripts/split_dxf_by_floor.py /app/scripts/split_dxf_by_floor.py
+# 热区标注脚本（Python，由 CadImportService 在切分后调用，注入 unit-hotspots 层）
+COPY scripts/annotate_hotzone.py /app/scripts/annotate_hotzone.py
 
 # 文件存储根目录（与 AppConfig.fileStoragePath 对齐，由 docker run -v 挂载）
 RUN mkdir -p /data/uploads

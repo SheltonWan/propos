@@ -45,12 +45,50 @@
   .theme-blue  { color: #0071e3; background: #ffffff; }
   .theme-green { color: #34c759; background: #ffffff; }
   .theme-mono  { color: #1d1d1f; background: #ffffff; }
+
+  /* 房间热区 — 叠加在 SVG 线稿上（stroke-width 使用 SVG 坐标单位） */
+  .unit-dot {
+    fill: rgba(0, 113, 227, .18);
+    stroke: #0071e3;
+    stroke-width: 3000;
+    cursor: pointer;
+    transition: fill .18s, stroke .18s;
+  }
+  .unit-hotspot:hover .unit-dot {
+    fill: rgba(0, 113, 227, .42);
+    stroke: #0047b3;
+  }
+  /* 按状态着色 */
+  .unit-leased       .unit-dot { fill: rgba(52, 199,  89, .22); stroke: #34c759; }
+  .unit-leased:hover .unit-dot { fill: rgba(52, 199,  89, .45); }
+  .unit-expiring_soon       .unit-dot { fill: rgba(255,149,  0, .22); stroke: #ff9500; }
+  .unit-expiring_soon:hover .unit-dot { fill: rgba(255,149,  0, .45); }
+  .unit-overdue       .unit-dot { fill: rgba(255,  59, 48, .22); stroke: #ff3b30; }
+  .unit-overdue:hover .unit-dot { fill: rgba(255,  59, 48, .45); }
+  .unit-non_leasable       .unit-dot { fill: rgba(142,142,147, .18); stroke: #8e8e93; }
+  .unit-non_leasable:hover .unit-dot { fill: rgba(142,142,147, .38); }
+
+  /* 热区隐藏模式 */
+  #viewport.hotspots-hidden .unit-hotspot { display: none; }
+
+  /* 悬停信息气泡 */
+  #hotspot-tip {
+    position: absolute; pointer-events: none; z-index: 20;
+    background: rgba(29,29,31,.88); backdrop-filter: blur(10px) saturate(180%);
+    -webkit-backdrop-filter: blur(10px) saturate(180%);
+    color: #f5f5f7; border-radius: 10px; padding: 9px 13px;
+    font-size: 12px; line-height: 1.6; white-space: nowrap;
+    display: none; transform: translate(14px, -50%);
+    box-shadow: 0 4px 16px rgba(0,0,0,.3);
+  }
+  #hotspot-tip strong { font-size: 13px; display: block; margin-bottom: 1px; }
+  #hotspot-tip .tip-area { color: #a1a1a6; font-size: 11px; }
 </style>
 </head>
 <body>
 
 <div style="background:#0071e3;color:#fff;padding:6px 16px;font-size:12px;font-family:monospace;">
-  Preview v3-2026-04-24-debug · 看到这条横幅说明加载的是最新 HTML · 当前楼层 ↓ <span id="curName" style="font-weight:bold;">-</span>
+  Preview v4-2026-04-28 · 当前楼层 ↓ <span id="curName" style="font-weight:bold;">-</span>
 </div>
 
 <div class="toolbar">
@@ -67,6 +105,10 @@
     <button data-theme="mono">纯黑</button>
   </div>
   <div class="group">
+    <label>热区:</label>
+    <button id="toggleHotspots" class="active" title="切换房间热区显示">显示</button>
+  </div>
+  <div class="group">
     <label>缩放:</label>
     <button id="zoomOut" title="缩小">−</button>
     <button id="zoomReset" title="100%">100%</button>
@@ -81,10 +123,11 @@
 <div id="stage" class="theme-light">
   <div id="viewport"></div>
   <div id="status" class="status">加载中…</div>
+  <div id="hotspot-tip"></div>
 </div>
 
 <script>
-      const PREVIEW_VERSION = 'v3-2026-04-24-debug';
+      const PREVIEW_VERSION = 'v4-2026-04-28';
       console.log('[preview] script loaded', PREVIEW_VERSION);
 (() => {
   const FLOORS_DIR = 'cad_intermediate/building_a/floors';
@@ -260,6 +303,44 @@
       btn.classList.add('active');
       stage.className = 'theme-' + btn.dataset.theme;
     });
+  });
+
+  // 热区显示 / 隐藏切换
+  const hotspotBtn = document.getElementById('toggleHotspots');
+  hotspotBtn.addEventListener('click', () => {
+    hotspotBtn.classList.toggle('active');
+    const show = hotspotBtn.classList.contains('active');
+    hotspotBtn.textContent = show ? '显示' : '隐藏';
+    viewport.classList.toggle('hotspots-hidden', !show);
+  });
+
+  // 热区悬停气泡
+  const hotspotTip = document.getElementById('hotspot-tip');
+  let tipTarget = null;
+  viewport.addEventListener('mouseover', (e) => {
+    const g = e.target.closest('.unit-hotspot');
+    if (!g || g === tipTarget) return;
+    tipTarget = g;
+    const unitId   = g.dataset.unitId   || '';
+    const roomName = g.dataset.roomName || '';
+    const area     = g.dataset.areaSqm  ? g.dataset.areaSqm + ' m²' : '';
+    hotspotTip.innerHTML =
+      `<strong>${unitId}</strong>` +
+      (roomName ? `${roomName}<br>` : '') +
+      (area ? `<span class="tip-area">${area}</span>` : '');
+    hotspotTip.style.display = 'block';
+  });
+  viewport.addEventListener('mousemove', (e) => {
+    if (!tipTarget) return;
+    const rect = stage.getBoundingClientRect();
+    hotspotTip.style.left = (e.clientX - rect.left) + 'px';
+    hotspotTip.style.top  = (e.clientY - rect.top)  + 'px';
+  });
+  viewport.addEventListener('mouseout', (e) => {
+    if (e.target.closest('.unit-hotspot') && !e.relatedTarget?.closest('.unit-hotspot')) {
+      tipTarget = null;
+      hotspotTip.style.display = 'none';
+    }
   });
 
   // 楼层切换（同时监听 change/input 以兼容不同浏览器行为）

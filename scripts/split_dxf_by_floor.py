@@ -332,6 +332,7 @@ def _inject_hotzone_spec(
     svg_string: str,
     building_id: str,
     floor_label: str,
+    actual_bb=None,
 ) -> Tuple[str, dict]:
     """后处理 ezdxf SVG 输出，使其符合 SVG_HOTZONE_SPEC v1.0。
 
@@ -440,12 +441,22 @@ def _inject_hotzone_spec(
         pretty_print=True,
     ).decode("utf-8")
 
+    # 存储楼层 DXF 实际包围盒，供 annotate_hotzone.py 做坐标变换用
+    dxf_region = None
+    if actual_bb is not None and actual_bb.has_data:
+        dxf_region = {
+            "min_x": float(actual_bb.extmin.x),
+            "min_y": float(actual_bb.extmin.y),
+            "max_x": float(actual_bb.extmax.x),
+            "max_y": float(actual_bb.extmax.y),
+        }
     skeleton = {
         "floor_id": None,  # 待绑定数据库 floor_id UUID
         "building_id": building_id,
         "floor_label": floor_label,
         "svg_version": None,  # 上传时由后端填充
         "viewport": {"width": vb_w, "height": vb_h},
+        "dxf_region": dxf_region,
         "units": [],
     }
     return processed, skeleton
@@ -669,6 +680,7 @@ def render_region_to_svg(
         svg_string,
         building_id=building_id,
         floor_label=label,
+        actual_bb=actual_bb,
     )
 
     out = Path(output_path)

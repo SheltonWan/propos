@@ -31,6 +31,8 @@ class CadImportService {
   final String _fileStoragePath;
   /// 切分脚本绝对路径，由部署环境注入（容器内默认 /app/scripts/split_dxf_by_floor.py）
   final String _splitScriptPath;
+  /// 热区标注脚本绝对路径，由部署环境注入（容器内默认 /app/scripts/annotate_hotzone.py）
+  final String _annotateScriptPath;
   /// Python 解释器路径，默认 python3
   final String _pythonExecutable;
 
@@ -38,9 +40,12 @@ class CadImportService {
     this._db,
     this._fileStoragePath, {
     String? splitScriptPath,
+    String? annotateScriptPath,
     String? pythonExecutable,
   })  : _splitScriptPath =
             splitScriptPath ?? '/app/scripts/split_dxf_by_floor.py',
+        _annotateScriptPath =
+            annotateScriptPath ?? '/app/scripts/annotate_hotzone.py',
         _pythonExecutable = pythonExecutable ?? 'python3';
 
   // ─── 公开 API ──────────────────────────────────────────────────────────
@@ -210,6 +215,27 @@ class CadImportService {
               'split_dxf 退出码 ${result.exitCode}: ${_truncate(result.stderr.toString())}',
         );
         return;
+      }
+
+      // 热区标注：在切分输出目录运行 annotate_hotzone.py
+      // 失败时仅记录警告，不阻断主流程（SVG 不带热区也可用）
+      if (await File(_annotateScriptPath).exists()) {
+        final annotateResult = await Process.run(
+          _pythonExecutable,
+          [
+            _annotateScriptPath,
+            dxfAbs,
+            outAbs,
+            '--prefix',
+            job.prefix,
+          ],
+          runInShell: false,
+        ).timeout(const Duration(minutes: 3));
+        if (annotateResult.exitCode != 0) {
+          // 标注失败不阻断切分结果处理，仅记录日志
+          print('[CadImportService] 热区标注警告 (jobId=$jobId): '
+              '${_truncate(annotateResult.stderr.toString())}');
+        }
       }
 
       // 扫描输出 SVG 并尝试匹配

@@ -102,6 +102,7 @@ Router buildRouter({required Pool db, required AppConfig config}) {
     db,
     config.fileStoragePath,
     splitScriptPath: config.splitScriptPath,
+    annotateScriptPath: config.annotateScriptPath,
     pythonExecutable: config.pythonExecutable,
   );
 

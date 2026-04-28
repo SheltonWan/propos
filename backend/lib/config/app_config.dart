@@ -38,6 +38,10 @@ class AppConfig {
   /// 本地开发须在 .env 中设置 SPLIT_SCRIPT_PATH 指向项目内脚本
   final String splitScriptPath;
 
+  /// 热区标注脚本绝对路径（可选，缺省使用容器内路径）
+  /// 本地开发须在 .env 中设置 ANNOTATE_SCRIPT_PATH 指向项目内脚本
+  final String annotateScriptPath;
+
   /// Python 解释器路径（可选，默认 python3）
   final String pythonExecutable;
 
@@ -60,6 +64,7 @@ class AppConfig {
     required this.dbSslMode,
     required this.allowTestEndpoints,
     required this.splitScriptPath,
+    required this.annotateScriptPath,
     required this.pythonExecutable,
   });
 
@@ -132,9 +137,11 @@ class AppConfig {
       // 测试辅助端点开关：仅接受显式 'true'，其他任何值均视为 false
       allowTestEndpoints: lookup('ALLOW_TEST_ENDPOINTS')?.toLowerCase() == 'true',
 
-      // DXF 切分配置（可选，本地开发通过 .env 覆盖）
+      // DXF 切分与热区标注配置（可选，本地开发通过 .env 覆盖）
       splitScriptPath:
           lookup('SPLIT_SCRIPT_PATH') ?? '/app/scripts/split_dxf_by_floor.py',
+      annotateScriptPath:
+          lookup('ANNOTATE_SCRIPT_PATH') ?? '/app/scripts/annotate_hotzone.py',
       pythonExecutable: lookup('PYTHON_EXECUTABLE') ?? 'python3',
 
     );
