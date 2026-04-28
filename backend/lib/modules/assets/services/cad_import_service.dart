@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -258,12 +259,21 @@ class CadImportService {
 
         // 已匹配：复制 SVG 到每个楼层正式路径并创建 floor_plan
         final svgBytes = await svg.readAsBytes();
+        // 查找同名 .json 骨架文件（Python 脚本生成的元数据）
+        final jsonSibling = File('${p.withoutExtension(svg.path)}.json');
+        final hasJson = await jsonSibling.exists();
+        // 版本标签含导入时间，方便在版本历史中区分多次重复导入
+        final ts = job.createdAt.toLocal();
+        final tsStr =
+            '${ts.year}-${ts.month.toString().padLeft(2, '0')}-${ts.day.toString().padLeft(2, '0')} '
+            '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}';
         for (final floor in targets) {
           await _writeAndAttach(
             floor: floor,
             svgBytes: svgBytes,
-            versionLabel: '自动导入 - $label',
+            versionLabel: '自动导入 - $label ($tsStr)',
             uploadedBy: job.createdBy,
+            jsonSiblingFile: hasJson ? jsonSibling : null,
           );
           matched++;
         }
@@ -407,12 +417,14 @@ class CadImportService {
 
   // ─── 辅助：写入 floor_plan ────────────────────────────────────────────
 
-  /// 已知 SVG 内容字节流，写入楼层正式路径并创建 floor_plan 记录（设为 current）
+  /// 已知 SVG 内容字节流，写入楼层正式路径并创建 floor_plan 记录（设为 current）。
+  /// 若提供 [jsonSiblingFile]，匹配成功后回写 floor_id / building_id / svg_version。
   Future<void> _writeAndAttach({
     required Floor floor,
     required List<int> svgBytes,
     required String versionLabel,
     String? uploadedBy,
+    File? jsonSiblingFile,
   }) async {
     final svgRel = _joinRel(['floors', floor.buildingId, '${floor.id}.svg']);
     final svgAbs = _resolveSafe(svgRel);
@@ -428,6 +440,24 @@ class CadImportService {
       uploadedBy: uploadedBy,
     );
     await repo.setCurrentPlan(plan.id);
+
+    // 回写 JSON 骨架：填入真实 floor_id / building_id / svg_version
+    if (jsonSiblingFile != null) {
+      try {
+        final raw = await jsonSiblingFile.readAsString();
+        final meta = jsonDecode(raw) as Map<String, dynamic>;
+        meta['floor_id'] = floor.id;
+        meta['building_id'] = floor.buildingId;
+        meta['svg_version'] = plan.id;
+        final jsonRel = _joinRel(['floors', floor.buildingId, '${floor.id}.json']);
+        final jsonAbs = _resolveSafe(jsonRel);
+        await File(jsonAbs).writeAsString(
+          const JsonEncoder.withIndent('  ').convert(meta),
+        );
+      } catch (_) {
+        // JSON 回写失败不阻断主流程
+      }
+    }
   }
 
   /// 给定临时路径下的 SVG，复制到楼层正式路径并创建 floor_plan
