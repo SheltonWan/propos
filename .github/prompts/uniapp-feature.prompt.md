@@ -62,7 +62,7 @@ app/src/api/index.ts         ← 桶导出新 api module
 /** <实体> 列表项 */
 export interface Xxx {
   id: string
-  // 字段名 camelCase，与 API_CONTRACT 一致
+  // 字段名遵循 API_CONTRACT_v1.7.md 实际命名（PropOS 后端使用 snake_case）
   // 证件号 / 手机号字段添加注释：// 脱敏：仅返回后 4 位
 }
 

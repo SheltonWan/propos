@@ -20,6 +20,11 @@ import {
 } from '@/api/modules/assets'
 import { ApiError } from '@/types/api'
 
+// ── 错误兜底文案统一管理 ────────────────────────────────────────────────────
+function pickErrorMessage(e: unknown, fallback: string): string {
+  return e instanceof ApiError ? e.message : fallback
+}
+
 const LARGE_PAGE_SIZE = 1000
 
 /** 从单元集合聚合楼栋出租率（前端聚合，不依赖后端） */
@@ -46,8 +51,11 @@ function aggregateOccupancy(units: Unit[]): Record<string, BuildingOccupancy> {
 // ─── Store 1：楼栋总览（资产首页） ─────────────────────────────────────────
 
 export const useAssetOverviewStore = defineStore('assetOverview', () => {
-  // State
+  // State（固定字段：list / item / loading / error / meta；
+  //   item / meta 在本场景无意义，以 null 占位以满足规范第 5 条。）
   const list = ref<Building[]>([])
+  const item = ref<Building | null>(null)
+  const meta = ref<PaginationMeta | null>(null)
   const buildingOccupancy = ref<Record<string, BuildingOccupancy>>({})
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -75,7 +83,7 @@ export const useAssetOverviewStore = defineStore('assetOverview', () => {
       list.value = buildings
       buildingOccupancy.value = aggregateOccupancy(unitsRes.data)
     } catch (e) {
-      error.value = e instanceof ApiError ? e.message : '资产数据加载失败'
+      error.value = pickErrorMessage(e, '资产数据加载失败')
     } finally {
       loading.value = false
     }
@@ -83,6 +91,8 @@ export const useAssetOverviewStore = defineStore('assetOverview', () => {
 
   return {
     list,
+    item,
+    meta,
     buildingOccupancy,
     loading,
     error,
@@ -96,8 +106,10 @@ export const useAssetOverviewStore = defineStore('assetOverview', () => {
 // ─── Store 2：楼栋详情 + 楼层列表 ──────────────────────────────────────────
 
 export const useBuildingDetailStore = defineStore('buildingDetail', () => {
+  // 固定字段：list（楼层列表，作为楼栋的子资源）/ item（楼栋）/ meta（无分页占位）
+  const list = ref<Floor[]>([])
   const item = ref<Building | null>(null)
-  const floors = ref<Floor[]>([])
+  const meta = ref<PaginationMeta | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -110,26 +122,49 @@ export const useBuildingDetailStore = defineStore('buildingDetail', () => {
         fetchFloors(buildingId),
       ])
       item.value = b
-      floors.value = fls.sort((a, c) => c.floor_number - a.floor_number)
+      list.value = fls.sort((a, c) => c.floor_number - a.floor_number)
     } catch (e) {
-      error.value = e instanceof ApiError ? e.message : '楼栋数据加载失败'
+      error.value = pickErrorMessage(e, '楼栋数据加载失败')
     } finally {
       loading.value = false
     }
   }
 
-  return { item, floors, loading, error, fetchDetail }
+  return { list, item, meta, loading, error, fetchDetail }
 })
 
-// ─── Store 3：楼层热区图 ──────────────────────────────────────────────────
+// ─── Store 3：楼层热区图（含楼层切换标签栏） ───────────────────────────────
 
 export const useFloorMapStore = defineStore('floorMap', () => {
+  // 固定字段：list（同一楼栋下的楼层标签）/ item（当前楼层）/ meta（占位）
+  const list = ref<Floor[]>([])
   const item = ref<Floor | null>(null)
+  const meta = ref<PaginationMeta | null>(null)
   const heatmap = ref<FloorHeatmap | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const buildingId = ref<string | null>(null)
 
-  async function fetchDetail(floorId: string): Promise<void> {
+  /** 加载楼栋下的全部楼层（用于楼层切换标签），并默认选中首个 */
+  async function loadByBuilding(bid: string): Promise<void> {
+    loading.value = true
+    error.value = null
+    buildingId.value = bid
+    try {
+      const fls = await fetchFloors(bid)
+      list.value = [...fls].sort((a, b) => b.floor_number - a.floor_number)
+      if (list.value.length > 0) {
+        await selectFloor(list.value[0].id)
+      }
+    } catch (e) {
+      error.value = pickErrorMessage(e, '楼层列表加载失败')
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** 切换到指定楼层（拉取楼层详情 + 热区） */
+  async function selectFloor(floorId: string): Promise<void> {
     loading.value = true
     error.value = null
     try {
@@ -139,20 +174,46 @@ export const useFloorMapStore = defineStore('floorMap', () => {
       ])
       item.value = floor
       heatmap.value = heatmapData
+      // 若标签栏未加载（直链进入），同步拉取所属楼栋的楼层列表
+      if (list.value.length === 0 && floor.building_id) {
+        buildingId.value = floor.building_id
+        const fls = await fetchFloors(floor.building_id)
+        list.value = [...fls].sort((a, b) => b.floor_number - a.floor_number)
+      }
     } catch (e) {
-      error.value = e instanceof ApiError ? e.message : '楼层数据加载失败'
+      error.value = pickErrorMessage(e, '楼层数据加载失败')
     } finally {
       loading.value = false
     }
   }
 
-  return { item, heatmap, loading, error, fetchDetail }
+  function reset(): void {
+    list.value = []
+    item.value = null
+    heatmap.value = null
+    error.value = null
+    buildingId.value = null
+  }
+
+  return {
+    list,
+    item,
+    meta,
+    heatmap,
+    loading,
+    error,
+    buildingId,
+    loadByBuilding,
+    selectFloor,
+    reset,
+  }
 })
 
 // ─── Store 4：房源列表（带分页与筛选） ────────────────────────────────────
 
 export const useUnitListStore = defineStore('unitList', () => {
   const list = ref<Unit[]>([])
+  const item = ref<Unit | null>(null)
   const meta = ref<PaginationMeta | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -167,7 +228,7 @@ export const useUnitListStore = defineStore('unitList', () => {
       list.value = res.data
       meta.value = res.meta
     } catch (e) {
-      error.value = e instanceof ApiError ? e.message : '房源列表加载失败'
+      error.value = pickErrorMessage(e, '房源列表加载失败')
     } finally {
       loading.value = false
     }
@@ -175,18 +236,22 @@ export const useUnitListStore = defineStore('unitList', () => {
 
   function reset(): void {
     list.value = []
+    item.value = null
     meta.value = null
     error.value = null
     currentParams.value = {}
   }
 
-  return { list, meta, loading, error, currentParams, fetchList, reset }
+  return { list, item, meta, loading, error, currentParams, fetchList, reset }
 })
 
 // ─── Store 5：房源详情 ────────────────────────────────────────────────────
 
 export const useUnitDetailStore = defineStore('unitDetail', () => {
+  // 固定字段：list / meta 在详情场景无意义，以空数组 / null 占位
+  const list = ref<Unit[]>([])
   const item = ref<Unit | null>(null)
+  const meta = ref<PaginationMeta | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -196,11 +261,11 @@ export const useUnitDetailStore = defineStore('unitDetail', () => {
     try {
       item.value = await fetchUnit(unitId)
     } catch (e) {
-      error.value = e instanceof ApiError ? e.message : '房源详情加载失败'
+      error.value = pickErrorMessage(e, '房源详情加载失败')
     } finally {
       loading.value = false
     }
   }
 
-  return { item, loading, error, fetchDetail }
+  return { list, item, meta, loading, error, fetchDetail }
 })
