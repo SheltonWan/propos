@@ -44,8 +44,9 @@ import 'package:propos_backend/modules/files/controllers/file_controller.dart';
 Router buildRouter({required Pool db, required AppConfig config}) {
   final router = Router();
 
-  // 健康检查
+  // 健康检查（同时暴露根路径与 /api 前缀，便于反向代理只透传 /api 时也可用）
   router.get('/health', _health);
+  router.get('/api/health', _health);
 
   // ── 认证模块 ──────────────────────────────────────────────────────────────
   final otpRepo = PasswordResetOtpRepository(db);
