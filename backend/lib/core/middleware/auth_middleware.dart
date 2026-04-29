@@ -20,6 +20,7 @@ Middleware authMiddleware(String jwtSecret, Pool db) {
       // /api/auth/me、/api/auth/logout、/api/auth/change-password 均需 JWT 验证。
       final path = request.url.path;
       if (path == 'health' ||
+          path == 'api/health' ||
           path == 'api/auth/login' ||
           path == 'api/auth/refresh' ||
           path == 'api/auth/forgot-password' ||

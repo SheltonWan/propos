@@ -195,6 +195,12 @@ export const useBuildingDetailStore = defineStore('buildingDetail', () => {
   })
 
   async function fetchDetail(buildingId: string): Promise<void> {
+    // 运行时防护：检测调用方意外传入对象（如 Building 整体或 Ref<Building>）而非 UUID 字符串
+    if (typeof buildingId !== 'string' || !buildingId) {
+      console.error('[useBuildingDetailStore] fetchDetail 收到非字符串 buildingId:', buildingId)
+      error.value = '楼栋 ID 无效，请刷新页面重试'
+      return
+    }
     loading.value = true
     error.value = null
     try {

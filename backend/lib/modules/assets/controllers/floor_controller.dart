@@ -37,11 +37,22 @@ class FloorController {
     return r;
   }
 
+  // UUID 格式正则（防止非法值直接传入 PostgreSQL::UUID 转换）
+  static final _uuidRegex = RegExp(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    caseSensitive: false,
+  );
+
   // ─── Handlers ────────────────────────────────────────────────────────────
 
   /// GET /api/floors?building_id=xxx
   Future<Response> _list(Request request) async {
     final buildingId = request.url.queryParameters['building_id'];
+    // 若提供了 building_id，必须符合 UUID 格式，防止非法值到达 PostgreSQL 层
+    if (buildingId != null && !_uuidRegex.hasMatch(buildingId)) {
+      throw const ValidationException(
+          'VALIDATION_ERROR', 'building_id 必须是合法的 UUID 格式');
+    }
     final floors = await _service.listFloors(buildingId: buildingId);
     return _jsonResponse(200, {
       'data': floors.map((f) => f.toJson()).toList(),

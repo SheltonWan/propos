@@ -55,16 +55,16 @@ SVG 文件头部必须包含以下样式块，颜色值对应 Material 3 Theme T
 
   <!-- 单元热区层（覆盖在底图之上） -->
   <g id="unit-hotspots">
-    <rect data-unit-id="c0000000-0000-0000-0000-000000000001"
+    <rect data-unit-id="c0000000-0000-4000-8000-000000000001"
           data-unit-number="101"
           class="unit-leased"
           x="120" y="50" width="200" height="150" />
-    <polygon data-unit-id="c0000000-0000-0000-0000-000000000002"
+    <polygon data-unit-id="c0000000-0000-4000-8000-000000000002"
              data-unit-number="102"
              class="unit-leased"
              points="330,50 530,50 530,200 330,200" />
     <!-- 非规则形状用 path -->
-    <path data-unit-id="c0000000-0000-0000-0000-000000000003"
+    <path data-unit-id="c0000000-0000-4000-8000-000000000003"
           data-unit-number="103"
           class="unit-vacant"
           d="M 540,50 L 740,50 L 740,250 L 640,250 L 640,150 L 540,150 Z" />
@@ -95,8 +95,8 @@ floors/{building_id}/{floor_id}.json     ← 映射文件
 
 ```json
 {
-  "floor_id": "b0000000-0000-0000-0000-000000000001",
-  "building_id": "a0000000-0000-0000-0000-000000000001",
+  "floor_id": "b0000000-0000-4000-8000-000000000001",
+  "building_id": "a0000000-0000-4000-8000-000000000001",
   "svg_version": "2026-04-08",
   "viewport": {
     "width": 1200,
@@ -104,21 +104,21 @@ floors/{building_id}/{floor_id}.json     ← 映射文件
   },
   "units": [
     {
-      "unit_id": "c0000000-0000-0000-0000-000000000001",
+      "unit_id": "c0000000-0000-4000-8000-000000000001",
       "unit_number": "101",
       "shape": "rect",
       "bounds": { "x": 120, "y": 50, "width": 200, "height": 150 },
       "label_position": { "x": 220, "y": 125 }
     },
     {
-      "unit_id": "c0000000-0000-0000-0000-000000000002",
+      "unit_id": "c0000000-0000-4000-8000-000000000002",
       "unit_number": "102",
       "shape": "polygon",
       "points": [[330,50], [530,50], [530,200], [330,200]],
       "label_position": { "x": 430, "y": 125 }
     },
     {
-      "unit_id": "c0000000-0000-0000-0000-000000000003",
+      "unit_id": "c0000000-0000-4000-8000-000000000003",
       "unit_number": "103",
       "shape": "path",
       "path_d": "M 540,50 L 740,50 L 740,250 L 640,250 L 640,150 L 540,150 Z",

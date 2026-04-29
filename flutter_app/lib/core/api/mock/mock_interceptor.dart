@@ -161,7 +161,7 @@ class MockInterceptor extends Interceptor {
 
   Map<String, dynamic> _mockCurrentUser() => {
         'data': {
-          'id': '00000000-0000-0000-0000-000000000001',
+          'id': '00000000-0000-4000-8000-000000000001',
           'name': '测试管理员',
           'email': 'admin@propos.dev',
           'role': 'super_admin',
@@ -203,7 +203,7 @@ class MockInterceptor extends Interceptor {
       };
 
   Map<String, dynamic> _mockUserBrief() => {
-        'id': '00000000-0000-0000-0000-000000000001',
+        'id': '00000000-0000-4000-8000-000000000001',
         'name': '测试管理员',
         'email': 'admin@propos.dev',
         'role': 'super_admin',

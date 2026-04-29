@@ -94,6 +94,13 @@
       }
     },
     {
+      "path": "pages/assets/floors",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "楼层索引"
+      }
+    },
+    {
       "path": "pages/assets/floor-plan",
       "style": {
         "navigationStyle": "custom",

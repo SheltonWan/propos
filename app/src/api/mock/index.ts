@@ -1,11 +1,13 @@
 import type { MockHandler, MockMethod } from './types'
 import { ApiError } from '@/types/api'
+import { assetsMocks } from './assets'
 import { authMocks } from './auth'
 
 // ─── 注册表：所有模块的 mock handlers 汇总于此 ────────────────────────────
 // 新增业务模块时，只需：1) 创建 mock/xxx.ts  2) 在此 spread 进 handlers
 const handlers: MockHandler[] = [
   ...authMocks,
+  ...assetsMocks,
 ]
 
 function sleep(ms: number): Promise<void> {

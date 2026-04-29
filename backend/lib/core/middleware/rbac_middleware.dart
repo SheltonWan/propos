@@ -404,6 +404,7 @@ const Map<String, Map<String, Set<String>>> _routePermissionMatrix = {
 // ---------------------------------------------------------------------------
 const _publicPaths = {
   '/health',
+  '/api/health',
   '/api/auth/login',
   '/api/auth/refresh',
   '/api/auth/forgot-password',
