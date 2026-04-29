@@ -2,8 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Scaffold;
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/assets/presentation/bloc/asset_overview_cubit.dart';
+import '../../features/assets/presentation/bloc/building_detail_cubit.dart';
+import '../../features/assets/presentation/bloc/floor_map_cubit.dart';
+import '../../features/assets/presentation/bloc/unit_detail_cubit.dart';
+import '../../features/assets/presentation/pages/assets_page.dart';
+import '../../features/assets/presentation/pages/building_detail_page.dart';
+import '../../features/assets/presentation/pages/floor_plan_page.dart';
+import '../../features/assets/presentation/pages/unit_detail_page.dart';
 import '../../features/auth/presentation/bloc/auth_cubit.dart';
 import '../../features/auth/presentation/bloc/auth_state.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
@@ -74,8 +83,51 @@ GoRouter buildAppRouter() => GoRouter(
               routes: [
                 GoRoute(
                   path: RoutePaths.assets,
-                  builder: (_, _) =>
-                      const _PlaceholderPage(title: '资产'),
+                  builder: (_, _) => BlocProvider(
+                    create: (_) => getIt<AssetOverviewCubit>(),
+                    child: const AssetsPage(),
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'buildings/:id',
+                      pageBuilder: (ctx, state) => CupertinoPage(
+                        key: state.pageKey,
+                        child: BlocProvider(
+                          create: (_) => getIt<BuildingDetailCubit>(),
+                          child: BuildingDetailPage(
+                            buildingId: state.pathParameters['id']!,
+                          ),
+                        ),
+                      ),
+                      routes: [
+                        GoRoute(
+                          path: 'floors/:fid',
+                          pageBuilder: (ctx, state) => CupertinoPage(
+                            key: state.pageKey,
+                            child: BlocProvider(
+                              create: (_) => getIt<FloorMapCubit>(),
+                              child: FloorPlanPage(
+                                buildingId: state.pathParameters['id']!,
+                                floorId: state.pathParameters['fid']!,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    GoRoute(
+                      path: 'units/:uid',
+                      pageBuilder: (ctx, state) => CupertinoPage(
+                        key: state.pageKey,
+                        child: BlocProvider(
+                          create: (_) => getIt<UnitDetailCubit>(),
+                          child: UnitDetailPage(
+                            unitId: state.pathParameters['uid']!,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

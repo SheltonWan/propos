@@ -7,6 +7,12 @@ import '../api/api_client.dart';
 import '../api/mock/mock_interceptor.dart';
 import '../config/app_config.dart';
 import '../logging/app_logger.dart';
+import '../../features/assets/data/repositories/assets_repository_impl.dart';
+import '../../features/assets/domain/repositories/assets_repository.dart';
+import '../../features/assets/presentation/bloc/asset_overview_cubit.dart';
+import '../../features/assets/presentation/bloc/building_detail_cubit.dart';
+import '../../features/assets/presentation/bloc/floor_map_cubit.dart';
+import '../../features/assets/presentation/bloc/unit_detail_cubit.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/auth/presentation/bloc/auth_cubit.dart';
@@ -62,11 +68,27 @@ void configureDependencies() {
   getIt.registerLazySingleton<AuthRepository>(
     () => AuthRepositoryImpl(getIt<ApiClient>(), getIt<FlutterSecureStorage>()),
   );
+  getIt.registerLazySingleton<AssetsRepository>(
+    () => AssetsRepositoryImpl(getIt<ApiClient>()),
+  );
 
   // ── Cubits / BLoCs ──
   // AuthCubit must be a singleton — shared by BlocProvider and router auth guard.
   getIt.registerLazySingleton<AuthCubit>(
     () => AuthCubit(getIt<AuthRepository>()),
+  );
+  // Assets Cubits: registerFactory（每次导航创建新实例，避免状态残留）
+  getIt.registerFactory<AssetOverviewCubit>(
+    () => AssetOverviewCubit(getIt<AssetsRepository>()),
+  );
+  getIt.registerFactory<BuildingDetailCubit>(
+    () => BuildingDetailCubit(getIt<AssetsRepository>()),
+  );
+  getIt.registerFactory<FloorMapCubit>(
+    () => FloorMapCubit(getIt<AssetsRepository>()),
+  );
+  getIt.registerFactory<UnitDetailCubit>(
+    () => UnitDetailCubit(getIt<AssetsRepository>()),
   );
 }
 
