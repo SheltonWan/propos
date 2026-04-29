@@ -116,6 +116,19 @@ console.log('H5 only')
 - wot-design-uni 组件状态通过 `type` prop 传递：`success / warning / error / info`
 - app 目录已提供强制校验：提交前运行 `pnpm lint:theme`，页面/业务组件内出现十六进制颜色、数值 `rgba(...)`、硬编码 `font-family`、组件 `color` 字面量会直接失败；主题定义仅允许放在 `src/constants/theme.ts`、`src/styles/tokens.scss` 与 `src/uni.scss`
 
+### 深色背景 token 选用规则（易混淆，必须遵守）
+
+项目中存在两个外观相似但语义不同的深色背景 token，**选错会导致切换主题时卡片背景与品牌色脱节**（如 Apple Blue 主题下呈近纯黑而非深海蓝）：
+
+| Token | SCSS 变量 | 使用场景 |
+|-------|-----------|---------|
+| `--color-card-dark` | `$color-card-dark` | **品牌深色面板**：Dashboard Header、资产总览卡、任何使用 `AppCard variant="dark"` 的大卡片。该值在 Apple Blue 主题下为 `#001d3d`（深海蓝），随主题正确变色 |
+| `--color-background-dark` | `$color-background-dark` | **系统级深色底层**：dark 模式下的页面基础背景层、`PageHeader` 非品牌变体的背景。Apple Blue 主题下为 `#1c1c1e`（近纯黑） |
+
+**判断口诀**：写的是"有品牌感的深色卡片/面板" → 用 `$color-card-dark`；写的是"系统级深色底色/暗模式底层" → 用 `$color-background-dark`。
+
+`AppCard variant="dark"` 的 `.app-card--dark` 规则**必须**使用 `$color-card-dark`，禁止使用 `$color-background-dark`。
+
 ## 常量规则
 
 | 类型 | 文件 |
