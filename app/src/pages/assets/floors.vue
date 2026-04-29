@@ -142,9 +142,10 @@ function formatGfa(value: number): string {
   return (value / 10000).toFixed(1)
 }
 
-function formatNla(value: number): string {
-  if (value >= 10000) return `${(value / 10000).toFixed(1)}万`
-  return value.toLocaleString()
+function formatNla(value: number | null | undefined): string {
+  const v = value ?? 0
+  if (v >= 10000) return `${(v / 10000).toFixed(1)}万`
+  return v.toLocaleString()
 }
 
 function onFloorTap(floorId: string) {

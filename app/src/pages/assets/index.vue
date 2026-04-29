@@ -106,7 +106,7 @@
           :key="building.id"
           :building="building"
           :occupancy="occupancyOf(building.id)"
-          @tap="onBuildingTap"
+          @select="onBuildingTap"
         />
         <!-- 空结果提示 -->
         <view v-if="filteredBuildings.length === 0" class="assets__empty">
