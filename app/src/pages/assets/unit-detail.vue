@@ -220,7 +220,8 @@ onLoad((options) => {
 
 <style lang="scss" scoped>
 .unit-detail {
-  padding: $space-page-y $space-page-x;
+  // 水平 padding 由 AppShell contentInset="default" 统一提供，此处只设垂直方向
+  padding-top: $space-page-y;
   display: flex;
   flex-direction: column;
   gap: $space-gap-md;
