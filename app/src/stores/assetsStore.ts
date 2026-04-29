@@ -1,7 +1,7 @@
 import type { PaginationMeta } from '@/types/api'
 import type {
+  AssetOverview,
   Building,
-  BuildingOccupancy,
   Floor,
   FloorHeatmap,
   PropertyType,
@@ -9,11 +9,13 @@ import type {
   UnitListParams,
 } from '@/types/assets'
 
-/** 单一业态聚合统计（用于首页类型对比卡片） */
+/** 前端 typeStats 展示用结构（gfa 字段实为 total_nla，单位 m²） */
 export interface PropertyTypeStats {
+  /** 可租面积 m²（对应后端 total_nla） */
   gfa: number
   units: number
   vacant: number
+  /** 空置率 0~100 整数百分比 */
   vacancyRate: number
 }
 import { defineStore } from 'pinia'
@@ -24,6 +26,7 @@ import {
   fetchFloor,
   fetchFloorHeatmap,
   fetchFloors,
+  fetchOverview,
   fetchUnit,
   fetchUnits,
 } from '@/api/modules/assets'
@@ -34,77 +37,58 @@ function pickErrorMessage(e: unknown, fallback: string): string {
   return e instanceof ApiError ? e.message : fallback
 }
 
-const LARGE_PAGE_SIZE = 1000
-
-/** 从单元集合聚合楼栋出租率（前端聚合，不依赖后端） */
-function aggregateOccupancy(units: Unit[]): Record<string, BuildingOccupancy> {
-  const grouped: Record<string, BuildingOccupancy> = {}
-  for (const u of units) {
-    if (u.current_status === 'non_leasable') continue
-    const g = grouped[u.building_id] ?? { total: 0, leased: 0, vacant: 0, rate: 0 }
-    g.total += 1
-    if (u.current_status === 'leased' || u.current_status === 'expiring_soon' || u.current_status === 'pre_lease') {
-      g.leased += 1
-    } else {
-      g.vacant += 1
-    }
-    grouped[u.building_id] = g
-  }
-  for (const k of Object.keys(grouped)) {
-    const g = grouped[k]
-    g.rate = g.total > 0 ? g.leased / g.total : 0
-  }
-  return grouped
-}
-
 // ─── Store 1：楼栋总览（资产首页） ─────────────────────────────────────────
 
 export const useAssetOverviewStore = defineStore('assetOverview', () => {
-  // State（固定字段：list / item / loading / error / meta；
-  //   item / meta 在本场景无意义，以 null 占位以满足规范第 5 条。）
+  // State（固定字段：list / item / loading / error / meta）
   const list = ref<Building[]>([])
   const item = ref<Building | null>(null)
   const meta = ref<PaginationMeta | null>(null)
-  const buildingOccupancy = ref<Record<string, BuildingOccupancy>>({})
+  const overview = ref<AssetOverview | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Getters
-  const totalUnits = computed(() =>
-    Object.values(buildingOccupancy.value).reduce((acc, g) => acc + g.total, 0),
-  )
+  // Getters — 全部从后端 overview 数据派生，不在前端重算业务指标
+
+  /** 总套数（含非可租） */
+  const totalUnits = computed(() => overview.value?.total_units ?? 0)
+
+  /** 已租套数（leased + expiring_soon，口径与后端 PropertyTypeStats 一致） */
   const totalLeased = computed(() =>
-    Object.values(buildingOccupancy.value).reduce((acc, g) => acc + g.leased, 0),
+    overview.value?.by_property_type.reduce((s, t) => s + t.leased_units, 0) ?? 0,
   )
-  const overallRate = computed(() =>
-    totalUnits.value > 0 ? totalLeased.value / totalUnits.value : 0,
-  )
-  /** 管理总面积（建筑面积求和，㎡） */
-  const totalGfa = computed(() => list.value.reduce((s, b) => s + b.gfa, 0))
+
   /** 空置套数 */
-  const totalVacant = computed(() => totalUnits.value - totalLeased.value)
+  const totalVacant = computed(() =>
+    overview.value?.by_property_type.reduce((s, t) => s + t.vacant_units, 0) ?? 0,
+  )
+
+  /** 总体出租率 0~1 */
+  const overallRate = computed(() => overview.value?.total_occupancy_rate ?? 0)
+
+  /** 管理总面积（楼栋 GFA 求和，㎡） */
+  const totalGfa = computed(() => list.value.reduce((s, b) => s + b.gfa, 0))
+
   /** 楼栋总数 */
   const buildingCount = computed(() => list.value.length)
-  /** 按业态聚合的统计（写字楼 / 商铺 / 公寓） */
+
+  /** 按业态聚合的展示统计（写字楼 / 商铺 / 公寓） */
   const typeStats = computed<Record<string, PropertyTypeStats>>(() => {
     const result: Record<string, PropertyTypeStats> = {
       office: { gfa: 0, units: 0, vacant: 0, vacancyRate: 0 },
       retail: { gfa: 0, units: 0, vacant: 0, vacancyRate: 0 },
       apartment: { gfa: 0, units: 0, vacant: 0, vacancyRate: 0 },
     }
-    for (const b of list.value) {
-      const t = b.property_type as PropertyType
-      if (!result[t]) continue
-      result[t].gfa += b.gfa
-      const occ = buildingOccupancy.value[b.id]
-      if (occ) {
-        result[t].units += occ.total
-        result[t].vacant += occ.vacant
-      }
-    }
-    for (const t of Object.keys(result)) {
-      const ts = result[t]
-      ts.vacancyRate = ts.units > 0 ? Math.round((ts.vacant / ts.units) * 100) : 0
+    for (const t of overview.value?.by_property_type ?? []) {
+      const key = t.property_type as PropertyType
+      if (!result[key])
+        continue
+      result[key].gfa = t.total_nla
+      result[key].units = t.total_units
+      result[key].vacant = t.vacant_units
+      result[key].vacancyRate = t.total_units > 0
+        ? Math.round((t.vacant_units / t.total_units) * 100)
+        : 0
     }
     return result
   })
@@ -114,12 +98,10 @@ export const useAssetOverviewStore = defineStore('assetOverview', () => {
     loading.value = true
     error.value = null
     try {
-      const [buildings, unitsRes] = await Promise.all([
-        fetchBuildings(),
-        fetchUnits({ page: 1, pageSize: LARGE_PAGE_SIZE }),
-      ])
+      // 并行请求：楼栋列表（用于楼栋卡片渲染）+ 聚合概览（后端计算，避免前端批拉单元）
+      const [buildings, stats] = await Promise.all([fetchBuildings(), fetchOverview()])
       list.value = buildings
-      buildingOccupancy.value = aggregateOccupancy(unitsRes.data)
+      overview.value = stats
     } catch (e) {
       error.value = pickErrorMessage(e, '资产数据加载失败')
     } finally {
@@ -131,7 +113,7 @@ export const useAssetOverviewStore = defineStore('assetOverview', () => {
     list,
     item,
     meta,
-    buildingOccupancy,
+    overview,
     loading,
     error,
     totalUnits,

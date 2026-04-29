@@ -17,6 +17,7 @@ export const DEPARTMENTS = '/api/departments'
 export const BUILDINGS = '/api/buildings'
 export const FLOORS = '/api/floors'
 export const UNITS = '/api/units'
+export const ASSETS_OVERVIEW = '/api/assets/overview'
 
 // ─── 租务 ─────────────────────────────────────────────────────────────────
 export const TENANTS = '/api/tenants'

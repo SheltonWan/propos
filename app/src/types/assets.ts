@@ -128,3 +128,29 @@ export interface BuildingOccupancy {
   vacant: number
   rate: number
 }
+
+// ─── 资产概览 API 响应（API_CONTRACT_v1.7.md §2.23） ──────────────────────
+
+/** 后端 by_property_type 数组元素 */
+export interface ApiPropertyTypeStats {
+  property_type: PropertyType
+  total_units: number
+  leased_units: number
+  vacant_units: number
+  expiring_soon_units: number
+  /** 出租率 0~1 小数（leased + expiring_soon 口径，与后端一致） */
+  occupancy_rate: number
+  total_nla: number
+  leased_nla: number
+}
+
+/** GET /api/assets/overview 响应体 */
+export interface AssetOverview {
+  total_units: number
+  total_leasable_units: number
+  /** 总体出租率 0~1 小数 */
+  total_occupancy_rate: number
+  wale_income_weighted: number
+  wale_area_weighted: number
+  by_property_type: ApiPropertyTypeStats[]
+}
