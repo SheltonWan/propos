@@ -328,6 +328,12 @@ function handleForgotPassword() {
     font-size: 26rpx;
     color: $color-muted-foreground;
   }
+
+  /* 直接覆盖 wd-checkbox 内部 label 颜色，防止默认黑色文字在深色模式下不可见 */
+  :deep(.login__remember-checkbox .wd-checkbox__label) {
+    color: $color-muted-foreground;
+    font-size: 26rpx;
+  }
 }
 
 .login__forgot {
