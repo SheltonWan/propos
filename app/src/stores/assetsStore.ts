@@ -4,9 +4,18 @@ import type {
   BuildingOccupancy,
   Floor,
   FloorHeatmap,
+  PropertyType,
   Unit,
   UnitListParams,
 } from '@/types/assets'
+
+/** 单一业态聚合统计（用于首页类型对比卡片） */
+export interface PropertyTypeStats {
+  gfa: number
+  units: number
+  vacant: number
+  vacancyRate: number
+}
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import {
@@ -70,6 +79,35 @@ export const useAssetOverviewStore = defineStore('assetOverview', () => {
   const overallRate = computed(() =>
     totalUnits.value > 0 ? totalLeased.value / totalUnits.value : 0,
   )
+  /** 管理总面积（建筑面积求和，㎡） */
+  const totalGfa = computed(() => list.value.reduce((s, b) => s + b.gfa, 0))
+  /** 空置套数 */
+  const totalVacant = computed(() => totalUnits.value - totalLeased.value)
+  /** 楼栋总数 */
+  const buildingCount = computed(() => list.value.length)
+  /** 按业态聚合的统计（写字楼 / 商铺 / 公寓） */
+  const typeStats = computed<Record<string, PropertyTypeStats>>(() => {
+    const result: Record<string, PropertyTypeStats> = {
+      office: { gfa: 0, units: 0, vacant: 0, vacancyRate: 0 },
+      retail: { gfa: 0, units: 0, vacant: 0, vacancyRate: 0 },
+      apartment: { gfa: 0, units: 0, vacant: 0, vacancyRate: 0 },
+    }
+    for (const b of list.value) {
+      const t = b.property_type as PropertyType
+      if (!result[t]) continue
+      result[t].gfa += b.gfa
+      const occ = buildingOccupancy.value[b.id]
+      if (occ) {
+        result[t].units += occ.total
+        result[t].vacant += occ.vacant
+      }
+    }
+    for (const t of Object.keys(result)) {
+      const ts = result[t]
+      ts.vacancyRate = ts.units > 0 ? Math.round((ts.vacant / ts.units) * 100) : 0
+    }
+    return result
+  })
 
   // Actions
   async function fetchAll(): Promise<void> {
@@ -98,6 +136,10 @@ export const useAssetOverviewStore = defineStore('assetOverview', () => {
     error,
     totalUnits,
     totalLeased,
+    totalVacant,
+    totalGfa,
+    buildingCount,
+    typeStats,
     overallRate,
     fetchAll,
   }

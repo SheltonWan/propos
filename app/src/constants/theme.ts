@@ -93,6 +93,15 @@ function buildThemeVars(palette: ThemePalette): Record<string, string> {
     '--color-muted-foreground-soft': withAlpha(palette.mutedForeground, 0.6),
     '--color-destructive-soft': withAlpha(palette.destructive, 0.08),
     '--color-destructive-border-soft': withAlpha(palette.destructive, 0.15),
+    // 业态/状态语义色：soft（背景填充）+ border-soft（描边）
+    '--color-success-soft': withAlpha(palette.success, 0.1),
+    '--color-success-border-soft': withAlpha(palette.success, 0.25),
+    '--color-warning-soft': withAlpha(palette.warning, 0.08),
+    '--color-warning-border-soft': withAlpha(palette.warning, 0.25),
+    '--color-info-soft': withAlpha(palette.info, 0.08),
+    '--color-info-border-soft': withAlpha(palette.info, 0.22),
+    '--color-primary-soft-md': withAlpha(palette.primary, 0.07),
+    '--color-primary-border-soft': withAlpha(palette.primary, 0.18),
     '--color-surface-overlay': SURFACE_OVERLAY_COLOR,
     '--color-handle': HANDLE_COLOR,
     // wot-design-uni 组件变量：直接写入实际色值，不依赖 var() 二次引用链，
