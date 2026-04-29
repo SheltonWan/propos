@@ -106,7 +106,7 @@
           :key="building.id"
           :building="building"
           :occupancy="occupancyOf(building.id)"
-          @tap="onBuildingTap"
+          @select="onBuildingTap"
         />
         <!-- 空结果提示 -->
         <view v-if="filteredBuildings.length === 0" class="assets__empty">
@@ -223,8 +223,13 @@ const hasExportType = computed(() => Object.values(exportTypes.value).some(v => 
 // ── 工具函数 ──────────────────────────────────────────────────────────────────
 const EMPTY_OCCUPANCY: BuildingOccupancy = { total: 0, leased: 0, vacant: 0, rate: 0 }
 
-function occupancyOf(buildingId: string): BuildingOccupancy {
-  return store.buildingOccupancy[buildingId] ?? EMPTY_OCCUPANCY
+/**
+ * 返回楼栋出租率占位数据。
+ * 概览接口（/api/assets/overview）仅提供业态级聚合，不含楼栋粒度数据；
+ * 精确楼栋出租率在楼栋详情页（useBuildingDetailStore）加载后展示。
+ */
+function occupancyOf(_buildingId: string): BuildingOccupancy {
+  return EMPTY_OCCUPANCY
 }
 
 function onBuildingTap(buildingId: string) {

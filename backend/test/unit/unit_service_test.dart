@@ -316,19 +316,21 @@ void main() {
       var callIdx = 0;
       pool.executeHandler = (q, p) {
         callIdx++;
-        if (callIdx == 1)
+        if (callIdx == 1) {
           return makeResult([
             'id',
             'property_type'
           ], [
             ['b-1', 'office']
           ]);
-        if (callIdx == 2)
+        }
+        if (callIdx == 2) {
           return makeResult([
             'id'
           ], [
             ['f-1']
           ]);
+        }
         return fakeBatchRow(
           totalRecords: 1,
           successCount: 1,
@@ -351,21 +353,24 @@ void main() {
       var callIdx = 0;
       pool.executeHandler = (q, p) {
         callIdx++;
-        if (callIdx == 1)
+        if (callIdx == 1) {
           return makeResult([
             'id',
             'property_type'
           ], [
             ['b-1', 'retail']
           ]);
-        if (callIdx == 2)
+        }
+        if (callIdx == 2) {
           return makeResult([
             'id'
           ], [
             ['f-1']
           ]);
-        if (callIdx == 3)
+        }
+        if (callIdx == 3) {
           return makeResult([], []); // bulkCreate INSERT，affectedRows=0
+        }
         return fakeBatchRow(
           totalRecords: 1,
           successCount: 1,

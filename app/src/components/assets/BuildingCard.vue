@@ -3,7 +3,7 @@
     class="building-card"
     hover-class="building-card--hover"
     :hover-stay-time="80"
-    @tap="$emit('tap', building.id)"
+    @tap="$emit('select', building.id)"
   >
     <view class="building-card__top">
       <!-- 左侧业态色块 -->
@@ -83,7 +83,8 @@ defineProps<{
 }>()
 
 defineEmits<{
-  (e: 'tap', buildingId: string): void
+  // 使用非原生事件名 select，避免与 uni-app 原生 tap 事件冒泡产生歧义
+  (e: 'select', buildingId: string): void
 }>()
 
 const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
@@ -101,14 +102,15 @@ function formatRate(rate: number): string {
   return `${(rate * 100).toFixed(1)}%`
 }
 
-function formatArea(value: number): string {
-  if (value >= 10000) return `${(value / 10000).toFixed(1)}k㎡`
-  return `${value.toLocaleString()}㎡`
+function formatArea(value: number | null | undefined): string {
+  const v = value ?? 0
+  if (v >= 10000) return `${(v / 10000).toFixed(1)}k㎡`
+  return `${v.toLocaleString()}㎡`
 }
 
 /** 根据出租率估算空置面积（近似值，精确值需后端计算） */
-function formatVacantArea(gfa: number, rate: number): string {
-  const vacant = Math.round(gfa * (1 - rate))
+function formatVacantArea(gfa: number | null | undefined, rate: number): string {
+  const vacant = Math.round((gfa ?? 0) * (1 - rate))
   if (vacant >= 10000) return `${(vacant / 10000).toFixed(1)}万㎡`
   return `${vacant.toLocaleString()}㎡`
 }

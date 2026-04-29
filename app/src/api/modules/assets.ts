@@ -1,5 +1,6 @@
 import type { ApiListResponse } from '@/types/api'
 import type {
+  AssetOverview,
   Building,
   Floor,
   FloorHeatmap,
@@ -7,8 +8,15 @@ import type {
   Unit,
   UnitListParams,
 } from '@/types/assets'
-import { BUILDINGS, FLOORS, UNITS } from '@/constants/api_paths'
+import { ASSETS_OVERVIEW, BUILDINGS, FLOORS, UNITS } from '@/constants/api_paths'
 import { apiGet, apiGetList, apiPatch } from '../client'
+
+// ─── 资产概览 ───────────────────────────────────────────────────────────────
+
+/** GET /api/assets/overview — 三业态聚合统计（后端计算，含 WALE + 出租率） */
+export function fetchOverview(): Promise<AssetOverview> {
+  return apiGet<AssetOverview>(ASSETS_OVERVIEW)
+}
 
 // ─── 楼栋 ───────────────────────────────────────────────────────────────────
 

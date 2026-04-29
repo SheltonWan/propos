@@ -178,8 +178,9 @@ void main() {
       var callIdx = 0;
       pool.executeHandler = (q, p) {
         callIdx++;
-        if (callIdx == 1)
+        if (callIdx == 1) {
           return makeResult(kFloorCols, []); // findAll floors（空列表）
+        }
         return makeResult(kBuildingCols, [buildingRow(name: '更新后名称')]);
       };
       final b = await svc.updateBuilding('b-1', name: '更新后名称');
@@ -349,12 +350,13 @@ void main() {
       pool.executeHandler = (q, p) {
         callIdx++;
         if (callIdx == 1) return makeResult(kBuildingCols, [buildingRow()]);
-        if (callIdx == 2)
+        if (callIdx == 2) {
           return makeResult([
             'c'
           ], [
             [0]
           ]); // COUNT units = 0
+        }
         return makeResult([
           'c'
         ], [
@@ -373,18 +375,20 @@ void main() {
       pool.executeHandler = (q, p) {
         callIdx++;
         if (callIdx == 1) return makeResult(kBuildingCols, [buildingRow()]);
-        if (callIdx == 2)
+        if (callIdx == 2) {
           return makeResult([
             'c'
           ], [
             [0]
           ]); // COUNT units = 0
-        if (callIdx == 3)
+        }
+        if (callIdx == 3) {
           return makeResult([
             'c'
           ], [
             [0]
           ]); // COUNT workorders = 0
+        }
         return makeResult([
           'c'
         ], [
@@ -405,14 +409,16 @@ void main() {
       pool.executeHandler = (q, p) {
         callIdx++;
         if (callIdx == 1) return makeResult(kBuildingCols, [buildingRow()]);
-        if (callIdx <= 4)
+        if (callIdx <= 4) {
           return makeResult([
             'c'
           ], [
             [0]
           ]); // 全部 COUNT = 0
-        if (callIdx <= 6)
+        }
+        if (callIdx <= 6) {
           return makeResult([], []); // DELETE floor_plans / DELETE floors
+        }
         return makeResult([
           'id'
         ], [
