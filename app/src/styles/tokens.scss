@@ -43,7 +43,10 @@ $color-primary-soft-md: var(--color-primary-soft-md);
 $color-primary-border-soft: var(--color-primary-border-soft);
 
 // ─── 间距 ─────────────────────────────────────────────────────────────────
-$space-page-x: 40rpx;
+// $space-page-x：页面级水平边距（卡片/内容区与屏幕左右边缘的距离）
+// 32rpx = 16pt，符合 iOS Human Interface Guidelines 标准页边距
+// 所有页面统一使用此 token，禁止硬编码数值
+$space-page-x: 32rpx;
 $space-page-y: 24rpx;
 $space-card: 32rpx;
 $space-gap-sm: 16rpx;

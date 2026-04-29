@@ -7,7 +7,7 @@
     :root-background-color="pageMetaRootBackgroundColor"
     :page-style="pageMetaPageStyle"
   />
-  <AppShell with-tabbar>
+  <AppShell with-tabbar content-inset="none">
     <template #header>
       <PageHeader title="资产台账" :sticky="true" :back="false" :animated="false">
         <template #actions>
@@ -512,7 +512,7 @@ onMounted(() => {
 
 .export-sheet__check-mark {
   font-size: 22rpx;
-  color: white;
+  color: var(--color-primary-foreground);
   font-weight: 700;
 }
 
@@ -555,6 +555,6 @@ onMounted(() => {
 .export-sheet__btn-text {
   font-size: 30rpx;
   font-weight: 700;
-  color: white;
+  color: var(--color-primary-foreground);
 }
 </style>
