@@ -239,6 +239,96 @@ HATCH_OVERRIDE_TPL = """
       }}
 """
 
+# ──────────────────────────────────────────────────────────────────────────────
+# 标注图层过滤：渲染时默认排除，保留纯建筑线稿与热区标注
+# 包含内容：轴号、尺寸标注（线+数字）、引线、公共文字、图框文字、房间编号/面积
+# 可通过 --show-annotations 恢复显示，--hide-layers A,B,C 追加自定义图层
+# ──────────────────────────────────────────────────────────────────────────────
+ANNOTATION_LAYERS: frozenset = frozenset({
+    # "AXIS",          # 轴线（定位线）
+    # "AXIS_TEXT",     # 轴号圆圈/文字
+    # "PUB_DIM",         #墙外标尺
+    # "节点",          # 大样/节点引出符号图块
+    
+    "dote",             #安全柱线 
+    "DIM",           # 通用尺寸
+    "DIM_LEAD",      # 引线
+    "DIM_SYMB",      # 标注符号（箭头/斜杠）
+    "DIM_IDEN",      # 构件标识
+    
+    "PUB_HATCH",
+    "PUB_TEXT",      # 公共说明文字
+    "PUB_TITLE",     # 标题块
+    "房间名称",       # 房间用途名称（"产业研发用房" 等）
+    "房号",          # 房间编号圆圈图块
+    "门窗编号",       # 门窗编号
+    "门窗编号（回迁图纸）",
+    "0-文字（防火门)",# 防火门标注文字
+    
+    "结构梁板",
+    "幕墙编号",       # 幕墙节点编号
+    "结构梁问题",     # 结构梁批注   
+
+    #外框
+    # "TK",
+    # "0",
+    # "0-立面(轮廓)",   # 立面轮廓线（块内含图纸说明文字）
+    # "A-ANNO-TEXT",   # AIA 注释文字
+    # "DIM_ELEV",      # 标高符号 + 数字（↑↓ 标高标注）
+
+    # 轴网
+    "轴线",
+    "轴号",
+
+    # 尺寸标注
+    "DIMENSION",
+    "S-ANNO-DIMS",   # AIA 标准：结构/建筑尺寸
+    "A-ANNO-DIMS",
+    # 文字/注释
+    "DOTE",          # 文字注释（部分 CAD 惯例）
+    "TEXT",          # 通用文字图层
+    "公共文字",
+    # 房间信息标注
+    "NUM",           # 编号（英文惯例）
+    "SPACE",         # 房间名称/面积标签（英文惯例）
+    # 专项编号标注
+    
+    "S-TEXT",
+    # 图框/标题栏（TK 图层含外框 LWPOLYLINE + "X层平面图"文字；
+    # 外框用于楼层区域切割（find_title_frames），但该步骤在渲染前已完成，
+    # 渲染时可安全排除，不影响分层逻辑）
+    
+    "0-电子签名",     # 电子签章图块图层
+    "修改2016.01.22", # 变更记录图层
+    "修改2016.03.17",
+    "修改2015.10.15",
+    "修改2015.11.04",
+    
+    "TITLE",
+    # 剖切/大样符号
+    "A-ANNO-SYMB",
+    "SYMB",
+    "DETAIL_SYMB",
+
+    # 空调/设备标注
+    "KT",            # 空调设备块（含 'K'/'A/C' 及尺寸标注）
+    # 含文字的标注性图层（INSERT outer_layer 不在建筑线稿范围）
+    "详细标注",       # 详细说明文字
+    "0-面积框线",     # 面积框线说明
+    
+    "修改2018.01.25", # 变更记录图层（与其他修改云线一致）
+    # 结构梁板内嵌文字图层（块定义使用，图层可见性方案覆盖）
+
+    "B-TXT",          # 结构梁文字
+    "FLOOR_UP_TEXT",  # 楼板配筋文字
+    "FLOOR_DE_DIM",                         
+    "FLOOR_REIN",                            
+    "FLOOR_UP_REIN",     
+    "BEAM_DE_TEXT",   # 梁详图文字
+    "0-文字（管井）",  # 管井文字
+    "G_model_dimn150",# 梁尺寸文字               
+})
+
 # 主线条覆盖样式：在没有显式 wall layer 标识的 CAD 里（绝大多数线条画在 layer-0
 # 由 INSERT 宿主图层决定颜色，全被 ezdxf 聚到同一 class），通过启发式识别
 # 「hits 最多的 stroke 类」并增强其视觉权重，让柱填充与之形成"实墙"锚点。
@@ -624,11 +714,13 @@ def render_region_to_svg(
     label: str,
     entity_centers: dict,
     building_id: str,
+    hide_layers: frozenset = None,
 ) -> bool:
     """将指定区域内的实体渲染为独立 SVG（含 SVG_HOTZONE_SPEC 后处理 + JSON 骨架）。
 
     entity_centers: dict[id(entity)] = (cx, cy)，预先计算好以避免重复计算
     building_id: 用于 floor_map.json 骨架的 building 标识（可为占位，后续由标注工具替换）
+    hide_layers: 渲染时排除的图层名称集合（None 则不过滤）
     """
     ctx = RenderContext(doc)
     backend = SVGBackend()
@@ -646,11 +738,37 @@ def render_region_to_svg(
         if region_min.x <= cx <= region_max.x and region_min.y <= cy <= region_max.y:
             in_region.append(e)
 
+    # 按图层过滤标注/尺寸类实体（第一层：直接位于 MSP 中的实体）
+    if hide_layers:
+        before = len(in_region)
+        in_region = [e for e in in_region if e.dxf.layer not in hide_layers]
+        hidden = before - len(in_region)
+        if hidden:
+            print(f"  [{label}] 隐藏标注实体: {hidden} 个（图层过滤）")
+
     if not in_region:
         print(f"  [{label}] 区域内无实体，跳过")
         return False
 
+    # 第二层：通过 ezdxf 图层可见性禁用，使渲染器在进入 INSERT 块内部时
+    # 同样跳过属于这些图层的子实体（文字、标注等）。
+    # 渲染完成后立即恢复，避免对同进程其他调用产生副作用。
+    turned_off = []
+    if hide_layers:
+        for lyr_name in hide_layers:
+            try:
+                lyr = doc.layers.get(lyr_name)
+                if lyr.is_on():
+                    lyr.off()
+                    turned_off.append(lyr)
+            except Exception:
+                pass  # 图层不存在于 DXF 中，跳过
+
     frontend.draw_entities(in_region)
+
+    # 恢复图层可见性
+    for lyr in turned_off:
+        lyr.on()
 
     # 计算实际包围盒（区域内的真实 extents），按比例算纸面尺寸
     actual_bb = bbox.extents(in_region)
@@ -711,6 +829,17 @@ def main():
         "--building-id",
         default=None,
         help="floor_map.json 骨架的 building_id 占位值；省略时使用 --prefix",
+    )
+    parser.add_argument(
+        "--show-annotations",
+        action="store_true",
+        default=False,
+        help="保留标注/尺寸/图框图层（默认已隐藏，仅渲染建筑线稿）",
+    )
+    parser.add_argument(
+        "--hide-layers",
+        default="",
+        help="额外追加要隐藏的图层名，逗号分隔（与默认 ANNOTATION_LAYERS 合并）",
     )
     args = parser.parse_args()
 
@@ -830,6 +959,15 @@ def main():
     print(f"  完成: {len(entity_centers)} 个实体可定位，{skipped} 个跳过")
 
     print("\n开始渲染...")
+    # 组装图层隐藏集合
+    if args.show_annotations:
+        hide_layers = None
+        print("标注图层：全部保留（--show-annotations）")
+    else:
+        extra = {lyr.strip() for lyr in args.hide_layers.split(",") if lyr.strip()}
+        hide_layers = ANNOTATION_LAYERS | extra
+        print(f"标注图层：隐藏 {len(hide_layers)} 个（使用 --show-annotations 可恢复）")
+
     # 渲染每个区域
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -838,7 +976,8 @@ def main():
     for label, keys, region in regions:
         out_file = out_dir / f"{args.prefix}_{label}.svg"
         if render_region_to_svg(
-            doc, msp, region, str(out_file), label, entity_centers, building_id
+            doc, msp, region, str(out_file), label, entity_centers, building_id,
+            hide_layers=hide_layers,
         ):
             success += 1
 
