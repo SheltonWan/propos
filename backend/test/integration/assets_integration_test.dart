@@ -327,7 +327,7 @@ void main() {
     });
 
     test('GET /api/buildings/nonexistent → 404 BUILDING_NOT_FOUND', () async {
-      final resp = await getReq('/api/buildings/00000000-0000-0000-0000-000000000000');
+      final resp = await getReq('/api/buildings/00000000-0000-4000-8000-000000000000');
       expect(resp.statusCode, 404);
       expect(jsonBody(resp)['error']['code'], 'BUILDING_NOT_FOUND');
     });
@@ -516,7 +516,7 @@ void main() {
 
     test('GET /api/units/nonexistent → 404 UNIT_NOT_FOUND', () async {
       final resp =
-          await getReq('/api/units/00000000-0000-0000-0000-000000000000');
+          await getReq('/api/units/00000000-0000-4000-8000-000000000000');
       expect(resp.statusCode, 404);
       expect(jsonBody(resp)['error']['code'], 'UNIT_NOT_FOUND');
     });
@@ -611,7 +611,7 @@ void main() {
     test('GET /api/renovations/nonexistent → 404 RENOVATION_NOT_FOUND',
         () async {
       final resp = await getReq(
-          '/api/renovations/00000000-0000-0000-0000-000000000000');
+          '/api/renovations/00000000-0000-4000-8000-000000000000');
       expect(resp.statusCode, 404);
       expect(jsonBody(resp)['error']['code'], 'RENOVATION_NOT_FOUND');
     });

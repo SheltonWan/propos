@@ -49,7 +49,7 @@ curl -s -X POST "$BASE_URL/api/auth/login" \
     "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "expires_in": 86400,
     "user": {
-      "id": "f0000000-0000-0000-0000-000000000001",
+      "id": "f0000000-0000-4000-8000-000000000001",
       "name": "系统管理员",
       "email": "admin@propos.local",
       "role": "super_admin",
@@ -136,7 +136,7 @@ curl -s -X GET "$BASE_URL/api/auth/me" \
 ```json
 {
   "data": {
-    "id": "f0000000-0000-0000-0000-000000000001",
+    "id": "f0000000-0000-4000-8000-000000000001",
     "name": "系统管理员",
     "email": "admin@propos.local",
     "role": "super_admin",
