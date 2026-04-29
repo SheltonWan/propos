@@ -29,12 +29,6 @@ class UnitListPage extends StatelessWidget {
         leading: CupertinoNavigationBarBackButton(
           onPressed: () => context.pop(),
         ),
-        // 右侧「导入」按钮
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => context.push(RoutePaths.unitImport),
-          child: const Text('导入', style: TextStyle(fontSize: 15)),
-        ),
       ),
       body: Column(
         children: [

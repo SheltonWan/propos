@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/custom_colors.dart';
@@ -44,7 +45,7 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: CupertinoNavigationBar(
-        middle: const Text('楼层平面图'),
+        middle: const Text('楼层热区图'),
         leading: CupertinoNavigationBarBackButton(
           onPressed: () => context.pop(),
         ),
@@ -80,67 +81,145 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
   }
 
   Widget _buildContent(BuildContext context, FloorHeatmap heatmap) {
-    return Stack(
+    return Column(
       children: [
-        Column(
-          children: [
-            _LegendBar(),
-            Expanded(
-              child: heatmap.svgPath != null
-                  ? _FloorImageViewer(
-                      imagePath: heatmap.svgPath!,
-                      units: heatmap.units,
-                      onUnitTap: (unit) => setState(() {
-                        _selectedUnit = unit;
-                        _showUnitBottomSheet(context, unit);
-                      }),
-                    )
-                  : _UnitGrid(
-                      units: heatmap.units,
-                      selectedUnit: _selectedUnit,
-                      onUnitTap: (unit) => setState(() {
-                        _selectedUnit = unit;
-                        _showUnitBottomSheet(context, unit);
-                      }),
-                    ),
-            ),
-          ],
+        Expanded(
+          child: heatmap.svgPath != null
+              ? _FloorImageViewer(
+                  imagePath: heatmap.svgPath!,
+                  units: heatmap.units,
+                  onUnitTap: (unit) => setState(() {
+                    _selectedUnit = unit;
+                    _showUnitBottomSheet(context, unit);
+                  }),
+                )
+              : _UnitGrid(
+                  units: heatmap.units,
+                  selectedUnit: _selectedUnit,
+                  onUnitTap: (unit) => setState(() {
+                    _selectedUnit = unit;
+                    _showUnitBottomSheet(context, unit);
+                  }),
+                ),
         ),
+        _LegendBar(),
       ],
     );
   }
 
   void _showUnitBottomSheet(BuildContext context, HeatmapUnit unit) {
+    final statusStr = unit.currentStatus.name == 'expiringSoon'
+        ? 'expiring_soon'
+        : unit.currentStatus.name;
     showCupertinoModalPopup<void>(
       context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: Text(unit.unitNumber),
-        message: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            StatusTag(status: unit.currentStatus.name == 'expiringSoon'
-                ? 'expiring_soon'
-                : unit.currentStatus.name),
-            if (unit.tenantName != null) ...[
-              const SizedBox(height: 8),
-              Text('租户：${unit.tenantName}'),
-            ],
-          ],
+      builder: (ctx) => Container(
+        height: MediaQuery.of(ctx).size.height * 0.38,
+        decoration: BoxDecoration(
+          color: CupertinoTheme.of(ctx).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
         ),
-        actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.pop(ctx);
-              final path =
-                  RoutePaths.unitDetail.replaceAll(':id', unit.unitId);
-              context.push(path);
-            },
-            child: const Text('查看房源详情'),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 8),
+              // 拖动指示条
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey3,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // 单元号 + 状态标签
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        unit.unitNumber,
+                        style: CupertinoTheme.of(
+                          ctx,
+                        ).textTheme.navTitleTextStyle,
+                      ),
+                    ),
+                    StatusTag(status: statusStr),
+                  ],
+                ),
+              ),
+              if (unit.tenantName != null) ...[
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Text(
+                        '租户：',
+                        style: TextStyle(
+                          color: CupertinoColors.secondaryLabel.resolveFrom(
+                            ctx,
+                          ),
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        unit.tenantName!,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (unit.contractEndDate != null) ...[
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Text(
+                        '到期日：',
+                        style: TextStyle(
+                          color: CupertinoColors.secondaryLabel.resolveFrom(
+                            ctx,
+                          ),
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        DateFormat(
+                          'yyyy-MM-dd',
+                        ).format(unit.contractEndDate!.toLocal()),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const Spacer(),
+              // 查看详情按钮
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: CupertinoButton.filled(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    final path = RoutePaths.unitDetail.replaceAll(
+                      ':id',
+                      unit.unitId,
+                    );
+                    context.push(path);
+                  },
+                  child: const Text('查看详情'),
+                ),
+              ),
+            ],
           ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('取消'),
         ),
       ),
     );

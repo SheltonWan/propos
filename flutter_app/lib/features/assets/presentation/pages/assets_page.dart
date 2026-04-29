@@ -79,7 +79,6 @@ class _AssetsPageState extends State<AssetsPage> {
 
     return CustomScrollView(
       slivers: [
-        SliverToBoxAdapter(child: _SummaryHeader(overview: overview)),
         SliverToBoxAdapter(
           child: _PropertyTypeStatsRow(stats: overview.byPropertyType),
         ),
@@ -87,29 +86,6 @@ class _AssetsPageState extends State<AssetsPage> {
           child: _FilterChipRow(
             selected: _selectedType,
             onSelected: (t) => setState(() => _selectedType = t),
-          ),
-        ),
-        // 查看房源列表入口
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: () => context.push(RoutePaths.unitList),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('查看所有房源', style: TextStyle(fontSize: 13)),
-                      SizedBox(width: 4),
-                      Icon(CupertinoIcons.chevron_right, size: 13),
-                    ],
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
         SliverPadding(
@@ -123,93 +99,6 @@ class _AssetsPageState extends State<AssetsPage> {
       ],
     );
   }
-}
-
-/// 深色汇总头部卡片。
-class _SummaryHeader extends StatelessWidget {
-  final AssetOverview overview;
-
-  const _SummaryHeader({required this.overview});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<CustomColors>()!;
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      decoration: BoxDecoration(
-        color: colors.dashboardHeaderBg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '资产总览',
-            style: TextStyle(
-              color: colors.onDashboardHeader.withOpacity(0.7),
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _HeaderStat(
-                  label: '出租率',
-                  value:
-                      '${(overview.totalOccupancyRate * 100).toStringAsFixed(1)}%',
-                  color: colors.onDashboardHeader,
-                ),
-              ),
-              Expanded(
-                child: _HeaderStat(
-                  label: 'WALE（收入）',
-                  value: '${overview.waleIncomeWeighted.toStringAsFixed(1)}年',
-                  color: colors.onDashboardHeader,
-                ),
-              ),
-              Expanded(
-                child: _HeaderStat(
-                  label: '总房源',
-                  value: '${overview.totalUnits}套',
-                  color: colors.onDashboardHeader,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _HeaderStat({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(value,
-              style: TextStyle(
-                  color: color,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(label,
-              style: TextStyle(
-                  color: color.withOpacity(0.6), fontSize: 12)),
-        ],
-      );
 }
 
 /// 三业态统计卡片横排。
@@ -315,7 +204,7 @@ class _BuildingCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${building.totalFloors}层  GFA ${building.gfa.toStringAsFixed(0)} m²',
+                    '${building.totalFloors}层  NLA ${building.nla.toStringAsFixed(0)} m²',
                     style: TextStyle(
                         fontSize: 13, color: scheme.onSurfaceVariant),
                   ),

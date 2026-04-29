@@ -197,6 +197,10 @@ class _InfoItem extends StatelessWidget {
 }
 
 /// 单行楼层条目，点击跳转到楼层平面图页。
+///
+/// TODO(M1-API): PAGE_SPEC §5.2 规范要求展示「房间数」和「出租率进度条」，
+/// 但后端 FloorSummary（API_CONTRACT §2.5）未返回 unit_count / occupancy_rate 字段。
+/// 待后端补充这两个字段后，在此处添加 unitCount 文本和 LinearProgressIndicator。
 class _FloorRow extends StatelessWidget {
   final Floor floor;
   final String buildingId;

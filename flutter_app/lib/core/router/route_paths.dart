@@ -23,7 +23,6 @@ abstract final class RoutePaths {
   static const floorPlan = '/assets/buildings/:bid/floors/:fid';
   static const unitList = '/assets/units';
   static const unitDetail = '/assets/units/:id';
-  static const unitImport = '/assets/units/import';
 
   // ── Contracts sub-routes ──
   static const contractDetail = '/contracts/:id';

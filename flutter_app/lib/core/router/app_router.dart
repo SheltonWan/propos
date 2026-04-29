@@ -9,13 +9,11 @@ import '../../features/assets/presentation/bloc/asset_overview_cubit.dart';
 import '../../features/assets/presentation/bloc/building_detail_cubit.dart';
 import '../../features/assets/presentation/bloc/floor_map_cubit.dart';
 import '../../features/assets/presentation/bloc/unit_detail_cubit.dart';
-import '../../features/assets/presentation/bloc/unit_import_cubit.dart';
 import '../../features/assets/presentation/bloc/unit_list_cubit.dart';
 import '../../features/assets/presentation/pages/assets_page.dart';
 import '../../features/assets/presentation/pages/building_detail_page.dart';
 import '../../features/assets/presentation/pages/floor_plan_page.dart';
 import '../../features/assets/presentation/pages/unit_detail_page.dart';
-import '../../features/assets/presentation/pages/unit_import_page.dart';
 import '../../features/assets/presentation/pages/unit_list_page.dart';
 import '../../features/auth/presentation/bloc/auth_cubit.dart';
 import '../../features/auth/presentation/bloc/auth_state.dart';
@@ -130,19 +128,7 @@ GoRouter buildAppRouter() => GoRouter(
                             buildingId: state.uri.queryParameters['building_id'],
                           ),
                         ),
-                      ),
-                      routes: [
-                        GoRoute(
-                          path: 'import',
-                          pageBuilder: (ctx, state) => CupertinoPage(
-                            key: state.pageKey,
-                            child: BlocProvider(
-                              create: (_) => getIt<UnitImportCubit>(),
-                              child: const UnitImportPage(),
-                            ),
-                          ),
-                        ),
-                      ],
+                  ),
                     ),
                     GoRoute(
                       path: 'units/:uid',

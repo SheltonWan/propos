@@ -254,6 +254,10 @@ class _TypeSpecificSection extends StatelessWidget {
 }
 
 /// 租赁信息区（仅 leased 状态展示）。
+///
+/// TODO(M2): PAGE_SPEC §5.4 规范要求展示租户名称、月租金、合同到期日，
+/// 但 UnitDetail（API_CONTRACT §2.14）未包含 tenant_name / monthly_rent / contract_end_date。
+/// M2 合同模块 API 就绪后，在此 _SectionCard 中补充 _InfoRow 展示上述三字段。
 class _LeaseInfoSection extends StatelessWidget {
   final UnitDetail unit;
 
