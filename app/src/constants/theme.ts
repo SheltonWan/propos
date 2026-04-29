@@ -110,6 +110,10 @@ function buildThemeVars(palette: ThemePalette): Record<string, string> {
     '--wot-color-success': palette.success,
     '--wot-color-warning': palette.warning,
     '--wot-color-danger': palette.destructive,
+    // wd-checkbox 深色适配：覆盖默认白色底 + 黑色文字，随主题正确响应
+    '--wot-checkbox-bg': 'transparent',
+    '--wot-checkbox-border-color': withAlpha(palette.mutedForeground, 0.45),
+    '--wot-checkbox-label-color': palette.mutedForeground,
   }
 }
 

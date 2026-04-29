@@ -155,7 +155,7 @@ onMounted(() => {
 }
 
 .app-card--dark {
-  background: $color-background-dark;
+  background: $color-card-dark;
   border-color: $color-border-dark;
 }
 
