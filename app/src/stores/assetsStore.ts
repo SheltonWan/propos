@@ -114,6 +114,12 @@ export const useBuildingDetailStore = defineStore('buildingDetail', () => {
   const error = ref<string | null>(null)
 
   async function fetchDetail(buildingId: string): Promise<void> {
+    // 运行时防护：检测调用方意外传入对象而非 UUID 字符串
+    if (typeof buildingId !== 'string' || !buildingId) {
+      console.error('[useBuildingDetailStore] fetchDetail 收到非字符串 buildingId:', buildingId)
+      error.value = '楼栋 ID 无效，请刷新页面重试'
+      return
+    }
     loading.value = true
     error.value = null
     try {
@@ -147,6 +153,12 @@ export const useFloorMapStore = defineStore('floorMap', () => {
 
   /** 加载楼栋下的全部楼层（用于楼层切换标签），并默认选中首个 */
   async function loadByBuilding(bid: string): Promise<void> {
+    // 运行时防护：检测调用方意外传入对象而非 UUID 字符串
+    if (typeof bid !== 'string' || !bid) {
+      console.error('[useFloorMapStore] loadByBuilding 收到非字符串 bid:', bid)
+      error.value = '楼栋 ID 无效，请返回重试'
+      return
+    }
     loading.value = true
     error.value = null
     buildingId.value = bid

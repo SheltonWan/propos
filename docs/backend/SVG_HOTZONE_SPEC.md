@@ -96,7 +96,7 @@ floors/{building_id}/{floor_id}.json     ← 映射文件
 ```json
 {
   "floor_id": "b0000000-0000-0000-0000-000000000001",
-  "building_id": "a0000000-0000-0000-0000-000000000001",
+  "building_id": "a0000000-0000-4000-8000-000000000001",
   "svg_version": "2026-04-08",
   "viewport": {
     "width": 1200,
