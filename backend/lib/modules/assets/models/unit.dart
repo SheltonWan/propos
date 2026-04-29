@@ -147,7 +147,7 @@ class AssetOverviewStats {
   Map<String, dynamic> toJson() => {
         'total_units': totalUnits,
         'total_leasable_units': totalLeasableUnits,
-        'occupancy_rate':
+        'total_occupancy_rate':
             double.parse(totalOccupancyRate.toStringAsFixed(4)),
         'wale_income_weighted':
             double.parse(waleIncomeWeighted.toStringAsFixed(2)),
