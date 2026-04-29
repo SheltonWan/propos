@@ -261,7 +261,7 @@ class MockInterceptor extends Interceptor {
           _buildingData('bld-002', '商铺区', 'retail', 3, 5000.0, 3200.0),
           _buildingData('bld-003', '公寓楼', 'apartment', 18, 16000.0, 14800.0),
         ],
-        'meta': {'page': 1, 'page_size': 20, 'total': 3},
+        'meta': {'page': 1, 'pageSize': 20, 'total': 3},
       };
 
   Map<String, dynamic> _mockBuildingDetail(String id) => {
@@ -321,7 +321,7 @@ class MockInterceptor extends Interceptor {
     }
     return {
       'data': floors,
-      'meta': {'page': 1, 'page_size': 100, 'total': total},
+      'meta': {'page': 1, 'pageSize': 100, 'total': total},
     };
   }
 
@@ -423,7 +423,7 @@ class MockInterceptor extends Interceptor {
             'created_at': '2021-03-10T00:00:00Z',
           },
         ],
-        'meta': {'page': 1, 'page_size': 20, 'total': 2},
+        'meta': {'page': 1, 'pageSize': 20, 'total': 2},
       };
 
   /// Mock 房源列表（支持简单分页，固定返回12条数据）。
