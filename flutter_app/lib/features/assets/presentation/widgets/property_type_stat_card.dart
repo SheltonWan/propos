@@ -23,7 +23,7 @@ class PropertyTypeStatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: scheme.shadow.withOpacity(0.06),
+            color: scheme.shadow.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

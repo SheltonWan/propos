@@ -124,7 +124,7 @@ class _BuildingInfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: scheme.shadow.withOpacity(0.06),
+            color: scheme.shadow.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -224,7 +224,7 @@ class _FloorRow extends StatelessWidget {
           color: scheme.surface,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-              color: scheme.outlineVariant.withOpacity(0.5)),
+              color: scheme.outlineVariant.withValues(alpha: 0.5)),
         ),
         child: Row(
           children: [
