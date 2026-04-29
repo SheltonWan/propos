@@ -267,12 +267,12 @@ $FloorMapStateLoadedCopyWith<FloorMapStateLoaded> get copyWith => _$FloorMapStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is FloorMapStateLoaded&&const DeepCollectionEquality().equals(other.floor, floor)&&const DeepCollectionEquality().equals(other.heatmap, heatmap));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FloorMapStateLoaded&&(identical(other.floor, floor) || other.floor == floor)&&(identical(other.heatmap, heatmap) || other.heatmap == heatmap));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(floor),const DeepCollectionEquality().hash(heatmap));
+int get hashCode => Object.hash(runtimeType,floor,heatmap);
 
 @override
 String toString() {
@@ -291,7 +291,7 @@ $Res call({
 });
 
 
-
+$FloorCopyWith<$Res> get floor;$FloorHeatmapCopyWith<$Res> get heatmap;
 
 }
 /// @nodoc
@@ -304,15 +304,33 @@ class _$FloorMapStateLoadedCopyWithImpl<$Res>
 
 /// Create a copy of FloorMapState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? floor = freezed,Object? heatmap = freezed,}) {
+@pragma('vm:prefer-inline') $Res call({Object? floor = null,Object? heatmap = null,}) {
   return _then(FloorMapStateLoaded(
-floor: freezed == floor ? _self.floor : floor // ignore: cast_nullable_to_non_nullable
-as Floor,heatmap: freezed == heatmap ? _self.heatmap : heatmap // ignore: cast_nullable_to_non_nullable
+floor: null == floor ? _self.floor : floor // ignore: cast_nullable_to_non_nullable
+as Floor,heatmap: null == heatmap ? _self.heatmap : heatmap // ignore: cast_nullable_to_non_nullable
 as FloorHeatmap,
   ));
 }
 
-
+/// Create a copy of FloorMapState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$FloorCopyWith<$Res> get floor {
+  
+  return $FloorCopyWith<$Res>(_self.floor, (value) {
+    return _then(_self.copyWith(floor: value));
+  });
+}/// Create a copy of FloorMapState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$FloorHeatmapCopyWith<$Res> get heatmap {
+  
+  return $FloorHeatmapCopyWith<$Res>(_self.heatmap, (value) {
+    return _then(_self.copyWith(heatmap: value));
+  });
+}
 }
 
 /// @nodoc

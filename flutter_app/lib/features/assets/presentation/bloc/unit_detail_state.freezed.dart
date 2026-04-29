@@ -273,12 +273,12 @@ $UnitDetailStateLoadedCopyWith<UnitDetailStateLoaded> get copyWith => _$UnitDeta
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UnitDetailStateLoaded&&const DeepCollectionEquality().equals(other.unit, unit)&&const DeepCollectionEquality().equals(other._renovations, _renovations));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UnitDetailStateLoaded&&(identical(other.unit, unit) || other.unit == unit)&&const DeepCollectionEquality().equals(other._renovations, _renovations));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(unit),const DeepCollectionEquality().hash(_renovations));
+int get hashCode => Object.hash(runtimeType,unit,const DeepCollectionEquality().hash(_renovations));
 
 @override
 String toString() {
@@ -297,7 +297,7 @@ $Res call({
 });
 
 
-
+$UnitDetailCopyWith<$Res> get unit;
 
 }
 /// @nodoc
@@ -310,15 +310,24 @@ class _$UnitDetailStateLoadedCopyWithImpl<$Res>
 
 /// Create a copy of UnitDetailState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? unit = freezed,Object? renovations = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? unit = null,Object? renovations = null,}) {
   return _then(UnitDetailStateLoaded(
-unit: freezed == unit ? _self.unit : unit // ignore: cast_nullable_to_non_nullable
+unit: null == unit ? _self.unit : unit // ignore: cast_nullable_to_non_nullable
 as UnitDetail,renovations: null == renovations ? _self._renovations : renovations // ignore: cast_nullable_to_non_nullable
 as List<RenovationSummary>,
   ));
 }
 
-
+/// Create a copy of UnitDetailState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UnitDetailCopyWith<$Res> get unit {
+  
+  return $UnitDetailCopyWith<$Res>(_self.unit, (value) {
+    return _then(_self.copyWith(unit: value));
+  });
+}
 }
 
 /// @nodoc

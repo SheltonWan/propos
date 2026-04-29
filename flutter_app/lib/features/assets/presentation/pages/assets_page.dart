@@ -89,6 +89,29 @@ class _AssetsPageState extends State<AssetsPage> {
             onSelected: (t) => setState(() => _selectedType = t),
           ),
         ),
+        // 查看房源列表入口
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () => context.push(RoutePaths.unitList),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('查看所有房源', style: TextStyle(fontSize: 13)),
+                      SizedBox(width: 4),
+                      Icon(CupertinoIcons.chevron_right, size: 13),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           sliver: SliverList.builder(

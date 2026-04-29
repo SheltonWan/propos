@@ -4,8 +4,10 @@ import '../../domain/entities/asset_overview.dart';
 import '../../domain/entities/building.dart';
 import '../../domain/entities/floor.dart';
 import '../../domain/entities/heatmap.dart';
+import '../../domain/entities/property_type.dart';
 import '../../domain/entities/renovation.dart';
 import '../../domain/entities/unit.dart';
+import '../../domain/entities/unit_status.dart';
 import '../../domain/repositories/assets_repository.dart';
 import '../models/asset_overview_model.dart';
 import '../models/building_model.dart';
@@ -102,5 +104,58 @@ class AssetsRepositoryImpl implements AssetsRepository {
           RenovationSummaryModel.fromJson(json as Map<String, dynamic>),
     );
     return response.items.map((m) => m.toEntity()).toList();
+  }
+
+  @override
+  Future<({List<UnitSummary> items, int total})> fetchUnits({
+    int page = 1,
+    int pageSize = 20,
+    PropertyType? propertyType,
+    UnitStatus? status,
+    String? buildingId,
+  }) async {
+    final queryParams = <String, dynamic>{
+      'page': page,
+      'pageSize': pageSize,
+      if (propertyType != null) 'property_type': propertyType.name,
+      if (status != null)
+        'status': switch (status) {
+          UnitStatus.leased => 'leased',
+          UnitStatus.vacant => 'vacant',
+          UnitStatus.expiringSoon => 'expiring_soon',
+          UnitStatus.nonLeasable => 'non_leasable',
+        },
+      if (buildingId != null) 'building_id': buildingId,
+    };
+    final response = await _client.apiGetList<UnitSummaryModel>(
+      ApiPaths.units,
+      queryParams: queryParams,
+      fromJson: (json) =>
+          UnitSummaryModel.fromJson(json as Map<String, dynamic>),
+    );
+    return (
+      items: response.items.map((m) => m.toEntity()).toList(),
+      total: response.meta.total,
+    );
+  }
+
+  @override
+  Future<({int success, int failed, List<String> errors})> uploadUnits(
+    String filePath,
+    String fileName,
+  ) async {
+    final data = await _client.apiUpload(
+      ApiPaths.unitsImport,
+      filePath: filePath,
+      fileName: fileName,
+    );
+    return (
+      success: (data['success'] as num?)?.toInt() ?? 0,
+      failed: (data['failed'] as num?)?.toInt() ?? 0,
+      errors: (data['errors'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+    );
   }
 }

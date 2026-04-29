@@ -13,6 +13,8 @@ import '../../features/assets/presentation/bloc/asset_overview_cubit.dart';
 import '../../features/assets/presentation/bloc/building_detail_cubit.dart';
 import '../../features/assets/presentation/bloc/floor_map_cubit.dart';
 import '../../features/assets/presentation/bloc/unit_detail_cubit.dart';
+import '../../features/assets/presentation/bloc/unit_import_cubit.dart';
+import '../../features/assets/presentation/bloc/unit_list_cubit.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/auth/presentation/bloc/auth_cubit.dart';
@@ -89,6 +91,12 @@ void configureDependencies() {
   );
   getIt.registerFactory<UnitDetailCubit>(
     () => UnitDetailCubit(getIt<AssetsRepository>()),
+  );
+  getIt.registerFactory<UnitListCubit>(
+    () => UnitListCubit(getIt<AssetsRepository>()),
+  );
+  getIt.registerFactory<UnitImportCubit>(
+    () => UnitImportCubit(getIt<AssetsRepository>()),
   );
 }
 

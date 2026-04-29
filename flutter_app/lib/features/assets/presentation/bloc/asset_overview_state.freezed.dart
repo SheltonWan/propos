@@ -273,12 +273,12 @@ $AssetOverviewStateLoadedCopyWith<AssetOverviewStateLoaded> get copyWith => _$As
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AssetOverviewStateLoaded&&const DeepCollectionEquality().equals(other.overview, overview)&&const DeepCollectionEquality().equals(other._buildings, _buildings));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AssetOverviewStateLoaded&&(identical(other.overview, overview) || other.overview == overview)&&const DeepCollectionEquality().equals(other._buildings, _buildings));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(overview),const DeepCollectionEquality().hash(_buildings));
+int get hashCode => Object.hash(runtimeType,overview,const DeepCollectionEquality().hash(_buildings));
 
 @override
 String toString() {
@@ -297,7 +297,7 @@ $Res call({
 });
 
 
-
+$AssetOverviewCopyWith<$Res> get overview;
 
 }
 /// @nodoc
@@ -310,15 +310,24 @@ class _$AssetOverviewStateLoadedCopyWithImpl<$Res>
 
 /// Create a copy of AssetOverviewState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? overview = freezed,Object? buildings = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? overview = null,Object? buildings = null,}) {
   return _then(AssetOverviewStateLoaded(
-overview: freezed == overview ? _self.overview : overview // ignore: cast_nullable_to_non_nullable
+overview: null == overview ? _self.overview : overview // ignore: cast_nullable_to_non_nullable
 as AssetOverview,buildings: null == buildings ? _self._buildings : buildings // ignore: cast_nullable_to_non_nullable
 as List<Building>,
   ));
 }
 
-
+/// Create a copy of AssetOverviewState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$AssetOverviewCopyWith<$Res> get overview {
+  
+  return $AssetOverviewCopyWith<$Res>(_self.overview, (value) {
+    return _then(_self.copyWith(overview: value));
+  });
+}
 }
 
 /// @nodoc

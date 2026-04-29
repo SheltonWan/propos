@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/theme/custom_colors.dart';
 import '../../../../shared/widgets/status_tag.dart';
+import '../../domain/entities/property_type.dart';
 import '../../domain/entities/renovation.dart';
 import '../../domain/entities/unit.dart';
 import '../../domain/entities/unit_status.dart';
@@ -85,9 +86,17 @@ class _UnitDetailPageState extends State<UnitDetailPage> {
         _UnitHeader(unit: unit),
         const SizedBox(height: 16),
         _BasicInfoSection(unit: unit),
+        if (unit.extFields != null && unit.extFields!.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _TypeSpecificSection(unit: unit),
+        ],
         if (unit.currentStatus == UnitStatus.leased) ...[
           const SizedBox(height: 16),
           _LeaseInfoSection(unit: unit),
+        ],
+        if (unit.currentContractId != null) ...[
+          const SizedBox(height: 16),
+          _ContractSummaryPlaceholder(contractId: unit.currentContractId!),
         ],
         if (renovations.isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -178,6 +187,72 @@ class _BasicInfoSection extends StatelessWidget {
   }
 }
 
+/// 三业态差异化扩展字段区段。
+///
+/// 使用 Dart 3 switch pattern matching 按 [UnitDetail.propertyType] 分支渲染
+/// 写字楼（工位/格局）/ 商铺（临街/格局）/ 公寓（卧室/户型）的专属字段。
+/// 字段值来自 [UnitDetail.extFields] JSONB，key 命名与后端契约一致。
+class _TypeSpecificSection extends StatelessWidget {
+  final UnitDetail unit;
+
+  const _TypeSpecificSection({required this.unit});
+
+  @override
+  Widget build(BuildContext context) {
+    final ext = unit.extFields!;
+    final rows = switch (unit.propertyType) {
+      PropertyType.office => _officeRows(ext),
+      PropertyType.retail => _retailRows(ext),
+      PropertyType.apartment => _apartmentRows(ext),
+      PropertyType.mixed => <Widget>[],
+    };
+    if (rows.isEmpty) return const SizedBox.shrink();
+    return _SectionCard(
+      title: switch (unit.propertyType) {
+        PropertyType.office => '写字楼扩展信息',
+        PropertyType.retail => '商铺扩展信息',
+        PropertyType.apartment => '公寓扩展信息',
+        _ => '扩展信息',
+      },
+      children: rows,
+    );
+  }
+
+  /// 写字楼：工位数、格局、是否可分割。
+  List<Widget> _officeRows(Map<String, dynamic> ext) => [
+        if (ext['workstations'] != null)
+          _InfoRow(label: '工位数', value: '${ext['workstations']} 个'),
+        if (ext['layout'] != null)
+          _InfoRow(label: '格局', value: '${ext['layout']}'),
+        if (ext['divisible'] != null)
+          _InfoRow(
+              label: '可分割',
+              value: (ext['divisible'] as bool) ? '是' : '否'),
+      ];
+
+  /// 商铺：是否临街、格局、层高备注。
+  List<Widget> _retailRows(Map<String, dynamic> ext) => [
+        if (ext['street_facing'] != null)
+          _InfoRow(
+              label: '临街',
+              value: (ext['street_facing'] as bool) ? '是' : '否'),
+        if (ext['shop_layout'] != null)
+          _InfoRow(label: '商铺格局', value: '${ext['shop_layout']}'),
+        if (ext['floor_height_note'] != null)
+          _InfoRow(label: '层高备注', value: '${ext['floor_height_note']}'),
+      ];
+
+  /// 公寓：卧室数、户型、朝向。
+  List<Widget> _apartmentRows(Map<String, dynamic> ext) => [
+        if (ext['bedrooms'] != null)
+          _InfoRow(label: '卧室数', value: '${ext['bedrooms']} 室'),
+        if (ext['apartment_layout'] != null)
+          _InfoRow(label: '户型', value: '${ext['apartment_layout']}'),
+        if (ext['facing'] != null)
+          _InfoRow(label: '朝向', value: '${ext['facing']}'),
+      ];
+}
+
 /// 租赁信息区（仅 leased 状态展示）。
 class _LeaseInfoSection extends StatelessWidget {
   final UnitDetail unit;
@@ -245,6 +320,55 @@ class _RenovationSection extends StatelessWidget {
           ],
         );
       }).toList(),
+    );
+  }
+}
+
+/// 合同摘要占位区段（M2 联动后替换为真实合同数据）。
+///
+/// 当前仅显示合同 ID 及"M2 待接入"提示，待 M2 实现后删除此 Widget，
+/// 替换为真正的 ContractSummaryWidget（从合同 API 拉取数据）。
+class _ContractSummaryPlaceholder extends StatelessWidget {
+  final String contractId;
+
+  const _ContractSummaryPlaceholder({required this.contractId});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Icon(CupertinoIcons.doc_text, size: 20, color: scheme.outline),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '合同详情',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: scheme.onSurface),
+                ),
+                Text(
+                  '合同信息将在 M2 模块接入后展示',
+                  style: TextStyle(fontSize: 12, color: scheme.outline),
+                ),
+              ],
+            ),
+          ),
+          Icon(CupertinoIcons.chevron_forward,
+              size: 14, color: scheme.outline),
+        ],
+      ),
     );
   }
 }

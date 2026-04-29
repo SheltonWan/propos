@@ -92,6 +92,38 @@ class MockInterceptor extends Interceptor {
       }
     }
 
+    // ── Assets: GET /api/units（分页列表）──
+    if (method == 'GET' && path == ApiPaths.units) {
+      final page = int.tryParse(
+              options.queryParameters['page']?.toString() ?? '1') ??
+          1;
+      final pageSize = int.tryParse(
+              options.queryParameters['pageSize']?.toString() ?? '20') ??
+          20;
+      return _mockUnitList(page: page, pageSize: pageSize);
+    }
+
+    // ── Assets: POST /api/units/import ──
+    if (method == 'POST' && path == ApiPaths.unitsImport) {
+      return {
+        'data': {
+          'success_count': 18,
+          'failed_rows': [
+            {
+              'row': 5,
+              'field': 'gross_area',
+              'error': '面积必须大于 0',
+            },
+            {
+              'row': 12,
+              'field': 'unit_number',
+              'error': '房源编号重复',
+            },
+          ],
+        },
+      };
+    }
+
     // ── Assets: GET /api/units/:id ──
     if (method == 'GET' && path.startsWith('${ApiPaths.units}/')) {
       final id = path.substring('${ApiPaths.units}/'.length);
@@ -393,4 +425,58 @@ class MockInterceptor extends Interceptor {
         ],
         'meta': {'page': 1, 'page_size': 20, 'total': 2},
       };
+
+  /// Mock 房源列表（支持简单分页，固定返回12条数据）。
+  Map<String, dynamic> _mockUnitList({int page = 1, int pageSize = 20}) {
+    const totalUnits = 12;
+    final allUnits = <Map<String, dynamic>>[
+      _unitItem('unit-001', 'A-12-01', 'bld-001', 'A座写字楼', 'flr-001', '12F', 'office', 135.0, 'leased', 120.0),
+      _unitItem('unit-002', 'A-12-02', 'bld-001', 'A座写字楼', 'flr-001', '12F', 'office', 98.0, 'vacant', 115.0),
+      _unitItem('unit-003', 'A-12-03', 'bld-001', 'A座写字楼', 'flr-001', '12F', 'office', 112.5, 'expiring_soon', 118.0),
+      _unitItem('unit-004', 'A-11-01', 'bld-001', 'A座写字楼', 'flr-002', '11F', 'office', 145.0, 'leased', 125.0),
+      _unitItem('unit-005', 'A-11-02', 'bld-001', 'A座写字楼', 'flr-002', '11F', 'office', 200.0, 'non_leasable', null),
+      _unitItem('unit-006', 'B-01-01', 'bld-002', '商铺区', 'flr-010', '1F', 'retail', 80.0, 'leased', 280.0),
+      _unitItem('unit-007', 'B-01-02', 'bld-002', '商铺区', 'flr-010', '1F', 'retail', 65.0, 'vacant', 260.0),
+      _unitItem('unit-008', 'B-02-01', 'bld-002', '商铺区', 'flr-011', '2F', 'retail', 90.0, 'leased', 200.0),
+      _unitItem('unit-009', 'C-05-01', 'bld-003', '公寓楼', 'flr-020', '5F', 'apartment', 56.0, 'leased', 85.0),
+      _unitItem('unit-010', 'C-05-02', 'bld-003', '公寓楼', 'flr-020', '5F', 'apartment', 72.0, 'vacant', 88.0),
+      _unitItem('unit-011', 'C-06-01', 'bld-003', '公寓楼', 'flr-021', '6F', 'apartment', 56.0, 'leased', 86.0),
+      _unitItem('unit-012', 'C-06-02', 'bld-003', '公寓楼', 'flr-021', '6F', 'apartment', 68.0, 'expiring_soon', 87.0),
+    ];
+    final start = (page - 1) * pageSize;
+    final end = (start + pageSize).clamp(0, totalUnits);
+    final pageItems = start < totalUnits ? allUnits.sublist(start, end) : <Map<String, dynamic>>[];
+    return {
+      'data': pageItems,
+      'meta': {'page': page, 'pageSize': pageSize, 'total': totalUnits},
+    };
+  }
+
+  Map<String, dynamic> _unitItem(
+    String id,
+    String unitNumber,
+    String buildingId,
+    String buildingName,
+    String floorId,
+    String floorName,
+    String propertyType,
+    double grossArea,
+    String status,
+    double? rentRef,
+  ) => {
+    'id': id,
+    'building_id': buildingId,
+    'building_name': buildingName,
+    'floor_id': floorId,
+    'floor_name': floorName,
+    'unit_number': unitNumber,
+    'property_type': propertyType,
+    'gross_area': grossArea,
+    'net_area': grossArea * 0.9,
+    'current_status': status,
+    'is_leasable': status != 'non_leasable',
+    'decoration_status': 'refined',
+    'market_rent_reference': rentRef,
+    'created_at': '2024-01-01T00:00:00Z',
+  };
 }

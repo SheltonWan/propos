@@ -46,6 +46,9 @@ dependencies:
   # Material Icons
   cupertino_icons: ^1.0.8
 
+  # File picking (Excel 导入)
+  file_picker: ^8.1.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

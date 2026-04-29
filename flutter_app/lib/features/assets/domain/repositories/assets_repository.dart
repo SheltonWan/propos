@@ -2,8 +2,10 @@ import '../entities/asset_overview.dart';
 import '../entities/building.dart';
 import '../entities/floor.dart';
 import '../entities/heatmap.dart';
+import '../entities/property_type.dart';
 import '../entities/renovation.dart';
 import '../entities/unit.dart';
+import '../entities/unit_status.dart';
 
 /// 资产模块 Repository 抽象接口（领域层）。
 ///
@@ -32,4 +34,24 @@ abstract interface class AssetsRepository {
 
   /// 获取改造记录列表（GET /api/renovations?unit_id=...）
   Future<List<RenovationSummary>> fetchRenovations(String unitId);
+
+  /// 分页查询房源列表（GET /api/units）
+  ///
+  /// 支持多条件过滤：业态 / 状态 / 所属楼栋，分页参数 [page] 从 1 开始。
+  Future<({List<UnitSummary> items, int total})> fetchUnits({
+    int page = 1,
+    int pageSize = 20,
+    PropertyType? propertyType,
+    UnitStatus? status,
+    String? buildingId,
+  });
+
+  /// 上传 Excel 批量导入房源（POST /api/units/import multipart/form-data）
+  ///
+  /// 返回 `({int success, int failed, List<String> errors})`，
+  /// 其中 [errors] 为失败行的描述信息列表。
+  Future<({int success, int failed, List<String> errors})> uploadUnits(
+    String filePath,
+    String fileName,
+  );
 }

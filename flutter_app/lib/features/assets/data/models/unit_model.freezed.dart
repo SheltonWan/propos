@@ -13,6 +13,308 @@ part of 'unit_model.dart';
 T _$identity<T>(T value) => value;
 
 /// @nodoc
+mixin _$UnitSummaryModel {
+
+ String get id;@JsonKey(name: 'building_id') String get buildingId;@JsonKey(name: 'building_name') String get buildingName;@JsonKey(name: 'floor_id') String get floorId;@JsonKey(name: 'floor_name') String? get floorName;@JsonKey(name: 'unit_number') String get unitNumber;@JsonKey(name: 'property_type') String get propertyType;@JsonKey(name: 'gross_area') double? get grossArea;@JsonKey(name: 'net_area') double? get netArea;@JsonKey(name: 'current_status') String get currentStatus;@JsonKey(name: 'is_leasable') bool get isLeasable;@JsonKey(name: 'decoration_status') String get decorationStatus;@JsonKey(name: 'market_rent_reference') double? get marketRentReference;@JsonKey(name: 'created_at') String get createdAt;
+/// Create a copy of UnitSummaryModel
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UnitSummaryModelCopyWith<UnitSummaryModel> get copyWith => _$UnitSummaryModelCopyWithImpl<UnitSummaryModel>(this as UnitSummaryModel, _$identity);
+
+  /// Serializes this UnitSummaryModel to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UnitSummaryModel&&(identical(other.id, id) || other.id == id)&&(identical(other.buildingId, buildingId) || other.buildingId == buildingId)&&(identical(other.buildingName, buildingName) || other.buildingName == buildingName)&&(identical(other.floorId, floorId) || other.floorId == floorId)&&(identical(other.floorName, floorName) || other.floorName == floorName)&&(identical(other.unitNumber, unitNumber) || other.unitNumber == unitNumber)&&(identical(other.propertyType, propertyType) || other.propertyType == propertyType)&&(identical(other.grossArea, grossArea) || other.grossArea == grossArea)&&(identical(other.netArea, netArea) || other.netArea == netArea)&&(identical(other.currentStatus, currentStatus) || other.currentStatus == currentStatus)&&(identical(other.isLeasable, isLeasable) || other.isLeasable == isLeasable)&&(identical(other.decorationStatus, decorationStatus) || other.decorationStatus == decorationStatus)&&(identical(other.marketRentReference, marketRentReference) || other.marketRentReference == marketRentReference)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,buildingId,buildingName,floorId,floorName,unitNumber,propertyType,grossArea,netArea,currentStatus,isLeasable,decorationStatus,marketRentReference,createdAt);
+
+@override
+String toString() {
+  return 'UnitSummaryModel(id: $id, buildingId: $buildingId, buildingName: $buildingName, floorId: $floorId, floorName: $floorName, unitNumber: $unitNumber, propertyType: $propertyType, grossArea: $grossArea, netArea: $netArea, currentStatus: $currentStatus, isLeasable: $isLeasable, decorationStatus: $decorationStatus, marketRentReference: $marketRentReference, createdAt: $createdAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UnitSummaryModelCopyWith<$Res>  {
+  factory $UnitSummaryModelCopyWith(UnitSummaryModel value, $Res Function(UnitSummaryModel) _then) = _$UnitSummaryModelCopyWithImpl;
+@useResult
+$Res call({
+ String id,@JsonKey(name: 'building_id') String buildingId,@JsonKey(name: 'building_name') String buildingName,@JsonKey(name: 'floor_id') String floorId,@JsonKey(name: 'floor_name') String? floorName,@JsonKey(name: 'unit_number') String unitNumber,@JsonKey(name: 'property_type') String propertyType,@JsonKey(name: 'gross_area') double? grossArea,@JsonKey(name: 'net_area') double? netArea,@JsonKey(name: 'current_status') String currentStatus,@JsonKey(name: 'is_leasable') bool isLeasable,@JsonKey(name: 'decoration_status') String decorationStatus,@JsonKey(name: 'market_rent_reference') double? marketRentReference,@JsonKey(name: 'created_at') String createdAt
+});
+
+
+
+
+}
+/// @nodoc
+class _$UnitSummaryModelCopyWithImpl<$Res>
+    implements $UnitSummaryModelCopyWith<$Res> {
+  _$UnitSummaryModelCopyWithImpl(this._self, this._then);
+
+  final UnitSummaryModel _self;
+  final $Res Function(UnitSummaryModel) _then;
+
+/// Create a copy of UnitSummaryModel
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? buildingId = null,Object? buildingName = null,Object? floorId = null,Object? floorName = freezed,Object? unitNumber = null,Object? propertyType = null,Object? grossArea = freezed,Object? netArea = freezed,Object? currentStatus = null,Object? isLeasable = null,Object? decorationStatus = null,Object? marketRentReference = freezed,Object? createdAt = null,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,buildingId: null == buildingId ? _self.buildingId : buildingId // ignore: cast_nullable_to_non_nullable
+as String,buildingName: null == buildingName ? _self.buildingName : buildingName // ignore: cast_nullable_to_non_nullable
+as String,floorId: null == floorId ? _self.floorId : floorId // ignore: cast_nullable_to_non_nullable
+as String,floorName: freezed == floorName ? _self.floorName : floorName // ignore: cast_nullable_to_non_nullable
+as String?,unitNumber: null == unitNumber ? _self.unitNumber : unitNumber // ignore: cast_nullable_to_non_nullable
+as String,propertyType: null == propertyType ? _self.propertyType : propertyType // ignore: cast_nullable_to_non_nullable
+as String,grossArea: freezed == grossArea ? _self.grossArea : grossArea // ignore: cast_nullable_to_non_nullable
+as double?,netArea: freezed == netArea ? _self.netArea : netArea // ignore: cast_nullable_to_non_nullable
+as double?,currentStatus: null == currentStatus ? _self.currentStatus : currentStatus // ignore: cast_nullable_to_non_nullable
+as String,isLeasable: null == isLeasable ? _self.isLeasable : isLeasable // ignore: cast_nullable_to_non_nullable
+as bool,decorationStatus: null == decorationStatus ? _self.decorationStatus : decorationStatus // ignore: cast_nullable_to_non_nullable
+as String,marketRentReference: freezed == marketRentReference ? _self.marketRentReference : marketRentReference // ignore: cast_nullable_to_non_nullable
+as double?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [UnitSummaryModel].
+extension UnitSummaryModelPatterns on UnitSummaryModel {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _UnitSummaryModel value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _UnitSummaryModel() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _UnitSummaryModel value)  $default,){
+final _that = this;
+switch (_that) {
+case _UnitSummaryModel():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _UnitSummaryModel value)?  $default,){
+final _that = this;
+switch (_that) {
+case _UnitSummaryModel() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(name: 'building_id')  String buildingId, @JsonKey(name: 'building_name')  String buildingName, @JsonKey(name: 'floor_id')  String floorId, @JsonKey(name: 'floor_name')  String? floorName, @JsonKey(name: 'unit_number')  String unitNumber, @JsonKey(name: 'property_type')  String propertyType, @JsonKey(name: 'gross_area')  double? grossArea, @JsonKey(name: 'net_area')  double? netArea, @JsonKey(name: 'current_status')  String currentStatus, @JsonKey(name: 'is_leasable')  bool isLeasable, @JsonKey(name: 'decoration_status')  String decorationStatus, @JsonKey(name: 'market_rent_reference')  double? marketRentReference, @JsonKey(name: 'created_at')  String createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _UnitSummaryModel() when $default != null:
+return $default(_that.id,_that.buildingId,_that.buildingName,_that.floorId,_that.floorName,_that.unitNumber,_that.propertyType,_that.grossArea,_that.netArea,_that.currentStatus,_that.isLeasable,_that.decorationStatus,_that.marketRentReference,_that.createdAt);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(name: 'building_id')  String buildingId, @JsonKey(name: 'building_name')  String buildingName, @JsonKey(name: 'floor_id')  String floorId, @JsonKey(name: 'floor_name')  String? floorName, @JsonKey(name: 'unit_number')  String unitNumber, @JsonKey(name: 'property_type')  String propertyType, @JsonKey(name: 'gross_area')  double? grossArea, @JsonKey(name: 'net_area')  double? netArea, @JsonKey(name: 'current_status')  String currentStatus, @JsonKey(name: 'is_leasable')  bool isLeasable, @JsonKey(name: 'decoration_status')  String decorationStatus, @JsonKey(name: 'market_rent_reference')  double? marketRentReference, @JsonKey(name: 'created_at')  String createdAt)  $default,) {final _that = this;
+switch (_that) {
+case _UnitSummaryModel():
+return $default(_that.id,_that.buildingId,_that.buildingName,_that.floorId,_that.floorName,_that.unitNumber,_that.propertyType,_that.grossArea,_that.netArea,_that.currentStatus,_that.isLeasable,_that.decorationStatus,_that.marketRentReference,_that.createdAt);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(name: 'building_id')  String buildingId, @JsonKey(name: 'building_name')  String buildingName, @JsonKey(name: 'floor_id')  String floorId, @JsonKey(name: 'floor_name')  String? floorName, @JsonKey(name: 'unit_number')  String unitNumber, @JsonKey(name: 'property_type')  String propertyType, @JsonKey(name: 'gross_area')  double? grossArea, @JsonKey(name: 'net_area')  double? netArea, @JsonKey(name: 'current_status')  String currentStatus, @JsonKey(name: 'is_leasable')  bool isLeasable, @JsonKey(name: 'decoration_status')  String decorationStatus, @JsonKey(name: 'market_rent_reference')  double? marketRentReference, @JsonKey(name: 'created_at')  String createdAt)?  $default,) {final _that = this;
+switch (_that) {
+case _UnitSummaryModel() when $default != null:
+return $default(_that.id,_that.buildingId,_that.buildingName,_that.floorId,_that.floorName,_that.unitNumber,_that.propertyType,_that.grossArea,_that.netArea,_that.currentStatus,_that.isLeasable,_that.decorationStatus,_that.marketRentReference,_that.createdAt);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _UnitSummaryModel implements UnitSummaryModel {
+  const _UnitSummaryModel({required this.id, @JsonKey(name: 'building_id') required this.buildingId, @JsonKey(name: 'building_name') required this.buildingName, @JsonKey(name: 'floor_id') required this.floorId, @JsonKey(name: 'floor_name') this.floorName, @JsonKey(name: 'unit_number') required this.unitNumber, @JsonKey(name: 'property_type') required this.propertyType, @JsonKey(name: 'gross_area') this.grossArea, @JsonKey(name: 'net_area') this.netArea, @JsonKey(name: 'current_status') required this.currentStatus, @JsonKey(name: 'is_leasable') required this.isLeasable, @JsonKey(name: 'decoration_status') required this.decorationStatus, @JsonKey(name: 'market_rent_reference') this.marketRentReference, @JsonKey(name: 'created_at') required this.createdAt});
+  factory _UnitSummaryModel.fromJson(Map<String, dynamic> json) => _$UnitSummaryModelFromJson(json);
+
+@override final  String id;
+@override@JsonKey(name: 'building_id') final  String buildingId;
+@override@JsonKey(name: 'building_name') final  String buildingName;
+@override@JsonKey(name: 'floor_id') final  String floorId;
+@override@JsonKey(name: 'floor_name') final  String? floorName;
+@override@JsonKey(name: 'unit_number') final  String unitNumber;
+@override@JsonKey(name: 'property_type') final  String propertyType;
+@override@JsonKey(name: 'gross_area') final  double? grossArea;
+@override@JsonKey(name: 'net_area') final  double? netArea;
+@override@JsonKey(name: 'current_status') final  String currentStatus;
+@override@JsonKey(name: 'is_leasable') final  bool isLeasable;
+@override@JsonKey(name: 'decoration_status') final  String decorationStatus;
+@override@JsonKey(name: 'market_rent_reference') final  double? marketRentReference;
+@override@JsonKey(name: 'created_at') final  String createdAt;
+
+/// Create a copy of UnitSummaryModel
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$UnitSummaryModelCopyWith<_UnitSummaryModel> get copyWith => __$UnitSummaryModelCopyWithImpl<_UnitSummaryModel>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$UnitSummaryModelToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UnitSummaryModel&&(identical(other.id, id) || other.id == id)&&(identical(other.buildingId, buildingId) || other.buildingId == buildingId)&&(identical(other.buildingName, buildingName) || other.buildingName == buildingName)&&(identical(other.floorId, floorId) || other.floorId == floorId)&&(identical(other.floorName, floorName) || other.floorName == floorName)&&(identical(other.unitNumber, unitNumber) || other.unitNumber == unitNumber)&&(identical(other.propertyType, propertyType) || other.propertyType == propertyType)&&(identical(other.grossArea, grossArea) || other.grossArea == grossArea)&&(identical(other.netArea, netArea) || other.netArea == netArea)&&(identical(other.currentStatus, currentStatus) || other.currentStatus == currentStatus)&&(identical(other.isLeasable, isLeasable) || other.isLeasable == isLeasable)&&(identical(other.decorationStatus, decorationStatus) || other.decorationStatus == decorationStatus)&&(identical(other.marketRentReference, marketRentReference) || other.marketRentReference == marketRentReference)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,buildingId,buildingName,floorId,floorName,unitNumber,propertyType,grossArea,netArea,currentStatus,isLeasable,decorationStatus,marketRentReference,createdAt);
+
+@override
+String toString() {
+  return 'UnitSummaryModel(id: $id, buildingId: $buildingId, buildingName: $buildingName, floorId: $floorId, floorName: $floorName, unitNumber: $unitNumber, propertyType: $propertyType, grossArea: $grossArea, netArea: $netArea, currentStatus: $currentStatus, isLeasable: $isLeasable, decorationStatus: $decorationStatus, marketRentReference: $marketRentReference, createdAt: $createdAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$UnitSummaryModelCopyWith<$Res> implements $UnitSummaryModelCopyWith<$Res> {
+  factory _$UnitSummaryModelCopyWith(_UnitSummaryModel value, $Res Function(_UnitSummaryModel) _then) = __$UnitSummaryModelCopyWithImpl;
+@override @useResult
+$Res call({
+ String id,@JsonKey(name: 'building_id') String buildingId,@JsonKey(name: 'building_name') String buildingName,@JsonKey(name: 'floor_id') String floorId,@JsonKey(name: 'floor_name') String? floorName,@JsonKey(name: 'unit_number') String unitNumber,@JsonKey(name: 'property_type') String propertyType,@JsonKey(name: 'gross_area') double? grossArea,@JsonKey(name: 'net_area') double? netArea,@JsonKey(name: 'current_status') String currentStatus,@JsonKey(name: 'is_leasable') bool isLeasable,@JsonKey(name: 'decoration_status') String decorationStatus,@JsonKey(name: 'market_rent_reference') double? marketRentReference,@JsonKey(name: 'created_at') String createdAt
+});
+
+
+
+
+}
+/// @nodoc
+class __$UnitSummaryModelCopyWithImpl<$Res>
+    implements _$UnitSummaryModelCopyWith<$Res> {
+  __$UnitSummaryModelCopyWithImpl(this._self, this._then);
+
+  final _UnitSummaryModel _self;
+  final $Res Function(_UnitSummaryModel) _then;
+
+/// Create a copy of UnitSummaryModel
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? buildingId = null,Object? buildingName = null,Object? floorId = null,Object? floorName = freezed,Object? unitNumber = null,Object? propertyType = null,Object? grossArea = freezed,Object? netArea = freezed,Object? currentStatus = null,Object? isLeasable = null,Object? decorationStatus = null,Object? marketRentReference = freezed,Object? createdAt = null,}) {
+  return _then(_UnitSummaryModel(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,buildingId: null == buildingId ? _self.buildingId : buildingId // ignore: cast_nullable_to_non_nullable
+as String,buildingName: null == buildingName ? _self.buildingName : buildingName // ignore: cast_nullable_to_non_nullable
+as String,floorId: null == floorId ? _self.floorId : floorId // ignore: cast_nullable_to_non_nullable
+as String,floorName: freezed == floorName ? _self.floorName : floorName // ignore: cast_nullable_to_non_nullable
+as String?,unitNumber: null == unitNumber ? _self.unitNumber : unitNumber // ignore: cast_nullable_to_non_nullable
+as String,propertyType: null == propertyType ? _self.propertyType : propertyType // ignore: cast_nullable_to_non_nullable
+as String,grossArea: freezed == grossArea ? _self.grossArea : grossArea // ignore: cast_nullable_to_non_nullable
+as double?,netArea: freezed == netArea ? _self.netArea : netArea // ignore: cast_nullable_to_non_nullable
+as double?,currentStatus: null == currentStatus ? _self.currentStatus : currentStatus // ignore: cast_nullable_to_non_nullable
+as String,isLeasable: null == isLeasable ? _self.isLeasable : isLeasable // ignore: cast_nullable_to_non_nullable
+as bool,decorationStatus: null == decorationStatus ? _self.decorationStatus : decorationStatus // ignore: cast_nullable_to_non_nullable
+as String,marketRentReference: freezed == marketRentReference ? _self.marketRentReference : marketRentReference // ignore: cast_nullable_to_non_nullable
+as double?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$UnitDetailModel {
 
  String get id;@JsonKey(name: 'building_id') String get buildingId;@JsonKey(name: 'building_name') String get buildingName;@JsonKey(name: 'floor_id') String get floorId;@JsonKey(name: 'floor_name') String? get floorName;@JsonKey(name: 'unit_number') String get unitNumber;@JsonKey(name: 'property_type') String get propertyType;@JsonKey(name: 'gross_area') double? get grossArea;@JsonKey(name: 'net_area') double? get netArea; String? get orientation;@JsonKey(name: 'ceiling_height') double? get ceilingHeight;@JsonKey(name: 'decoration_status') String get decorationStatus;@JsonKey(name: 'current_status') String get currentStatus;@JsonKey(name: 'is_leasable') bool get isLeasable;@JsonKey(name: 'ext_fields') Map<String, dynamic>? get extFields;@JsonKey(name: 'current_contract_id') String? get currentContractId;@JsonKey(name: 'qr_code') String? get qrCode;@JsonKey(name: 'market_rent_reference') double? get marketRentReference;@JsonKey(name: 'predecessor_unit_ids', defaultValue: <String>[]) List<String> get predecessorUnitIds;@JsonKey(name: 'created_at') String get createdAt;@JsonKey(name: 'updated_at') String get updatedAt;

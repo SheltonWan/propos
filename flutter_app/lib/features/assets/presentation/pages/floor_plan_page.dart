@@ -87,7 +87,14 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
             _LegendBar(),
             Expanded(
               child: heatmap.svgPath != null
-                  ? _FloorImageViewer(imagePath: heatmap.svgPath!)
+                  ? _FloorImageViewer(
+                      imagePath: heatmap.svgPath!,
+                      units: heatmap.units,
+                      onUnitTap: (unit) => setState(() {
+                        _selectedUnit = unit;
+                        _showUnitBottomSheet(context, unit);
+                      }),
+                    )
                   : _UnitGrid(
                       units: heatmap.units,
                       selectedUnit: _selectedUnit,
@@ -141,26 +148,86 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
 }
 
 /// 图片平面图（有 SVG/PNG 路径时使用）。
+///
+/// 在图片上叠加透明可点击热区（mock Rect 坐标），
+/// 实际生产中坐标来自 SVG `<rect data-unit-id="...">` 属性解析。
 class _FloorImageViewer extends StatelessWidget {
   final String imagePath;
 
-  const _FloorImageViewer({required this.imagePath});
+  /// 热区单元列表（用于叠加点击层）。
+  final List<HeatmapUnit> units;
+
+  /// 选中某个单元的回调。
+  final void Function(HeatmapUnit) onUnitTap;
+
+  const _FloorImageViewer({
+    required this.imagePath,
+    required this.units,
+    required this.onUnitTap,
+  });
 
   @override
   Widget build(BuildContext context) => InteractiveViewer(
         minScale: 0.5,
         maxScale: 4.0,
         child: Center(
-          child: Image.network(
-            imagePath,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Padding(
-              padding: EdgeInsets.all(32),
-              child: Text('平面图加载失败，请检查网络连接'),
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Stack(
+                children: [
+                  Image.network(
+                    imagePath,
+                    width: constraints.maxWidth,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Text('平面图加载失败，请检查网络连接'),
+                    ),
+                  ),
+                  // 热区覆盖层（mock 矩形坐标均匀分布）
+                  ..._buildHotspots(constraints.maxWidth, constraints.maxHeight),
+                ],
+              );
+            },
           ),
         ),
       );
+
+  /// 生成 mock 矩形热区列表。
+  ///
+  /// 按网格均匀排布，每行最多 4 列。实际生产应从 SVG 解析坐标。
+  List<Widget> _buildHotspots(double w, double h) {
+    const cols = 4;
+    const cellW = 0.22;
+    const cellH = 0.15;
+    const colGap = 0.02;
+    const rowGap = 0.02;
+    const startX = 0.03;
+    const startY = 0.05;
+
+    return List.generate(units.length, (i) {
+      final col = i % cols;
+      final row = i ~/ cols;
+      final left = (startX + col * (cellW + colGap)) * w;
+      final top = (startY + row * (cellH + rowGap)) * h;
+      final width = cellW * w;
+      final height = cellH * h;
+
+      return Positioned(
+        left: left,
+        top: top,
+        width: width,
+        height: height,
+        child: GestureDetector(
+          onTap: () => onUnitTap(units[i]),
+          // 透明热区，不遮挡图片视觉内容
+          child: Container(
+            color: Colors.transparent,
+          ),
+        ),
+      );
+    });
+  }
 }
 
 /// 状态色例 Legend 条。

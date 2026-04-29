@@ -6,6 +6,42 @@ part of 'unit_model.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_UnitSummaryModel _$UnitSummaryModelFromJson(Map<String, dynamic> json) =>
+    _UnitSummaryModel(
+      id: json['id'] as String,
+      buildingId: json['building_id'] as String,
+      buildingName: json['building_name'] as String,
+      floorId: json['floor_id'] as String,
+      floorName: json['floor_name'] as String?,
+      unitNumber: json['unit_number'] as String,
+      propertyType: json['property_type'] as String,
+      grossArea: (json['gross_area'] as num?)?.toDouble(),
+      netArea: (json['net_area'] as num?)?.toDouble(),
+      currentStatus: json['current_status'] as String,
+      isLeasable: json['is_leasable'] as bool,
+      decorationStatus: json['decoration_status'] as String,
+      marketRentReference: (json['market_rent_reference'] as num?)?.toDouble(),
+      createdAt: json['created_at'] as String,
+    );
+
+Map<String, dynamic> _$UnitSummaryModelToJson(_UnitSummaryModel instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'building_id': instance.buildingId,
+      'building_name': instance.buildingName,
+      'floor_id': instance.floorId,
+      'floor_name': instance.floorName,
+      'unit_number': instance.unitNumber,
+      'property_type': instance.propertyType,
+      'gross_area': instance.grossArea,
+      'net_area': instance.netArea,
+      'current_status': instance.currentStatus,
+      'is_leasable': instance.isLeasable,
+      'decoration_status': instance.decorationStatus,
+      'market_rent_reference': instance.marketRentReference,
+      'created_at': instance.createdAt,
+    };
+
 _UnitDetailModel _$UnitDetailModelFromJson(Map<String, dynamic> json) =>
     _UnitDetailModel(
       id: json['id'] as String,

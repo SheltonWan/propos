@@ -113,6 +113,28 @@ class ApiClient {
     }
   }
 
+  /// 发送 multipart/form-data 上传请求，文件字段名为 `file`。
+  ///
+  /// 返回解析后的响应 `data` 字段（JSON Map），由调用方自行映射。
+  Future<Map<String, dynamic>> apiUpload<T>(
+    String path, {
+    required String filePath,
+    required String fileName,
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      });
+      final resp = await _dio.post<Map<String, dynamic>>(
+        path,
+        data: formData,
+      );
+      return (resp.data!['data'] as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      throw _unwrapDioError(e);
+    }
+  }
+
   // ── Interceptors ──
 
   Future<void> _onRequest(

@@ -273,12 +273,12 @@ $BuildingDetailStateLoadedCopyWith<BuildingDetailStateLoaded> get copyWith => _$
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BuildingDetailStateLoaded&&const DeepCollectionEquality().equals(other.building, building)&&const DeepCollectionEquality().equals(other._floors, _floors));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BuildingDetailStateLoaded&&(identical(other.building, building) || other.building == building)&&const DeepCollectionEquality().equals(other._floors, _floors));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(building),const DeepCollectionEquality().hash(_floors));
+int get hashCode => Object.hash(runtimeType,building,const DeepCollectionEquality().hash(_floors));
 
 @override
 String toString() {
@@ -297,7 +297,7 @@ $Res call({
 });
 
 
-
+$BuildingCopyWith<$Res> get building;
 
 }
 /// @nodoc
@@ -310,15 +310,24 @@ class _$BuildingDetailStateLoadedCopyWithImpl<$Res>
 
 /// Create a copy of BuildingDetailState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? building = freezed,Object? floors = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? building = null,Object? floors = null,}) {
   return _then(BuildingDetailStateLoaded(
-building: freezed == building ? _self.building : building // ignore: cast_nullable_to_non_nullable
+building: null == building ? _self.building : building // ignore: cast_nullable_to_non_nullable
 as Building,floors: null == floors ? _self._floors : floors // ignore: cast_nullable_to_non_nullable
 as List<Floor>,
   ));
 }
 
-
+/// Create a copy of BuildingDetailState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$BuildingCopyWith<$Res> get building {
+  
+  return $BuildingCopyWith<$Res>(_self.building, (value) {
+    return _then(_self.copyWith(building: value));
+  });
+}
 }
 
 /// @nodoc
