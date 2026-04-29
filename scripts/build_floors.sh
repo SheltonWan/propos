@@ -28,6 +28,7 @@
 #   bash scripts/build_floors.sh building_a
 #   bash scripts/build_floors.sh building_a --png
 #   bash scripts/build_floors.sh building_a --dxf "A座.dxf" --prefix A座 --png
+#   bash scripts/build_floors.sh building_a --show-annotations    # 保留标注图层
 
 set -euo pipefail
 
@@ -45,15 +46,19 @@ GEN_PNG=0
 PNG_WIDTH=2000
 FORCE=0
 SKIP_DWG=0
+SHOW_ANNOTATIONS=0
+HIDE_LAYERS_EXTRA=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dxf)       DXF_NAME="$2"; shift 2 ;;
-    --prefix)    PREFIX="$2"; shift 2 ;;
-    --png)       GEN_PNG=1; shift ;;
-    --png-width) PNG_WIDTH="$2"; shift 2 ;;
-    --force)     FORCE=1; shift ;;
-    --skip-dwg)  SKIP_DWG=1; shift ;;
+    --dxf)            DXF_NAME="$2"; shift 2 ;;
+    --prefix)         PREFIX="$2"; shift 2 ;;
+    --png)            GEN_PNG=1; shift ;;
+    --png-width)      PNG_WIDTH="$2"; shift 2 ;;
+    --force)          FORCE=1; shift ;;
+    --skip-dwg)       SKIP_DWG=1; shift ;;
+    --show-annotations) SHOW_ANNOTATIONS=1; shift ;;
+    --hide-layers)    HIDE_LAYERS_EXTRA="$2"; shift 2 ;;
     *) echo "未知参数: $1" >&2; exit 1 ;;
   esac
 done
@@ -151,8 +156,17 @@ mkdir -p "$FLOORS_DIR"
 # 清空旧的同前缀产物（SVG + JSON 骨架），避免上次残留
 find "$FLOORS_DIR" -maxdepth 1 \( -name "${PREFIX}_*.svg" -o -name "${PREFIX}_*.json" \) -delete 2>/dev/null || true
 
+# 组装标注过滤参数
+ANNOTATION_ARGS=""
+if [[ "$SHOW_ANNOTATIONS" -eq 1 ]]; then
+  ANNOTATION_ARGS="--show-annotations"
+elif [[ -n "$HIDE_LAYERS_EXTRA" ]]; then
+  ANNOTATION_ARGS="--hide-layers ${HIDE_LAYERS_EXTRA}"
+fi
+
 # 跑切分脚本（过滤 DIMASSOC 噪音日志）
-python3 "$SPLIT_SCRIPT" "$DXF_PATH" "$FLOORS_DIR" --prefix "$PREFIX" 2>&1 \
+# shellcheck disable=SC2086
+python3 "$SPLIT_SCRIPT" "$DXF_PATH" "$FLOORS_DIR" --prefix "$PREFIX" $ANNOTATION_ARGS 2>&1 \
   | grep -v "DIMASSOC" \
   || true
 
