@@ -116,7 +116,7 @@ class ApiClient {
   /// 发送 multipart/form-data 上传请求，文件字段名为 `file`。
   ///
   /// 返回解析后的响应 `data` 字段（JSON Map），由调用方自行映射。
-  Future<Map<String, dynamic>> apiUpload<T>(
+  Future<Map<String, dynamic>> apiUpload<T extends Object>(
     String path, {
     required String filePath,
     required String fileName,

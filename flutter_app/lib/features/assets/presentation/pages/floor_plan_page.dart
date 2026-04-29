@@ -179,7 +179,7 @@ class _FloorImageViewer extends StatelessWidget {
                     imagePath,
                     width: constraints.maxWidth,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Padding(
+                    errorBuilder: (_, _, _) => const Padding(
                       padding: EdgeInsets.all(32),
                       child: Text('平面图加载失败，请检查网络连接'),
                     ),
@@ -237,14 +237,14 @@ class _LegendBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       color: Theme.of(context).colorScheme.surfaceContainerLowest,
-      child: Row(
+      child: const Row(
         children: [
           _LegendItem(status: UnitStatus.leased),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           _LegendItem(status: UnitStatus.vacant),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           _LegendItem(status: UnitStatus.expiringSoon),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           _LegendItem(status: UnitStatus.nonLeasable),
         ],
       ),

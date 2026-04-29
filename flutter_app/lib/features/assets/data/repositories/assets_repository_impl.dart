@@ -125,7 +125,7 @@ class AssetsRepositoryImpl implements AssetsRepository {
           UnitStatus.expiringSoon => 'expiring_soon',
           UnitStatus.nonLeasable => 'non_leasable',
         },
-      if (buildingId != null) 'building_id': buildingId,
+      'building_id': ?buildingId,
     };
     final response = await _client.apiGetList<UnitSummaryModel>(
       ApiPaths.units,
@@ -144,7 +144,7 @@ class AssetsRepositoryImpl implements AssetsRepository {
     String filePath,
     String fileName,
   ) async {
-    final data = await _client.apiUpload(
+    final data = await _client.apiUpload<Map<String, dynamic>>(
       ApiPaths.unitsImport,
       filePath: filePath,
       fileName: fileName,

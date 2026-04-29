@@ -40,7 +40,7 @@ void main() {
         tenantName: '测试租户',
         contractEndDate: DateTime(2027, 6, 30),
       ),
-      HeatmapUnit(
+      const HeatmapUnit(
         unitId: 'unit-002',
         unitNumber: 'A-12-02',
         currentStatus: UnitStatus.vacant,

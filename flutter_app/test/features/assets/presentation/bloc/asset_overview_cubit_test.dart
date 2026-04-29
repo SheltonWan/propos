@@ -2,7 +2,6 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:propos_app/core/api/api_exception.dart';
-import 'package:propos_app/core/api/api_list_response.dart';
 import 'package:propos_app/features/assets/domain/entities/asset_overview.dart';
 import 'package:propos_app/features/assets/domain/entities/building.dart';
 import 'package:propos_app/features/assets/domain/entities/property_type.dart';
@@ -17,7 +16,7 @@ void main() {
 
   final testNow = DateTime(2026, 4, 20);
 
-  final testOverview = AssetOverview(
+  const testOverview = AssetOverview(
     totalUnits: 639,
     totalLeasableUnits: 600,
     totalOccupancyRate: 0.88,

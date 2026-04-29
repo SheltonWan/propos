@@ -18,7 +18,7 @@
 flutter run
 
 # 指定后端地址
-flutter run --dart-define=API_BASE_URL=https://api.propos.cn
+flutter run --dart-define=API_BASE_URL=http://111.230.112.246:80
 
 # 启用 Mock 模式
 flutter run --dart-define=USE_MOCK=true
