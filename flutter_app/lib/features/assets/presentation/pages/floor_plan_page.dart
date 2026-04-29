@@ -401,10 +401,10 @@ class _UnitGrid extends StatelessWidget {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             decoration: BoxDecoration(
-              color: color.withOpacity(isSelected ? 0.3 : 0.15),
+              color: color.withValues(alpha: isSelected ? 0.3 : 0.15),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isSelected ? color : color.withOpacity(0.4),
+                color: isSelected ? color : color.withValues(alpha: 0.4),
                 width: isSelected ? 2 : 1,
               ),
             ),
@@ -425,7 +425,7 @@ class _UnitGrid extends StatelessWidget {
                       unit.tenantName!,
                       style: TextStyle(
                           fontSize: 10,
-                          color: color.withOpacity(0.8)),
+                          color: color.withValues(alpha: 0.8)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
