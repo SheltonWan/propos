@@ -181,7 +181,8 @@ class _BasicInfoSection extends StatelessWidget {
           _InfoRow(
               label: '参考租金',
               value:
-                  '¥${unit.marketRentReference!.toStringAsFixed(0)}/m²/月'),
+                  '¥${unit.marketRentReference!.toStringAsFixed(0)}/m²/月',
+              highlight: true),
       ],
     );
   }
@@ -377,21 +378,25 @@ class _ContractSummaryPlaceholder extends StatelessWidget {
   }
 }
 
-/// 通用信息区段卡片。
+/// 通用信息区段卡片（含色条标题指示器）。
+///
+/// 对标前端原型 UnitDetail.tsx section card 样式。
 class _SectionCard extends StatelessWidget {
   final String title;
   final List<Widget> children;
-
-  const _SectionCard({required this.title, required this.children});
+  const _SectionCard({
+    required this.title,
+    required this.children,
+  });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final accent = scheme.primary;
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: scheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: scheme.shadow.withValues(alpha: 0.06),
@@ -400,16 +405,43 @@ class _SectionCard extends StatelessWidget {
           ),
         ],
       ),
+      clipBehavior: Clip.hardEdge,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w600),
+          // 标题行（含左侧色条）
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                    color: scheme.outlineVariant.withValues(alpha: 0.4)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 3,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          ...children,
+          // 内容区
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Column(children: children),
+          ),
         ],
       ),
     );
@@ -419,27 +451,47 @@ class _SectionCard extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
+  /// 是否高亮（对标前端 highlight prop）
+  final bool highlight;
 
-  const _InfoRow({required this.label, required this.value});
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.highlight = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+              color: scheme.outlineVariant.withValues(alpha: 0.3)),
+        ),
+      ),
       child: Row(
         children: [
           SizedBox(
-            width: 88,
-            child: Text(label,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: scheme.onSurfaceVariant)),
+            width: 96,
+            child: Text(
+              label,
+              style: TextStyle(
+                  fontSize: 13,
+                  color: scheme.onSurfaceVariant),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: highlight ? FontWeight.w600 : FontWeight.w500,
+                color: highlight ? scheme.primary : scheme.onSurface,
+              ),
+              textAlign: TextAlign.end,
+            ),
           ),
         ],
       ),
