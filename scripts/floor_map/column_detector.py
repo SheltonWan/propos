@@ -16,13 +16,10 @@ from typing import Iterable
 import ezdxf
 
 from .coordinate_mapper import CoordinateMapper, Point
+from .layer_constants import COLUMN_LAYERS
 from .outline_extractor import layer_normalize
 
-DEFAULT_COLUMN_LAYERS = (
-    "柱网",
-    "柱墙填充",
-    "屋顶柱",
-)
+DEFAULT_COLUMN_LAYERS = COLUMN_LAYERS
 
 
 def _polygon_centroid(pts: list[Point]) -> Point:

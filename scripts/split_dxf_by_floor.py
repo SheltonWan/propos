@@ -180,18 +180,15 @@ HOTZONE_STATUS_STYLE = """
 # CSS class 名是「按出现顺序递增」（.C1, .C2, .C3 ...），不是 ACI 值。
 # 所以不能预设 `.CF0` / `.CFA` 选择器，必须渲染后扫描 CSS 找到
 # 结果颜色等于我们标记色的那个 class，再动态生成覆盖规则。
-WALL_HIGHLIGHT_LAYERS = {
-    "WALL", "CURTWALL", "外墙", "0muqiang", "muqiang",
-    "0-立面(轮廓)",  # CAD 中用黄色描绘的建筑外轮廓
-    "轮廓", "OUTLINE",
-    # AIA 标准：建筑剖切边线（被剖到的墙/柱/楼板的双线轮廓）
-    "A-SECT-MCUT", "A-SECT-MCUT-FINE",
-}
-# 墙体/柱体实心填充图层：双线之间的填充 HATCH/SOLID 都在这些图层上，
-# 配合双线一起渲染才能呈现 CADview 中"实心黄墙"的视觉效果。
-WALL_FILL_LAYERS = {
-    "柱墙填充", "COLU_HATCH", "WALL_HATCH", "墙填充", "柱填充",
-}
+# 图层名常量从 floor_map.layer_constants 导入，保证与 detector 一致。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from floor_map.layer_constants import (  # noqa: E402
+    WALL_OUTLINE_LAYERS as _WALL_OUTLINE_LAYERS,
+    WALL_FILL_LAYERS as _WALL_FILL_LAYERS,
+)
+
+WALL_HIGHLIGHT_LAYERS = set(_WALL_OUTLINE_LAYERS)
+WALL_FILL_LAYERS = set(_WALL_FILL_LAYERS)
 # 标记色：选生鲜颜色以便后处理唯一识别。
 WALL_MARKER_RGB = (255, 0, 240)   # #ff00f0 品红 — 墙双线
 WALL_MARKER_HEX = "#ff00f0"
@@ -1008,6 +1005,39 @@ def main():
     print(f"输出目录: {out_dir}")
 
 
+def _entity_anchor(entity) -> tuple[float, float] | None:
+    """估算实体锚点（用于区域归属判定）。
+
+    展开 INSERT 后的虚拟实体未在 ``entity_centers`` 缓存中，
+    用首个顶点 / start 点 / center 即可满足"落在哪个 region"的判定精度。
+    """
+    et = entity.dxftype()
+    try:
+        if et == "LINE":
+            return (entity.dxf.start.x, entity.dxf.start.y)
+        if et in ("CIRCLE", "ARC"):
+            return (entity.dxf.center.x, entity.dxf.center.y)
+        if et == "LWPOLYLINE":
+            for p in entity.get_points("xy"):
+                return (p[0], p[1])
+        if et == "POLYLINE":
+            for v in entity.vertices:
+                return (v.dxf.location.x, v.dxf.location.y)
+        if et in ("HATCH", "SOLID", "TRACE"):
+            # HATCH 边界第一个点
+            try:
+                for path in entity.paths:
+                    for v in path.vertices():
+                        return (v[0], v[1])
+            except Exception:  # noqa: BLE001
+                return None
+        if et == "TEXT" or et == "MTEXT":
+            return (entity.dxf.insert.x, entity.dxf.insert.y)
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
 def _stage7_extract_candidates(
     msp,
     region,
@@ -1031,18 +1061,40 @@ def _stage7_extract_candidates(
         return
 
     # 收集区域内实体 + 计算 bbox
+    # 重要：业务层 wall/column/window 实体大量装在 INSERT block 中（与 _remap_layout 同样的现象），
+    # 仅迭代 msp 顶层只能拿到屋顶/构架等少量直绘实体，导致业务层 detector 命中率几乎为 0。
+    # 此处对 INSERT 调用 virtual_entities() 递归展开（一层 + 嵌套 INSERT 由 ezdxf 自动处理）。
     region_min = region.extmin
     region_max = region.extmax
     in_region = []
-    xs: list[float] = []
-    ys: list[float] = []
-    for e in msp:
-        center = entity_centers.get(id(e))
-        if center is None:
-            continue
-        cx, cy = center
-        if region_min.x <= cx <= region_max.x and region_min.y <= cy <= region_max.y:
-            in_region.append(e)
+
+    def _expand(entity):
+        """展开 INSERT 为虚拟实体（保留 layer / dxftype / 几何坐标）。"""
+        if entity.dxftype() == "INSERT":
+            try:
+                for ve in entity.virtual_entities():
+                    yield from _expand(ve)
+            except Exception:  # noqa: BLE001
+                # 损坏的 block 引用静默跳过
+                return
+        else:
+            yield entity
+
+    for top in msp:
+        for e in _expand(top):
+            # 顶层实体已有 entity_centers 缓存可用，但展开后的虚拟实体没有 → 现算 center
+            if e is top:
+                center = entity_centers.get(id(e))
+            else:
+                center = None
+            if center is None:
+                # 用实体几何重新估算 center（仅取首个顶点 / start 点足够做区域归属）
+                center = _entity_anchor(e)
+                if center is None:
+                    continue
+            cx, cy = center
+            if region_min.x <= cx <= region_max.x and region_min.y <= cy <= region_max.y:
+                in_region.append(e)
     if not in_region:
         return
 

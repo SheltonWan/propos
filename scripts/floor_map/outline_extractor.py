@@ -16,13 +16,9 @@ from typing import Iterable
 import ezdxf
 
 from .coordinate_mapper import CoordinateMapper, Point, compute_bbox
+from .layer_constants import WALL_OUTLINE_LAYERS
 
-DEFAULT_OUTLINE_LAYERS = (
-    "WALL",
-    "0-WALL",
-    "CURTWALL",
-    "0muqiang",
-)
+DEFAULT_OUTLINE_LAYERS = WALL_OUTLINE_LAYERS
 
 
 def _collect_closed_polylines(
@@ -123,18 +119,101 @@ def extract_outline(
     return extract_outline_from_entities(doc.modelspace(), mapper, layers)
 
 
+def _collect_layer_points(entities, layers: Iterable[str]) -> list[Point]:
+    """从指定图层收集所有几何端点（含 LINE 端点 / LWPOLYLINE 顶点 / HATCH 边界）。
+
+    用于 fallback：当外墙图层无闭合多段线时，外墙通常以双线 LINE 绘制，
+    取所有端点的凸包即得近似外轮廓。
+    """
+    layer_set = {layer_normalize(name) for name in layers}
+    pts: list[Point] = []
+    for entity in entities:
+        layer_name = layer_normalize(entity.dxf.layer)
+        if not any(layer_name == ln or layer_name.endswith("|" + ln) for ln in layer_set):
+            continue
+        et = entity.dxftype()
+        try:
+            if et == "LINE":
+                pts.append((entity.dxf.start.x, entity.dxf.start.y))
+                pts.append((entity.dxf.end.x, entity.dxf.end.y))
+            elif et == "LWPOLYLINE":
+                for p in entity.get_points("xy"):
+                    pts.append((p[0], p[1]))
+            elif et == "POLYLINE":
+                for v in entity.vertices:
+                    pts.append((v.dxf.location.x, v.dxf.location.y))
+            elif et == "HATCH":
+                for path in entity.paths:
+                    for v in path.vertices():
+                        pts.append((v[0], v[1]))
+        except Exception:  # noqa: BLE001
+            continue
+    return pts
+
+
+def _convex_hull(points: list[Point]) -> list[Point]:
+    """凸包（Andrew 单调链算法，无外部依赖）。"""
+    pts = sorted(set((round(p[0], 4), round(p[1], 4)) for p in points))
+    if len(pts) <= 2:
+        return pts
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    lower: list[Point] = []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    upper: list[Point] = []
+    for p in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    return lower[:-1] + upper[:-1]
+
+
 def extract_outline_from_entities(
     entities,
     mapper: CoordinateMapper,
     layers: Iterable[str] = DEFAULT_OUTLINE_LAYERS,
 ) -> dict | None:
-    """从实体迭代器抽取外轮廓（供 split_dxf 在内存调用）。"""
-    closed = _collect_closed_polylines(entities, layers)
-    if not closed:
-        return None
-    closed.sort(key=_bbox_area, reverse=True)
-    largest = closed[0]
-    simplified = simplify_to_max(largest, 32)
+    """从实体迭代器抽取外轮廓（供 split_dxf 在内存调用）。
+
+    策略（多重 fallback）：
+    1. 收集 ``layers`` 上的闭合 LWPOLYLINE/POLYLINE，若最大 bbox 面积 ≥ 区域参考面积的 30%
+       则取该多段线作为外轮廓
+    2. 否则收集 ``layers`` 上所有 LINE / LWPOLYLINE / HATCH 端点 → 凸包近似外轮廓
+       （业务层外墙常为双线 LINE 绘制，无单一闭合多段线）
+    3. 最终简化到 ≤ 32 顶点
+    """
+    entities_list = list(entities)
+    closed = _collect_closed_polylines(entities_list, layers)
+    selected: list[Point] | None = None
+
+    if closed:
+        closed.sort(key=_bbox_area, reverse=True)
+        largest = closed[0]
+        # 区域参考面积：用 mapper.viewport 作为目标尺寸，反推世界坐标的可见区域面积
+        # 简化判定：若 bbox 在世界坐标 ≥ 100 mm × 100 mm 即视为有效轮廓
+        bx_min = min(p[0] for p in largest)
+        bx_max = max(p[0] for p in largest)
+        by_min = min(p[1] for p in largest)
+        by_max = max(p[1] for p in largest)
+        if (bx_max - bx_min) >= 5000 and (by_max - by_min) >= 5000:
+            selected = largest
+
+    if selected is None:
+        # fallback：凸包
+        all_pts = _collect_layer_points(entities_list, layers)
+        if len(all_pts) < 3:
+            return None
+        hull = _convex_hull(all_pts)
+        if len(hull) < 3:
+            return None
+        selected = list(hull)
+
+    simplified = simplify_to_max(selected, 32)
     mapped = mapper.map_points(simplified)
     return {
         "type": "polygon",

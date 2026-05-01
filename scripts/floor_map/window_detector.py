@@ -19,12 +19,10 @@ from typing import Iterable
 import ezdxf
 
 from .coordinate_mapper import CoordinateMapper, Point
+from .layer_constants import WINDOW_LAYERS
 from .outline_extractor import layer_normalize
 
-DEFAULT_WINDOW_LAYERS = (
-    "WINDOW",
-    "窗户分隔",
-)
+DEFAULT_WINDOW_LAYERS = WINDOW_LAYERS
 
 
 def _segment_length(p1: Point, p2: Point) -> float:
