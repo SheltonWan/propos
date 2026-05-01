@@ -11,7 +11,9 @@ import type { ApiResponse, ApiListResponse, ApiErrorBody } from '@/types/api'
 import { API_AUTH_LOGIN, API_AUTH_REFRESH } from '@/constants/api_paths'
 import router from '@/router'
 
-const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? ''
+// 开发模式：axios 使用相对路径，请求由 Vite proxy 转发到远程后端（VITE_API_BASE_URL 仅控制 proxy target）
+// 生产模式：使用 VITE_API_BASE_URL 或同域空字符串
+const BASE_URL: string = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL ?? '')
 
 const http: AxiosInstance = axios.create({
   baseURL: BASE_URL,

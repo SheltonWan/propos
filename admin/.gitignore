@@ -1,0 +1,12 @@
+node_modules/
+dist/
+
+# 本地覆盖环境变量（含真实服务器地址、密钥，不提交）
+.env.local
+.env.*.local
+
+# E2E 真实账号凭据
+.env.e2e
+
+# 编辑器
+.DS_Store
