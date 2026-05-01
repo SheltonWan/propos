@@ -255,4 +255,403 @@ void main() {
       expect(result.first.buildingId, 'b-2');
     });
   });
+
+  // ─── floor_map (M1 楼层结构标注 v2) ──────────────────────────────────────
+
+  // 测试用合法 UUID（_ensureUuid 必须通过）
+  const kFloorUuid = '00000000-0000-0000-0000-000000000001';
+  final kVersionTime = DateTime.utc(2026, 4, 5, 10, 0, 0);
+
+  // floors 表行（含 render_mode / floor_map_schema_version / floor_map_updated_at）
+  const kFloorColsWithMap = [
+    'id', 'building_id', 'building_name', 'floor_number',
+    'floor_name', 'svg_path', 'png_path', 'nla',
+    'render_mode', 'floor_map_schema_version', 'floor_map_updated_at',
+    'created_at', 'updated_at',
+  ];
+  List<Object?> floorRowWithMap({
+    String id = kFloorUuid,
+    String renderMode = 'vector',
+    String? schemaVersion,
+    DateTime? floorMapUpdatedAt,
+  }) {
+    final t = DateTime.utc(2026, 1, 1);
+    return [
+      id, 'b-1', 'Test Tower', 1, '1F', null, null, null,
+      renderMode, schemaVersion, floorMapUpdatedAt,
+      t, t,
+    ];
+  }
+
+  // floor_maps 表 SELECT/RETURNING 列
+  const kFloorMapCols = [
+    'floor_id', 'schema_version',
+    'viewport', 'outline', 'structures', 'windows', 'north',
+    'candidates', 'candidates_extracted_at',
+    'updated_at', 'updated_by',
+  ];
+  List<Object?> floorMapRow({
+    Map<String, dynamic>? viewport,
+    Map<String, dynamic>? outline,
+    List<Map<String, dynamic>> structures = const [],
+    List<Map<String, dynamic>> windows = const [],
+    Map<String, dynamic>? north,
+  }) =>
+      [
+        kFloorUuid, '2.0',
+        viewport, outline, structures, windows, north,
+        null, null,
+        kVersionTime, null,
+      ];
+
+  // 合法 saveStructures payload 工厂
+  Map<String, dynamic> validPayload({
+    int structuresCount = 1,
+    List<Map<String, dynamic>>? overrideStructures,
+    Map<String, dynamic>? overrideViewport,
+  }) {
+    final structures = overrideStructures ??
+        List.generate(
+          structuresCount,
+          (i) => {
+            'type': 'core',
+            'source': 'manual',
+            'rect': {'x': 10, 'y': 10, 'w': 50, 'h': 50},
+          },
+        );
+    return {
+      'schema_version': '2.0',
+      'viewport': overrideViewport ?? {'width': 1000, 'height': 800},
+      'outline': {
+        'type': 'rect',
+        'rect': {'x': 0, 'y': 0, 'w': 1000, 'h': 800},
+      },
+      'structures': structures,
+      'windows': const [],
+    };
+  }
+
+  // ─── getCandidates ──────────────────────────────────────────────────────
+
+  group('getCandidates()', () {
+    test('UUID 非法 → INVALID_UUID', () async {
+      await expectLater(
+        svc.getCandidates('not-uuid'),
+        throwsA(isA<ValidationException>()
+            .having((e) => e.code, 'code', 'INVALID_UUID')),
+      );
+    });
+
+    test('楼层不存在 → FLOOR_NOT_FOUND', () async {
+      pool.executeHandler = (q, p) => makeResult([], []);
+      await expectLater(
+        svc.getCandidates(kFloorUuid),
+        throwsA(isA<NotFoundException>()
+            .having((e) => e.code, 'code', 'FLOOR_NOT_FOUND')),
+      );
+    });
+
+    test('candidates 为空 → FLOOR_MAP_CANDIDATES_NOT_GENERATED', () async {
+      var idx = 0;
+      pool.executeHandler = (q, p) {
+        idx++;
+        if (idx == 1) {
+          return makeResult(kFloorColsWithMap, [floorRowWithMap()]);
+        }
+        // findCandidates → 行存在但 candidates 列为 null
+        return makeResult(['candidates'], [[null]]);
+      };
+      await expectLater(
+        svc.getCandidates(kFloorUuid),
+        throwsA(isA<NotFoundException>().having(
+          (e) => e.code, 'code', 'FLOOR_MAP_CANDIDATES_NOT_GENERATED')),
+      );
+    });
+
+    test('candidates 存在 → 返回 map', () async {
+      var idx = 0;
+      pool.executeHandler = (q, p) {
+        idx++;
+        if (idx == 1) {
+          return makeResult(kFloorColsWithMap, [floorRowWithMap()]);
+        }
+        return makeResult(['candidates'], [
+          [
+            {'walls': [], 'columns': []}
+          ]
+        ]);
+      };
+      final result = await svc.getCandidates(kFloorUuid);
+      expect(result, contains('walls'));
+    });
+  });
+
+  // ─── getConfirmedStructures ─────────────────────────────────────────────
+
+  group('getConfirmedStructures()', () {
+    test('楼层不存在 → FLOOR_NOT_FOUND', () async {
+      pool.executeHandler = (q, p) => makeResult([], []);
+      await expectLater(
+        svc.getConfirmedStructures(kFloorUuid),
+        throwsA(isA<NotFoundException>()
+            .having((e) => e.code, 'code', 'FLOOR_NOT_FOUND')),
+      );
+    });
+
+    test('floor_maps 行不存在 → 返回空壳 + 楼层版本号', () async {
+      var idx = 0;
+      pool.executeHandler = (q, p) {
+        idx++;
+        if (idx == 1) {
+          return makeResult(kFloorColsWithMap,
+              [floorRowWithMap(floorMapUpdatedAt: kVersionTime)]);
+        }
+        return makeResult([], []); // findByFloorId 空
+      };
+      final r = await svc.getConfirmedStructures(kFloorUuid);
+      expect(r.map.structures, isEmpty);
+      expect(r.version, kVersionTime);
+    });
+  });
+
+  // ─── saveStructures ─────────────────────────────────────────────────────
+
+  group('saveStructures()', () {
+    test('schema_version != 2.0 → FLOOR_MAP_SCHEMA_UNSUPPORTED', () async {
+      await expectLater(
+        svc.saveStructures(
+          floorId: kFloorUuid,
+          payload: {...validPayload(), 'schema_version': '1.0'},
+          updatedBy: kFloorUuid,
+        ),
+        throwsA(isA<ValidationException>().having(
+          (e) => e.code, 'code', 'FLOOR_MAP_SCHEMA_UNSUPPORTED')),
+      );
+    });
+
+    test('viewport 缺失 → VALIDATION_ERROR', () async {
+      final payload = {...validPayload()}..remove('viewport');
+      await expectLater(
+        svc.saveStructures(
+          floorId: kFloorUuid,
+          payload: payload,
+          updatedBy: kFloorUuid,
+        ),
+        throwsA(isA<ValidationException>()
+            .having((e) => e.code, 'code', 'VALIDATION_ERROR')),
+      );
+    });
+
+    test('viewport 尺寸越界 → VALIDATION_ERROR', () async {
+      await expectLater(
+        svc.saveStructures(
+          floorId: kFloorUuid,
+          payload: validPayload(
+              overrideViewport: {'width': 50, 'height': 50}),
+          updatedBy: kFloorUuid,
+        ),
+        throwsA(isA<ValidationException>()
+            .having((e) => e.code, 'code', 'VALIDATION_ERROR')),
+      );
+    });
+
+    test('rect 超出 viewport → FLOOR_MAP_COORDINATE_OUT_OF_RANGE', () async {
+      await expectLater(
+        svc.saveStructures(
+          floorId: kFloorUuid,
+          payload: validPayload(overrideStructures: [
+            {
+              'type': 'core',
+              'source': 'manual',
+              'rect': {'x': 900, 'y': 700, 'w': 500, 'h': 500},
+            }
+          ]),
+          updatedBy: kFloorUuid,
+        ),
+        throwsA(isA<ValidationException>().having(
+          (e) => e.code, 'code', 'FLOOR_MAP_COORDINATE_OUT_OF_RANGE')),
+      );
+    });
+
+    test('elevator 缺 code → VALIDATION_ERROR', () async {
+      await expectLater(
+        svc.saveStructures(
+          floorId: kFloorUuid,
+          payload: validPayload(overrideStructures: [
+            {
+              'type': 'elevator',
+              'source': 'manual',
+              'rect': {'x': 10, 'y': 10, 'w': 50, 'h': 50},
+              // 缺 code
+            }
+          ]),
+          updatedBy: kFloorUuid,
+        ),
+        throwsA(isA<ValidationException>()
+            .having((e) => e.code, 'code', 'VALIDATION_ERROR')),
+      );
+    });
+
+    test('column.point 越界 → FLOOR_MAP_COORDINATE_OUT_OF_RANGE', () async {
+      await expectLater(
+        svc.saveStructures(
+          floorId: kFloorUuid,
+          payload: validPayload(overrideStructures: [
+            {
+              'type': 'column',
+              'source': 'manual',
+              'point': [2000, 100], // x 越界
+            }
+          ]),
+          updatedBy: kFloorUuid,
+        ),
+        throwsA(isA<ValidationException>().having(
+          (e) => e.code, 'code', 'FLOOR_MAP_COORDINATE_OUT_OF_RANGE')),
+      );
+    });
+
+    test('structure.type 非法 → FLOOR_MAP_INVALID_STRUCTURE_TYPE', () async {
+      await expectLater(
+        svc.saveStructures(
+          floorId: kFloorUuid,
+          payload: validPayload(overrideStructures: [
+            {
+              'type': 'unknown_type',
+              'source': 'manual',
+              'rect': {'x': 10, 'y': 10, 'w': 50, 'h': 50},
+            }
+          ]),
+          updatedBy: kFloorUuid,
+        ),
+        throwsA(isA<ValidationException>().having(
+          (e) => e.code, 'code', 'FLOOR_MAP_INVALID_STRUCTURE_TYPE')),
+      );
+    });
+
+    test('structures > 200 → FLOOR_MAP_STRUCTURE_LIMIT_EXCEEDED', () async {
+      await expectLater(
+        svc.saveStructures(
+          floorId: kFloorUuid,
+          payload: validPayload(structuresCount: 201),
+          updatedBy: kFloorUuid,
+        ),
+        throwsA(isA<ValidationException>().having(
+          (e) => e.code, 'code', 'FLOOR_MAP_STRUCTURE_LIMIT_EXCEEDED')),
+      );
+    });
+
+    test('ifMatch 不匹配 → FLOOR_MAP_VERSION_CONFLICT', () async {
+      pool.executeHandler = (q, p) =>
+          makeResult(kFloorColsWithMap,
+              [floorRowWithMap(floorMapUpdatedAt: kVersionTime)]);
+      await expectLater(
+        svc.saveStructures(
+          floorId: kFloorUuid,
+          payload: validPayload(),
+          ifMatch: '"2026-01-01T00:00:00.000Z"', // 不匹配
+          updatedBy: kFloorUuid,
+        ),
+        throwsA(isA<ConflictException>()
+            .having((e) => e.code, 'code', 'FLOOR_MAP_VERSION_CONFLICT')),
+      );
+    });
+  });
+
+  // ─── switchRenderMode ───────────────────────────────────────────────────
+
+  group('switchRenderMode()', () {
+    test('render_mode 非法 → INVALID_RENDER_MODE', () async {
+      await expectLater(
+        svc.switchRenderMode(
+          floorId: kFloorUuid,
+          renderMode: 'invalid',
+          userId: kFloorUuid,
+        ),
+        throwsA(isA<ValidationException>()
+            .having((e) => e.code, 'code', 'INVALID_RENDER_MODE')),
+      );
+    });
+
+    test('楼层不存在 → FLOOR_NOT_FOUND', () async {
+      pool.executeHandler = (q, p) => makeResult([], []);
+      await expectLater(
+        svc.switchRenderMode(
+          floorId: kFloorUuid,
+          renderMode: 'vector',
+          userId: kFloorUuid,
+        ),
+        throwsA(isA<NotFoundException>()
+            .having((e) => e.code, 'code', 'FLOOR_NOT_FOUND')),
+      );
+    });
+
+    test('semantic 但 floor_map 不存在 → FLOOR_MAP_NOT_READY_FOR_SEMANTIC',
+        () async {
+      var idx = 0;
+      pool.executeHandler = (q, p) {
+        idx++;
+        if (idx == 1) {
+          return makeResult(kFloorColsWithMap, [floorRowWithMap()]);
+        }
+        return makeResult([], []); // findByFloorId 空
+      };
+      await expectLater(
+        svc.switchRenderMode(
+          floorId: kFloorUuid,
+          renderMode: 'semantic',
+          userId: kFloorUuid,
+        ),
+        throwsA(isA<AppException>().having(
+          (e) => e.code, 'code', 'FLOOR_MAP_NOT_READY_FOR_SEMANTIC')),
+      );
+    });
+
+    test('semantic 但缺 core/corridor → FLOOR_MAP_NOT_READY_FOR_SEMANTIC',
+        () async {
+      var idx = 0;
+      pool.executeHandler = (q, p) {
+        idx++;
+        if (idx == 1) {
+          return makeResult(kFloorColsWithMap, [floorRowWithMap()]);
+        }
+        return makeResult(kFloorMapCols, [
+          floorMapRow(
+            outline: {
+              'type': 'rect',
+              'rect': {'x': 0, 'y': 0, 'w': 1000, 'h': 800}
+            },
+            structures: [
+              {
+                'type': 'restroom',
+                'source': 'manual',
+                'rect': {'x': 10, 'y': 10, 'w': 50, 'h': 50},
+                'gender': 'M',
+              }
+            ],
+          )
+        ]);
+      };
+      await expectLater(
+        svc.switchRenderMode(
+          floorId: kFloorUuid,
+          renderMode: 'semantic',
+          userId: kFloorUuid,
+        ),
+        throwsA(isA<AppException>().having(
+          (e) => e.code, 'code', 'FLOOR_MAP_NOT_READY_FOR_SEMANTIC')),
+      );
+    });
+
+    test('vector 切换 → 成功', () async {
+      pool.executeHandler = (q, p) =>
+          makeResult(kFloorColsWithMap, [floorRowWithMap()]);
+      final r = await svc.switchRenderMode(
+        floorId: kFloorUuid,
+        renderMode: 'vector',
+        userId: kFloorUuid,
+      );
+      expect(r['render_mode'], 'vector');
+      expect(r['floor_id'], kFloorUuid);
+    });
+  });
 }

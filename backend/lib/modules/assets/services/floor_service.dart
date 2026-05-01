@@ -221,7 +221,7 @@ class FloorService {
     final viewport = _asMap(payload['viewport']);
     if (viewport == null) {
       throw const ValidationException(
-        'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+        'VALIDATION_ERROR',
         'viewport 必填',
       );
     }
@@ -229,7 +229,7 @@ class FloorService {
     final vh = _asNum(viewport['height']);
     if (vw == null || vh == null || vw < 100 || vw > 4000 || vh < 100 || vh > 4000) {
       throw const ValidationException(
-        'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+        'VALIDATION_ERROR',
         'viewport.width / height 必须在 [100, 4000]',
       );
     }
@@ -237,7 +237,7 @@ class FloorService {
     final outline = _asMap(payload['outline']);
     if (outline == null) {
       throw const ValidationException(
-        'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+        'VALIDATION_ERROR',
         'outline 必填',
       );
     }
@@ -245,7 +245,7 @@ class FloorService {
     if (outlineType == 'rect') {
       if (_asMap(outline['rect']) == null) {
         throw const ValidationException(
-          'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+          'VALIDATION_ERROR',
           'outline.rect 必填（type=rect）',
         );
       }
@@ -253,13 +253,13 @@ class FloorService {
       final pts = outline['points'];
       if (pts is! List || pts.length < 3 || pts.length > 32) {
         throw const ValidationException(
-          'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+          'VALIDATION_ERROR',
           'outline.points 长度必须在 [3, 32]',
         );
       }
     } else {
       throw const ValidationException(
-        'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+        'VALIDATION_ERROR',
         'outline.type 必须为 rect 或 polygon',
       );
     }
@@ -267,7 +267,7 @@ class FloorService {
     final structuresRaw = payload['structures'];
     if (structuresRaw is! List) {
       throw const ValidationException(
-        'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+        'VALIDATION_ERROR',
         'structures 必须为数组',
       );
     }
@@ -290,7 +290,7 @@ class FloorService {
     for (final raw in structuresRaw) {
       if (raw is! Map) {
         throw const ValidationException(
-          'FLOOR_MAP_INVALID_STRUCTURE_TYPE',
+          'VALIDATION_ERROR',
           'structure 必须为对象',
         );
       }
@@ -303,7 +303,7 @@ class FloorService {
     for (final raw in windowsRaw) {
       if (raw is! Map) {
         throw const ValidationException(
-          'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+          'VALIDATION_ERROR',
           'window 必须为对象',
         );
       }
@@ -325,7 +325,7 @@ class FloorService {
       final rot = _asNum(north['rotation_deg']);
       if (rot != null && (rot < -180 || rot > 180)) {
         throw const ValidationException(
-          'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+          'VALIDATION_ERROR',
           'north.rotation_deg 必须在 [-180, 180]',
         );
       }
@@ -464,14 +464,14 @@ class FloorService {
     }
     if (s['source'] != 'manual') {
       throw const ValidationException(
-        'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+        'VALIDATION_ERROR',
         '保存时所有 structure.source 必须为 manual',
       );
     }
     final label = s['label'];
     if (label is String && label.length > 32) {
       throw const ValidationException(
-        'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+        'VALIDATION_ERROR',
         'structure.label 长度不得超过 32',
       );
     }
@@ -480,7 +480,7 @@ class FloorService {
       final point = s['point'];
       if (point is! List || point.length != 2) {
         throw const ValidationException(
-          'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+          'VALIDATION_ERROR',
           'column.point 必须为 [x, y]',
         );
       }
@@ -488,7 +488,7 @@ class FloorService {
       final py = _asNum(point[1]);
       if (px == null || py == null) {
         throw const ValidationException(
-          'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+          'VALIDATION_ERROR',
           'column.point 需为数字',
         );
       }
@@ -505,7 +505,7 @@ class FloorService {
       final rect = _asMap(s['rect']);
       if (rect == null) {
         throw ValidationException(
-          'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+          'VALIDATION_ERROR',
           '$type 必须提供 rect',
         );
       }
@@ -515,7 +515,7 @@ class FloorService {
       final h = _asNum(rect['h']);
       if (x == null || y == null || w == null || h == null || w <= 0 || h <= 0) {
         throw const ValidationException(
-          'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+          'VALIDATION_ERROR',
           'rect.x/y/w/h 需为有效数字且 w/h > 0',
         );
       }
@@ -531,7 +531,7 @@ class FloorService {
       final code = s['code'];
       if (code is! String || !_kElevatorCodeRe.hasMatch(code)) {
         throw const ValidationException(
-          'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+          'VALIDATION_ERROR',
           'elevator.code 必须形如 E1 / E12 (^[A-Z]\\d{1,3}\$)',
         );
       }
@@ -540,7 +540,7 @@ class FloorService {
       final gender = s['gender'];
       if (gender == null || (gender is String && !_kAllowedGenders.contains(gender))) {
         throw const ValidationException(
-          'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+          'VALIDATION_ERROR',
           'restroom.gender 必须为 M / F / unknown',
         );
       }
@@ -551,7 +551,7 @@ class FloorService {
     final side = w['side'];
     if (side is! String || !_kAllowedSides.contains(side)) {
       throw const ValidationException(
-        'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+        'VALIDATION_ERROR',
         'window.side 必须为 N / S / E / W',
       );
     }
@@ -559,19 +559,19 @@ class FloorService {
     final width = _asNum(w['width']);
     if (offset == null || width == null) {
       throw const ValidationException(
-        'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+        'VALIDATION_ERROR',
         'window.offset / width 需为数字',
       );
     }
     if (width < 8) {
       throw const ValidationException(
-        'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+        'VALIDATION_ERROR',
         'window.width 最小为 8',
       );
     }
     if (offset < 0) {
       throw const ValidationException(
-        'FLOOR_MAP_SCHEMA_UNSUPPORTED',
+        'VALIDATION_ERROR',
         'window.offset 不得为负',
       );
     }
