@@ -1,7 +1,16 @@
 # 楼层结构标注器 — 完整实施计划
 
-> 版本：v1.3（修订一致性遗漏）  
+> 版本：v1.4（前端 TS 类型与 schema 严格对齐）  
 > 日期：2026-05-01  
+> v1.4 修订摘要：
+> - 🔴 §1-1 `Outline` 改为 `{ type; rect?: Rect; points?: PointArray }`，与 schema `Outline` 嵌套结构一致
+> - 🔴 §1-1 `FloorMapV2` 增 `render_mode: 'vector' | 'semantic'` 顶层字段（schema 顶层 `required`）
+> - 🔴 §3-5 `CanvasStage.vue` outline 渲染由平铺 `outline.x/y/w/h` 改为 `outline.rect.x/...`
+> - 🟡 §1-1 `viewport` 去掉 `?` 改为必选；§2 validate 在缺 viewport 时立即报错
+> - 🟡 §2 validate 增 `outline.points.length ∈ [3, 32]` 校验，提前拦截 schema 拒绝
+> - 🟢 §1-1 `FloorMapV2` 增 `units?: Unit[]` 与可选元数据字段（floor_id/building_id/floor_label/svg_version/dxf_region）
+> - 🟢 §0-E 明确：PUT 请求体不携带 `render_mode`，由 Service 层固定写 `'vector'`（语义切换走 PATCH render-mode 单独流程），避免 schema 顶层 required 与 PUT 字段集冲突
+>
 > v1.3 修订摘要：
 > - 🔴 `floor_map.v2.schema.json` 的 `Column` 定义补 `confidence` 属性，与前端 `Column.confidence?` / detector 输出一致（修复 `additionalProperties: false` 冲突）
 > - 🔴 `FLOOR_MAP_EXTRACTOR_SPEC.md` `Column` dataclass 补 `confidence: float = 1.0`
@@ -239,9 +248,15 @@ class FloorMapRepository {
 **`saveStructures(String floorId, Map payload, String? ifMatch, String updatedBy)`**
 
 ```
+PUT 请求体字段集（与 schema 顶层 required 的差异处理）：
+  - 请求体仅含 schema_version / viewport / outline / structures / windows? / north?，不携带 render_mode
+  - Service 层在写入前补 render_mode='vector'（语义切换走 PATCH /render-mode 单独流程）
+  - units 不接受写入（由 annotate_hotzone.py 维护），若请求体含 units 字段则忽略
+
 前置校验（失败抛 ValidationException）：
   - schema_version == '2.0'，否则 FLOOR_MAP_SCHEMA_UNSUPPORTED
-  - outline 必填
+  - viewport 必填，width/height ∈ [100, 4000]
+  - outline 必填；type=rect 时 outline.rect 必填，type=polygon 时 outline.points 长度 ∈ [3, 32]
   - structures 数量 ≤ 200，否则 FLOOR_MAP_STRUCTURE_LIMIT_EXCEEDED
   - windows 数量 ≤ 100
   - 每个 elevator 必须有 code（正则 ^[A-Z]\d{1,3}$）
@@ -494,20 +509,39 @@ export interface WindowSegment {
   width: number;                                    // ≥ 8
 }
 
+export type PointArray = [number, number][];        // 长度 3~32（schema 限制）
+
 export interface Outline {
   type: 'rect' | 'polygon';
-  x?: number; y?: number; w?: number; h?: number;   // type=rect
-  points?: [number, number][];                      // type=polygon
+  rect?: Rect;                                      // type=rect 时必填
+  points?: PointArray;                              // type=polygon 时必填，长度 3~32
+}
+
+export interface Unit {
+  unit_id: string;                                  // UUID
+  label: string;                                    // maxLength 32
+  polygon: PointArray;
+  centroid?: [number, number];
+  area_sqm?: number;
+  property_type?: 'office' | 'retail' | 'apartment';
 }
 
 export interface FloorMapV2 {
   schema_version: '2.0';
-  viewport?: { width: number; height: number };
+  render_mode: 'vector' | 'semantic';               // schema 顶层 required
+  viewport: { width: number; height: number };      // schema 顶层 required
   outline: Outline;
   structures: StructureOrColumn[];
   windows?: WindowSegment[];
-  north?: { x: number; y: number; rotation_deg?: number };
-  // 由后端 PUT 响应回填，前端用作下次 PUT 的 If-Match 值
+  north?: { x: number; y: number; rotation_deg?: number } | null;
+  units?: Unit[];                                   // 由后端 PUT 响应回填（annotate_hotzone.py 维护，PUT 不修改）
+  // —— 以下为可选元数据，schema 允许但 PUT 不必填
+  floor_id?: string | null;
+  building_id?: string | null;
+  floor_label?: string | null;
+  svg_version?: string | null;
+  dxf_region?: { min_x: number; min_y: number; max_x: number; max_y: number } | null;
+  // —— 由后端 PUT 响应回填，前端用作下次 PUT 的 If-Match 值
   floor_map_updated_at?: string;
 }
 ```
@@ -672,13 +706,19 @@ catch (e) {
 ```ts
 import { isColumn } from '@/types/floorMap';
 
+if (!map.viewport) return 'viewport 缺失';
 if (!map.outline) return 'outline 缺失';
+if (map.outline.type === 'rect' && !map.outline.rect) return 'outline.rect 缺失';
+if (map.outline.type === 'polygon') {
+  const pts = map.outline.points ?? [];
+  if (pts.length < 3 || pts.length > 32) return 'outline.points 长度须在 3~32 之间';
+}
 if (map.structures.length > 200) return '结构数量超过 200';
 if ((map.windows?.length ?? 0) > 100) return '窗洞数量超过 100';
 
 const codeRe = /^[A-Z]\d{1,3}$/;
-const vw = map.viewport?.width ?? Infinity;
-const vh = map.viewport?.height ?? Infinity;
+const vw = map.viewport.width;
+const vh = map.viewport.height;
 
 for (const s of map.structures) {
   if (isColumn(s)) {
@@ -805,9 +845,13 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
   <svg :viewBox="`0 0 ${viewport.width} ${viewport.height}`"
        :style="{ transform: `scale(${scale}) translate(${tx}px, ${ty}px)` }">
 
-    <!-- Layer 1: outline 边框 -->
-    <rect v-if="outline.type==='rect'" ... fill="var(--floor-outline-bg)" />
-    <polygon v-else :points="outlinePoints" ... />
+    <!-- Layer 1: outline 边框（注意：rect 字段嵌套在 outline.rect 内） -->
+    <rect v-if="outline.type==='rect' && outline.rect"
+          :x="outline.rect.x" :y="outline.rect.y"
+          :width="outline.rect.w" :height="outline.rect.h"
+          fill="var(--floor-outline-bg)" />
+    <polygon v-else-if="outline.type==='polygon' && outline.points"
+             :points="outline.points.map(p => p.join(',')).join(' ')" ... />
 
     <!-- Layer 2: structures 结构（按类型上色） -->
     <!-- 矩形类（core/elevator/stair/restroom/equipment/corridor）→ <rect> -->
@@ -946,6 +990,8 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
 | `validate` column.point 越界 viewport | column 几何校验 |
 | `validate` window.width < 8 | windows 校验 |
 | `validate` window.offset + width > sideLen | windows 越界 |
+| `validate` outline.type=polygon 且 points 长度 < 3 或 > 32 | outline 几何校验 |
+| `validate` 缺 viewport | 顶层必填校验 |
 | `canSave` computed 在 validate 通过 + dirty + !saving 时为 true | 派生状态 |
 | `reset` 后 `dirty === false`，`draft` 恢复至 baselineSnapshot | 重置正确 |
 | 历史栈深度 > 20 时最早记录被丢弃 | 内存保护 |
@@ -1039,7 +1085,7 @@ Fixture 文件：`admin/e2e/fixtures/candidates.mock.json` （新建）。
 | Python 脚本单测 | `python -m pytest scripts/floor_map/tests/ -v` | 5 个测试全绿 |
 | Detector 命中率 | A 座 24 层批跑 + 人工抽检 | `elevator` / `core` 命中率 ≥ 80% |
 | 后端单元测试 | `cd backend && dart test test/modules/assets/` | 新增 Service/Repository 测试全绿，覆盖：candidates 不存在 / coord 越界 / elevator 无 code / column 用 point / semantic 前置不足 / 版本冲突 |
-| 前端 Store 单测 | `pnpm --filter admin test:unit` | 21 个 store 测试用例全绿 |
+| 前端 Store 单测 | `pnpm --filter admin test:unit` | 23 个 store 测试用例全绿 |
 | TypeScript 检查 | `pnpm --filter admin lint` | `strict: true` 无报错 |
 | 本地端到端联调 | 手动操作 | 候选加载 → 拖拽 → 保存 → `dirty=false` → 模式切换成功 |
 | Playwright E2E | `pnpm --filter admin test:e2e floor-structures` | 8 个场景全通过 |
