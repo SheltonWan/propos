@@ -1,8 +1,18 @@
 # 楼层结构标注器 — 完整实施计划
 
-> 版本：v1.1（修订版，对齐契约文档）  
+> 版本：v1.2（贯通 Column point 形态与 windows 校验）  
 > 日期：2026-05-01  
-> 修订摘要：
+> v1.2 修订摘要：
+> - 🔴 `column_detector` 输出改为 `point: [cx, cy]`（取矩形几何中心），与 schema 一致
+> - 🔴 `CanvasStage.vue` SVG 渲染区分 `<rect>` 与 `<circle>`，处理 column
+> - 🔴 `InspectorPanel.vue` 新增 column 的 `point[0]/point[1]` 编辑分支
+> - 🔴 `split_dxf_by_floor.py` Stage 7 candidates.structures 明确为 StructureOrColumn 联合数组
+> - 🟡 §2.2 错误码计数 7 → 8；windows.offset/width 校验补齐前后端
+> - 🟡 store 暴露 `validationError` / `canSave` computed 供 Toolbar 绑定
+> - 🟡 `apiPut` 签名扩展前先 grep 现有调用站点验证向后兼容
+> - 🟢 `Column` 类型补 `confidence?` 字段；抽出 `AnyStructureType` 类型别名
+>
+> v1.1 修订摘要：
 > - 对齐 schema：StructureType 收敛为 6 种（含 `equipment`），Column 独立；`gender` 枚举改为 `M/F/unknown/null`
 > - 对齐 API 契约：PUT 响应改为 `200 + 完整 FloorMap`；PATCH 请求体字段为 `render_mode`；Window 字段为 `offset`
 > - 加严 semantic 切换前置条件：structures 至少含一个 `core` 或 `corridor`
@@ -47,7 +57,7 @@
 |---|---|
 | 后端 3 个新 API 端点未实现 | 阻塞前端 Phase 3+ 真实联调 |
 | `floor_maps` 表不存在，`floors` 表缺 3 列 | 阻塞后端所有新功能 |
-| 7 个 `FLOOR_MAP_*` 错误码未注册 | 阻塞前端错误码映射 |
+| 8 个错误码未注册（7 个 `FLOOR_MAP_*` + `INVALID_RENDER_MODE`） | 阻塞前端错误码映射 |
 | `scripts/floor_map/` 目录不存在（5 个 detector） | 无候选数据，标注工具左侧面板为空 |
 | `split_dxf_by_floor.py` 未集成 detector | 无法生成 `candidates.json` |
 | `router/guards.ts` 不存在 | 已决策：dirty 守卫 inline 写在 AnnotatorView，无需新建 |
@@ -229,8 +239,9 @@ class FloorMapRepository {
   - 每个 elevator 必须有 code（正则 ^[A-Z]\d{1,3}$）
   - 每个 restroom 必须有 gender（M/F/unknown）
   - structures[].source 必须为 'manual'（PUT 端点不接收 auto，与契约一致）
-  - column 使用 point 字段，其余 type 使用 rect 字段
+  - column 使用 point 字段（point[0]/point[1] 须落在 viewport 内），其余 type 使用 rect 字段
   - 所有 x/y/w/h/offset/width 为整数像素，且坐标须在 viewport 内
+  - windows[].width ≥ 8；offset ≥ 0；offset + width ≤ 所属 side 长度（N/S 取 viewport.width，E/W 取 viewport.height）
 
 乐观锁（若提供 ifMatch）：
   读取当前 floor_map_updated_at
@@ -366,7 +377,8 @@ def detect_columns(msp, region, scale_x, scale_y) -> list[dict]:
 - 扫描图层含 `柱` / `COLUMN` / `COL` 的封闭矩形或实心填充（SOLID/HATCH）
 - **网格化去重**：相邻中心距 ≤ 500mm 的候选合并为一个，防止双线图层重复检测
 - 上限 100 个/层，超出时按面积降序截断
-- 输出：`{type: "column", rect: {x,y,w,h}, source: "auto", confidence}`
+- 输出：`{type: "column", point: [cx, cy], source: "auto", confidence}`，其中 `cx/cy` 取检测矩形几何中心经 `dxf_to_svg` 映射后的 SVG 坐标（圆整为整数像素）
+- **注意**：与 schema 一致，column 不输出 rect；前端通过 `<circle>` 渲染
 
 ---
 
@@ -399,7 +411,7 @@ Stage 7: 候选结构抽取（仅 --extract-structures 开启时执行）
        schema_version: "2.0",
        viewport: {...},
        outline,
-       structures: structures + columns,
+       structures: [...structures, ...columns],   // StructureOrColumn 联合数组，由 type 字段区分
        windows
      }
   7. 写入 A座_F*.candidates.json（同目录）
@@ -443,6 +455,8 @@ Stage 7: 候选结构抽取（仅 --extract-structures 开启时执行）
 export type StructureType =
   | 'core' | 'elevator' | 'stair' | 'restroom' | 'equipment' | 'corridor';
 
+export type AnyStructureType = StructureType | 'column';
+
 export type Source = 'auto' | 'manual';
 
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -461,6 +475,7 @@ export interface Column {
   type: 'column';
   point: [number, number];                          // 注意：column 用 point，不用 rect
   source: Source;
+  confidence?: number;                              // 仅 auto 时存在
 }
 
 export type StructureOrColumn = Structure | Column;
@@ -518,10 +533,10 @@ floorRenderMode: (floorId: string) =>
 **文件**：`admin/src/constants/ui_constants.ts`（增补）
 
 ```ts
-import type { StructureType } from '@/types/floorMap';
+import type { AnyStructureType } from '@/types/floorMap';
 
 // 结构类型颜色（全部使用 CSS 变量，禁止 #xxx 硬编码）
-export const STRUCTURE_TYPE_COLORS: Record<StructureType | 'column', string> = {
+export const STRUCTURE_TYPE_COLORS: Record<AnyStructureType, string> = {
   core:      'var(--floor-core)',
   elevator:  'var(--floor-elevator)',
   stair:     'var(--floor-stair)',
@@ -589,7 +604,13 @@ export const patchRenderMode = (floorId: string, renderMode: 'vector' | 'semanti
   }>(API_PATHS.floorRenderMode(floorId), { render_mode: renderMode });
 ```
 
-> `apiPut` 当前签名为 `(url, data?)`，需扩展为 `(url, data?, config?)` 以支持透传 `If-Match` 头。修改 `admin/src/api/client.ts` 时保持现有调用站点向后兼容（第三个参数可选）。
+> `apiPut` 当前签名为 `(url, data?)`，需扩展为 `(url, data?, config?)` 以支持透传 `If-Match` 头。
+>
+> **改造前置校验步骤**（防止破坏现有调用站点）：
+> 1. `grep -rn 'apiPut(' admin/src` 列出所有调用点
+> 2. 确认全部为两参形式（`apiPut(url, data)`），无任何调用传入第三参数
+> 3. 第三参数 `config?: { headers?: Record<string,string> }` 设为可选，默认 undefined
+> 4. 修改后跑 `pnpm --filter admin test:unit` + `pnpm --filter admin lint` 确保零破坏
 
 ---
 
@@ -648,9 +669,15 @@ if (map.structures.length > 200) return '结构数量超过 200';
 if ((map.windows?.length ?? 0) > 100) return '窗洞数量超过 100';
 
 const codeRe = /^[A-Z]\d{1,3}$/;
+const vw = map.viewport?.width ?? Infinity;
+const vh = map.viewport?.height ?? Infinity;
+
 for (const s of map.structures) {
   if (isColumn(s)) {
     if (!Array.isArray(s.point) || s.point.length !== 2) return 'column.point 非法';
+    const [px, py] = s.point;
+    if (px < 0 || py < 0 || px > vw || py > vh) return 'column 坐标超出 viewport';
+    if (s.source !== 'manual') return '保存时所有 structure source 必须为 manual';
     continue;
   }
   if (s.rect.w <= 0 || s.rect.h <= 0) return '矩形尺寸非法';
@@ -658,7 +685,21 @@ for (const s of map.structures) {
   if (s.type === 'restroom' && !s.gender) return '卫生间必须选择性别';
   if (s.source !== 'manual') return '保存时所有 structure source 必须为 manual';
 }
+
+for (const w of map.windows ?? []) {
+  if (w.width < 8) return '窗洞最小宽度为 8';
+  if (w.offset < 0) return '窗洞 offset 不能为负';
+  const sideLen = (w.side === 'N' || w.side === 'S') ? vw : vh;
+  if (w.offset + w.width > sideLen) return '窗洞超出所属边长度';
+}
 return null;
+```
+
+暴露 computed 供 Toolbar 绑定（避免组件层重复调用 validate）：
+
+```ts
+const validationError = computed(() => draft.value ? validate(draft.value) : null);
+const canSave = computed(() => !validationError.value && !saving.value && dirty.value);
 ```
 
 **文件**：`admin/src/stores/index.ts` — 导出 `useFloorStructuresStore`。
@@ -720,7 +761,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
 | 删除 | `store.removeStructure(selectedIndex)` | `Delete` |
 | 撤销 | `store.undo()` | `Cmd/Ctrl + Z` |
 | 重做 | `store.redo()` | `Shift + Cmd/Ctrl + Z` |
-| 保存 | `store.save(floorId)`；禁用条件：validate 不通过 | `Cmd/Ctrl + S` |
+| 保存 | `store.save(floorId)`；绑定 `:disabled="!store.canSave"`，tooltip 显示 `store.validationError` | `Cmd/Ctrl + S` |
 | `RenderModeSwitch` | 嵌入工具栏右侧 | — |
 
 #### 3-3  `CandidatesPanel.vue`（左侧，240px）
@@ -760,12 +801,22 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
     <rect v-if="outline.type==='rect'" ... fill="var(--floor-outline-bg)" />
     <polygon v-else :points="outlinePoints" ... />
 
-    <!-- Layer 2: structures 结构矩形（按类型上色，fill-opacity: 0.3） -->
+    <!-- Layer 2: structures 结构（按类型上色） -->
+    <!-- 矩形类（core/elevator/stair/restroom/equipment/corridor）→ <rect> -->
+    <!-- 柱位（column）→ <circle>，半径 4px -->
     <g v-for="(s, i) in draft.structures" :key="i" @click="selectStructure(i)">
-      <rect :x="s.rect.x" :y="s.rect.y" :width="s.rect.w" :height="s.rect.h"
-            :fill="STRUCTURE_TYPE_COLORS[s.type]"
-            :stroke="s.source==='manual' ? currentColor : 'none'"
-            :stroke-width="s.source==='manual' ? 2 : 0" />
+      <template v-if="!isColumn(s)">
+        <rect :x="s.rect.x" :y="s.rect.y" :width="s.rect.w" :height="s.rect.h"
+              :fill="STRUCTURE_TYPE_COLORS[s.type]"
+              :stroke="s.source==='manual' ? 'currentColor' : 'none'"
+              :stroke-width="s.source==='manual' ? 2 : 0" />
+      </template>
+      <template v-else>
+        <circle :cx="s.point[0]" :cy="s.point[1]" r="4"
+                :fill="STRUCTURE_TYPE_COLORS.column"
+                :stroke="s.source==='manual' ? 'currentColor' : 'none'"
+                :stroke-width="s.source==='manual' ? 1 : 0" />
+      </template>
     </g>
 
     <!-- Layer 3: windows 窗洞（橙色线，4px） -->
@@ -789,18 +840,21 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
 
 #### 3-6  `InspectorPanel.vue`（右侧，320px）
 
-根据 `selectedStructure.type` 动态渲染字段：
+根据 `selectedStructure.type` 动态渲染字段（注意 column 与其他 6 种 type 的字段集合不同）：
 
-| 字段 | 组件 | 校验 |
-|---|---|---|
-| `type` | `el-select`（6 种枚举） | 必填 |
-| `label` | `el-input` | 选填，maxLength 32 |
-| `code` | `el-input` | `elevator` 时必填，正则 `^[A-Z]\d{1,3}$` |
-| `gender` | `el-radio-group`（男/女/未知） | `restroom` 时必填 |
-| `rect.x/y/w/h` | `el-input-number` | w/h ≥ 1，不超过 viewport |
-| `confidence` | 只读 `el-tag`（百分比） | 仅 `auto` 显示 |
+| 字段 | 组件 | 适用 type | 校验 |
+|---|---|---|---|
+| `type` | `el-select`（7 种：6 StructureType + column） | 全部 | 必填 |
+| `label` | `el-input` | 非 column | 选填，maxLength 32 |
+| `code` | `el-input` | `elevator` 必填 | 正则 `^[A-Z]\d{1,3}$` |
+| `gender` | `el-radio-group`（男/女/未知） | `restroom` 必填 | — |
+| `rect.x/y/w/h` | `el-input-number` × 4 | 非 column | w/h ≥ 1，且 x+w/y+h 不超过 viewport |
+| `point[0]/point[1]` | `el-input-number` × 2 | `column` 必填 | 须落在 viewport 内 |
+| `confidence` | 只读 `el-tag`（百分比） | `source=auto` 时显示 | — |
 
-校验失败时字段下方显示错误文字，同时禁用 Toolbar 保存按钮（通过 store 内 validate 函数驱动）。
+切换 `type` 时若从矩形类切到 column（或反之），需弹确认框并自动补默认几何（rect→取选中矩形中心作为 point；column→以 point 为中心生成 100×100 矩形）。
+
+校验失败时字段下方显示错误文字，同时禁用 Toolbar 保存按钮（通过 `store.canSave` 驱动）。
 
 #### 3-7  `RenderModeSwitch.vue`
 
@@ -881,6 +935,10 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
 | `validate` elevator code 不符合 `^[A-Z]\d{1,3}$` | 正则校验 |
 | `validate` restroom 无 gender | 前置校验 |
 | `validate` source !== 'manual' | 保存前规范化 |
+| `validate` column.point 越界 viewport | column 几何校验 |
+| `validate` window.width < 8 | windows 校验 |
+| `validate` window.offset + width > sideLen | windows 越界 |
+| `canSave` computed 在 validate 通过 + dirty + !saving 时为 true | 派生状态 |
 | `reset` 后 `dirty === false`，`draft` 恢复至 baselineSnapshot | 重置正确 |
 | 历史栈深度 > 20 时最早记录被丢弃 | 内存保护 |
 
@@ -973,7 +1031,7 @@ Fixture 文件：`admin/e2e/fixtures/candidates.mock.json` （新建）。
 | Python 脚本单测 | `python -m pytest scripts/floor_map/tests/ -v` | 5 个测试全绿 |
 | Detector 命中率 | A 座 24 层批跑 + 人工抽检 | `elevator` / `core` 命中率 ≥ 80% |
 | 后端单元测试 | `cd backend && dart test test/modules/assets/` | 新增 Service/Repository 测试全绿，覆盖：candidates 不存在 / coord 越界 / elevator 无 code / column 用 point / semantic 前置不足 / 版本冲突 |
-| 前端 Store 单测 | `pnpm --filter admin test:unit` | 17 个 store 测试用例全绿 |
+| 前端 Store 单测 | `pnpm --filter admin test:unit` | 21 个 store 测试用例全绿 |
 | TypeScript 检查 | `pnpm --filter admin lint` | `strict: true` 无报错 |
 | 本地端到端联调 | 手动操作 | 候选加载 → 拖拽 → 保存 → `dirty=false` → 模式切换成功 |
 | Playwright E2E | `pnpm --filter admin test:e2e floor-structures` | 8 个场景全通过 |
