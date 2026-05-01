@@ -1,70 +1,85 @@
 <template>
-  <el-container class="layout-root">
-    <!-- 侧边栏 -->
-    <el-aside :width="sidebarWidth" class="layout-aside">
-      <div class="logo">
+  <div class="layout-root">
+    <!-- Apple 风格深色侧边栏 -->
+    <aside :class="['layout-aside', { collapsed }]">
+      <!-- Logo 区域 -->
+      <div class="sidebar-logo">
         <span v-if="!collapsed" class="logo-text">PropOS</span>
         <span v-else class="logo-icon">P</span>
       </div>
-      <el-menu
-        :default-active="activeMenu"
-        :collapse="collapsed"
-        router
-        class="sidebar-menu"
-      >
-        <el-menu-item index="/dashboard">
-          <el-icon><Odometer /></el-icon>
-          <template #title>总览</template>
-        </el-menu-item>
-        <el-sub-menu index="assets-group">
-          <template #title>
-            <el-icon><OfficeBuilding /></el-icon>
-            <span>资产管理</span>
-          </template>
-          <el-menu-item index="/assets">资产总览</el-menu-item>
-          <el-menu-item index="/assets/import">批量导入</el-menu-item>
-        </el-sub-menu>
-        <el-menu-item index="/contracts">
-          <el-icon><Document /></el-icon>
-          <template #title>合同管理</template>
-        </el-menu-item>
-        <el-menu-item index="/finance">
-          <el-icon><Money /></el-icon>
-          <template #title>财务管理</template>
-        </el-menu-item>
-        <el-menu-item index="/workorders">
-          <el-icon><Tools /></el-icon>
-          <template #title>工单管理</template>
-        </el-menu-item>
-        <el-menu-item index="/subleases">
-          <el-icon><Connection /></el-icon>
-          <template #title>二房东管理</template>
-        </el-menu-item>
-        <el-sub-menu index="system-group">
-          <template #title>
-            <el-icon><Setting /></el-icon>
-            <span>系统设置</span>
-          </template>
-          <el-menu-item index="/system/users">用户管理</el-menu-item>
-          <el-menu-item index="/system/departments">组织架构</el-menu-item>
-        </el-sub-menu>
-      </el-menu>
-    </el-aside>
 
-    <el-container class="layout-main">
+      <!-- 菜单分隔线 -->
+      <div class="sidebar-divider" />
+
+      <!-- 导航菜单 -->
+      <nav class="sidebar-nav">
+        <router-link to="/dashboard" class="nav-item" :class="{ active: activeSection === 'dashboard' }">
+          <el-icon class="nav-icon"><Odometer /></el-icon>
+          <span v-if="!collapsed" class="nav-label">总览</span>
+        </router-link>
+
+        <!-- 资产管理分组 -->
+        <div class="nav-group">
+          <div v-if="!collapsed" class="nav-group-label">资产 & 租务</div>
+          <router-link to="/assets" class="nav-item" :class="{ active: activeSection === 'assets' }">
+            <el-icon class="nav-icon"><OfficeBuilding /></el-icon>
+            <span v-if="!collapsed" class="nav-label">资产管理</span>
+          </router-link>
+          <router-link to="/contracts" class="nav-item" :class="{ active: activeSection === 'contracts' }">
+            <el-icon class="nav-icon"><Document /></el-icon>
+            <span v-if="!collapsed" class="nav-label">合同管理</span>
+          </router-link>
+          <router-link to="/subleases" class="nav-item" :class="{ active: activeSection === 'subleases' }">
+            <el-icon class="nav-icon"><Connection /></el-icon>
+            <span v-if="!collapsed" class="nav-label">二房东管理</span>
+          </router-link>
+        </div>
+
+        <!-- 财务 & 工单 -->
+        <div class="nav-group">
+          <div v-if="!collapsed" class="nav-group-label">运营</div>
+          <router-link to="/finance" class="nav-item" :class="{ active: activeSection === 'finance' }">
+            <el-icon class="nav-icon"><Money /></el-icon>
+            <span v-if="!collapsed" class="nav-label">财务管理</span>
+          </router-link>
+          <router-link to="/workorders" class="nav-item" :class="{ active: activeSection === 'workorders' }">
+            <el-icon class="nav-icon"><Tools /></el-icon>
+            <span v-if="!collapsed" class="nav-label">工单管理</span>
+          </router-link>
+        </div>
+
+        <!-- 系统设置 -->
+        <div class="nav-group">
+          <div v-if="!collapsed" class="nav-group-label">系统</div>
+          <router-link to="/system/users" class="nav-item" :class="{ active: activeSection === 'system' }">
+            <el-icon class="nav-icon"><Setting /></el-icon>
+            <span v-if="!collapsed" class="nav-label">系统设置</span>
+          </router-link>
+        </div>
+      </nav>
+
+      <!-- 底部：收起按钮 -->
+      <div class="sidebar-footer">
+        <button class="collapse-btn" :title="collapsed ? '展开侧边栏' : '收起侧边栏'" @click="collapsed = !collapsed">
+          <el-icon><Fold v-if="!collapsed" /><Expand v-else /></el-icon>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 主体区域 -->
+    <div class="layout-main">
       <!-- 顶部栏 -->
-      <el-header class="layout-header">
-        <div class="header-left">
-          <el-icon class="collapse-btn" @click="collapsed = !collapsed">
-            <Fold v-if="!collapsed" /><Expand v-else />
-          </el-icon>
+      <header class="layout-header">
+        <div class="header-breadcrumb">
+          <span class="breadcrumb-text">{{ pageTitle }}</span>
         </div>
         <div class="header-right">
           <el-dropdown @command="handleCommand">
-            <span class="user-info">
-              {{ authStore.profile?.name ?? '用户' }}
-              <el-icon><ArrowDown /></el-icon>
-            </span>
+            <button class="user-btn">
+              <div class="user-avatar">{{ userInitial }}</div>
+              <span class="user-name">{{ authStore.profile?.name ?? '用户' }}</span>
+              <el-icon class="user-caret"><ArrowDown /></el-icon>
+            </button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="logout">退出登录</el-dropdown-item>
@@ -72,14 +87,14 @@
             </template>
           </el-dropdown>
         </div>
-      </el-header>
+      </header>
 
       <!-- 主内容区 -->
-      <el-main class="layout-content">
+      <main class="layout-content">
         <router-view />
-      </el-main>
-    </el-container>
-  </el-container>
+      </main>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -90,17 +105,32 @@ import {
   Connection, Fold, Expand, ArrowDown, Setting,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores'
-import { SIDEBAR_WIDTH_PX, SIDEBAR_COLLAPSED_WIDTH_PX } from '@/constants/ui_constants'
 
 const authStore = useAuthStore()
 const route = useRoute()
 const collapsed = ref(false)
 
-const sidebarWidth = computed(() =>
-  collapsed.value ? `${SIDEBAR_COLLAPSED_WIDTH_PX}px` : `${SIDEBAR_WIDTH_PX}px`,
-)
+/* 当前激活的一级路由段 */
+const activeSection = computed(() => route.path.split('/')[1] || 'dashboard')
 
-const activeMenu = computed(() => '/' + route.path.split('/')[1])
+/* 页面标题映射 */
+const PAGE_TITLES: Record<string, string> = {
+  dashboard: '总览',
+  assets: '资产管理',
+  contracts: '合同管理',
+  finance: '财务管理',
+  workorders: '工单管理',
+  subleases: '二房东管理',
+  system: '系统设置',
+}
+
+const pageTitle = computed(() => PAGE_TITLES[activeSection.value] ?? 'PropOS')
+
+/* 用户名首字母（头像占位符）*/
+const userInitial = computed(() => {
+  const name = authStore.profile?.name ?? '用'
+  return name.charAt(0).toUpperCase()
+})
 
 async function handleCommand(cmd: string) {
   if (cmd === 'logout') {
@@ -110,31 +140,255 @@ async function handleCommand(cmd: string) {
 </script>
 
 <style scoped>
-.layout-root { height: 100vh; }
-.layout-aside {
-  background: var(--el-menu-bg-color);
-  transition: width 0.2s;
+/* ─── 整体布局 ─── */
+.layout-root {
+  height: 100vh;
+  display: flex;
   overflow: hidden;
+  background: var(--apple-light-gray);
 }
-.logo {
-  height: 60px;
+
+/* ─── 侧边栏 ─── */
+.layout-aside {
+  width: 240px;
+  min-width: 240px;
+  height: 100vh;
+  background: var(--apple-near-black);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.layout-aside.collapsed {
+  width: 64px;
+  min-width: 64px;
+}
+
+/* Logo */
+.sidebar-logo {
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+}
+
+.logo-text {
+  font-family: var(--apple-font-display);
   font-size: 20px;
   font-weight: 700;
-  color: var(--el-color-primary);
-  border-bottom: 1px solid var(--el-border-color);
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
 }
-.sidebar-menu { border-right: none; height: calc(100vh - 60px); }
+
+.logo-icon {
+  font-family: var(--apple-font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--apple-link-dark);
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0 16px;
+  flex-shrink: 0;
+}
+
+/* 导航 */
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: none;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-group {
+  margin-top: 16px;
+}
+
+.nav-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 0 12px;
+  margin-bottom: 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  height: 40px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-family: var(--apple-font-text);
+  letter-spacing: -0.2px;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.nav-item.active {
+  background: rgba(41, 151, 255, 0.15);
+  color: var(--apple-link-dark);
+}
+
+.nav-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.nav-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 底部收起按钮 */
+.sidebar-footer {
+  padding: 12px 8px;
+  flex-shrink: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 36px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.collapse-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ─── 主体 ─── */
+.layout-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ─── 顶部栏 ─── */
 .layout-header {
+  height: 56px;
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--el-border-color);
-  background: #fff;
+  padding: 0 24px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 9;
 }
-.collapse-btn { font-size: 20px; cursor: pointer; }
-.user-info { cursor: pointer; display: flex; align-items: center; gap: 4px; }
-.layout-content { background: var(--el-bg-color-page); }
+
+.header-breadcrumb {
+  display: flex;
+  align-items: center;
+}
+
+.breadcrumb-text {
+  font-family: var(--apple-font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--apple-near-black);
+  letter-spacing: -0.3px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.user-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.user-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--apple-blue);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.user-name {
+  font-family: var(--apple-font-text);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--apple-near-black);
+  letter-spacing: -0.2px;
+}
+
+.user-caret {
+  font-size: 12px;
+  color: var(--apple-text-secondary);
+}
+
+/* ─── 内容区 ─── */
+.layout-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--apple-light-gray);
+}
 </style>

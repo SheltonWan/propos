@@ -136,17 +136,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.user-detail-view {
-  padding: 16px;
-}
-.alert {
-  margin: 12px 0;
-}
-.detail-card {
-  margin-top: 12px;
-}
+.user-detail-view { padding: 24px 28px; }
+
+.alert { margin: 12px 0; }
+
+.detail-card { margin-top: 16px; }
+
 .actions {
-  margin-top: 16px;
+  margin-top: 20px;
   display: flex;
   gap: 8px;
 }

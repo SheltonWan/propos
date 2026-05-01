@@ -232,25 +232,28 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.departments-view {
-  padding: 16px;
-}
+.departments-view { padding: 24px 28px; }
+
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+  align-items: flex-start;
+  margin-bottom: 20px;
 }
+
 .page-header .title {
-  font-size: 18px;
+  font-family: var(--apple-font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--apple-near-black);
   margin: 0;
 }
-.alert {
-  margin-bottom: 12px;
-}
-.tree-card {
-  min-height: 400px;
-}
+
+.alert { margin-bottom: 12px; }
+
+.tree-card { min-height: 400px; }
+
 .tree-node {
   flex: 1;
   display: flex;
@@ -258,14 +261,18 @@ onMounted(() => {
   align-items: center;
   padding-right: 12px;
 }
+
 .node-name {
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 14px;
+  color: var(--apple-near-black);
+  letter-spacing: -0.2px;
 }
-.level-tag {
-  margin-left: 4px;
-}
+
+.level-tag { margin-left: 4px; }
+
 .node-actions {
   display: flex;
   gap: 4px;

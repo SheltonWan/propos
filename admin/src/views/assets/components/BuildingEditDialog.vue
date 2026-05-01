@@ -245,8 +245,9 @@ function handleClosed(): void {
 <style scoped>
 .tip {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.4;
+  color: var(--apple-text-secondary);
+  line-height: 1.5;
   margin-top: 4px;
+  letter-spacing: -0.1px;
 }
 </style>

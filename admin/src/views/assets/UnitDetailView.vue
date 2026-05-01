@@ -457,19 +457,44 @@ function formatDate(v: string | null): string {
 </script>
 
 <style scoped>
-.unit-detail { padding: 24px; }
-.header { margin-bottom: 16px; }
-.title { font-size: 18px; font-weight: 600; }
-.status-bar { display: flex; gap: 12px; margin-bottom: 16px; }
-.block { margin-bottom: 24px; }
+.unit-detail { padding: 24px 28px; }
+
+.header { margin-bottom: 20px; }
+
+.title {
+  font-family: var(--apple-font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--apple-near-black);
+}
+
+.status-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.block { margin-bottom: 20px; }
+
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
+
 .form-suffix {
   margin-left: 8px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--apple-text-secondary);
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--apple-text-secondary);
+  margin-bottom: 12px;
 }
 </style>

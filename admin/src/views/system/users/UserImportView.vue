@@ -175,67 +175,76 @@ function goBack(): void {
 </script>
 
 <style scoped>
-.user-import {
-  padding: 16px;
-}
-.alert {
-  margin: 12px 0;
-}
-.steps {
-  margin: 16px 0;
-}
-.step-card {
-  margin-top: 12px;
-}
-.uploader {
-  margin-top: 12px;
-}
+.user-import { padding: 24px 28px; }
+
+.alert { margin: 12px 0; }
+
+.steps { margin: 16px 0; }
+
+.step-card { margin-top: 12px; }
+
+.uploader { margin-top: 12px; }
+
 .upload-icon {
   font-size: 48px;
-  color: var(--el-color-primary);
+  color: var(--apple-blue);
 }
+
 .upload-text {
   font-size: 14px;
   margin-top: 8px;
+  color: var(--apple-text-body);
+  letter-spacing: -0.2px;
 }
+
 .upload-tip {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--apple-text-secondary);
   margin-top: 4px;
 }
+
 .template-row {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 12px;
 }
+
 .template-hint {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--apple-text-secondary);
 }
+
 .actions {
   margin-top: 20px;
   display: flex;
   gap: 8px;
 }
+
 .dry-run-summary {
   display: flex;
   gap: 32px;
   margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--apple-light-gray);
+  border-radius: 10px;
+  border: 1px solid var(--apple-border);
 }
+
 .metric-label {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--apple-text-secondary);
   margin-right: 6px;
+  letter-spacing: -0.1px;
 }
+
 .metric-value {
+  font-family: var(--apple-font-display);
   font-size: 18px;
   font-weight: 600;
+  letter-spacing: -0.3px;
 }
-.metric-value.success {
-  color: var(--el-color-success);
-}
-.metric-value.danger {
-  color: var(--el-color-danger);
-}
+
+.metric-value.success { color: #1a7a4a; }
+.metric-value.danger { color: var(--el-color-danger); }
 </style>

@@ -77,19 +77,23 @@ async function onPick(file: UploadFile): Promise<void> {
   gap: 6px;
   align-items: flex-start;
 }
+
 .empty {
-  color: var(--el-text-color-secondary);
+  color: var(--apple-text-secondary);
   font-size: 12px;
 }
+
 .thumbs {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
+
 .thumb {
   width: 36px;
   height: 36px;
-  border-radius: 4px;
-  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  border: 1px solid var(--apple-border);
+  object-fit: cover;
 }
 </style>

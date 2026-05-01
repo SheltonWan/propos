@@ -144,7 +144,7 @@ describe('响应拦截器 — Token 刷新', () => {
       error: { code: 'UNAUTHORIZED', message: 'refresh token 已失效' },
     })
 
-    const err = await apiGet('/api/data').catch((e) => e)
+    const err = (await apiGet("/api/data").catch((e) => e)) as ApiError;
     expect(err).toBeInstanceOf(ApiError)
     expect(err.code).toBe('UNAUTHORIZED')
     expect(err.statusCode).toBe(401)
@@ -158,9 +158,10 @@ describe('响应拦截器 — Token 刷新', () => {
       error: { code: 'INVALID_CREDENTIALS', message: '用户名或密码错误' },
     })
 
-    const err = await apiPost(API_AUTH_LOGIN, { email: 'x@x.com', password: 'wrong' }).catch(
-      (e) => e,
-    )
+    const err = (await apiPost(API_AUTH_LOGIN, {
+      email: "x@x.com",
+      password: "wrong",
+    }).catch((e) => e)) as ApiError;
     expect(err).toBeInstanceOf(ApiError)
     expect(err.code).toBe('INVALID_CREDENTIALS')
     // refresh 接口不被调用
@@ -188,7 +189,9 @@ describe('响应拦截器 — 错误信封解析', () => {
       error: { code: 'CONTRACT_NOT_FOUND', message: '合同不存在' },
     })
 
-    const err = await apiGet('/api/contracts/xxx').catch((e) => e)
+    const err = (await apiGet("/api/contracts/xxx").catch(
+      (e) => e,
+    )) as ApiError;
     expect(err).toBeInstanceOf(ApiError)
     expect(err.code).toBe('CONTRACT_NOT_FOUND')
     expect(err.message).toBe('合同不存在')
@@ -198,7 +201,7 @@ describe('响应拦截器 — 错误信封解析', () => {
   it('没有错误体时使用默认消息', async () => {
     mock.onGet('/api/test').reply(500)
 
-    const err = await apiGet('/api/test').catch((e) => e)
+    const err = (await apiGet("/api/test").catch((e) => e)) as ApiError;
     expect(err).toBeInstanceOf(ApiError)
     expect(err.code).toBe('HTTP_500')
     expect(err.message).toBe('服务异常，请稍后再试')

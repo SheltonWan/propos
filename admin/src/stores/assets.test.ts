@@ -75,14 +75,14 @@ function makeUnit(id: string, buildingId: string, floorId: string, status: Unit[
     floor_id: floorId,
     unit_number: id,
     current_status: status,
-    property_type: 'office',
+    property_type: "office",
     nla: 100,
     floor_number: 1,
-    building_name: '楼A',
-    floor_name: '1F',
-    created_at: '2024-01-01T00:00:00Z',
-    updated_at: '2024-01-01T00:00:00Z',
-  } as Unit
+    building_name: "楼A",
+    floor_name: "1F",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+  } as unknown as Unit;
 }
 
 function makeFloor(id: string, buildingId: string): Floor {

@@ -1,0 +1,851 @@
+/* ═══════════════════════════════════════════════════════
+   PropOS Admin — Apple Design System
+   严格遵循 DESIGN-apple.md 规范
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── CSS 设计令牌 ─── */
+:root {
+  /* Apple 色彩体系 */
+  --apple-black: #000000;
+  --apple-near-black: #1d1d1f;
+  --apple-light-gray: #f5f5f7;
+  --apple-white: #ffffff;
+  --apple-blue: #0071e3;
+  --apple-link-light: #0066cc;
+  --apple-link-dark: #2997ff;
+  --apple-text-body: rgba(0, 0, 0, 0.8);
+  --apple-text-secondary: rgba(0, 0, 0, 0.48);
+  --apple-text-tertiary: rgba(0, 0, 0, 0.32);
+  --apple-border: rgba(0, 0, 0, 0.08);
+  --apple-surface-dark-1: #272729;
+  --apple-surface-dark-2: #1c1c1e;
+  --apple-btn-active: #ededf2;
+  --apple-input-bg: #fafafc;
+
+  /* 阴影系统 */
+  --apple-shadow-card: rgba(0, 0, 0, 0.22) 3px 5px 30px 0px;
+  --apple-shadow-subtle: rgba(0, 0, 0, 0.1) 0px 2px 8px 0px;
+  --apple-shadow-dialog: rgba(0, 0, 0, 0.32) 0px 24px 72px 0px;
+
+  /* 字体：系统字体栈（Apple 设备自动使用 SF Pro）*/
+  --apple-font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+    'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --apple-font-text: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+    'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+  /* ─ Element Plus CSS 变量覆盖 ─ */
+  --el-color-primary: #0071e3;
+  --el-color-primary-light-3: #3a8fe8;
+  --el-color-primary-light-5: #80b8f1;
+  --el-color-primary-light-7: #b3d4f7;
+  --el-color-primary-light-8: #cce2fb;
+  --el-color-primary-light-9: #e8f2fd;
+  --el-color-primary-dark-2: #005ab8;
+
+  --el-color-success: #30a46c;
+  --el-color-warning: #f59e0b;
+  --el-color-danger: #e5484d;
+  --el-color-info: #8e8e93;
+
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #f5f5f7;
+  --el-bg-color-overlay: #ffffff;
+
+  --el-text-color-primary: #1d1d1f;
+  --el-text-color-regular: rgba(0, 0, 0, 0.8);
+  --el-text-color-secondary: rgba(0, 0, 0, 0.48);
+  --el-text-color-placeholder: rgba(0, 0, 0, 0.32);
+  --el-text-color-disabled: rgba(0, 0, 0, 0.24);
+
+  --el-border-color: rgba(0, 0, 0, 0.1);
+  --el-border-color-light: rgba(0, 0, 0, 0.07);
+  --el-border-color-lighter: rgba(0, 0, 0, 0.05);
+  --el-border-color-extra-light: rgba(0, 0, 0, 0.03);
+
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 5px;
+  --el-border-radius-round: 980px;
+
+  --el-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+    'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --el-font-size-base: 15px;
+  --el-font-size-small: 13px;
+  --el-font-size-extra-small: 11px;
+
+  --el-box-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px 0px;
+  --el-box-shadow-light: rgba(0, 0, 0, 0.1) 0px 2px 8px 0px;
+}
+
+/* ─── 全局 Reset & 排版 ─── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--apple-font-text);
+  font-size: 15px;
+  color: var(--apple-near-black);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.2px;
+}
+
+body {
+  margin: 0;
+  background: var(--apple-light-gray);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--apple-font-display);
+  color: var(--apple-near-black);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Element Plus 组件覆盖
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── 按钮 ─── */
+.el-button {
+  font-family: var(--apple-font-text);
+  font-weight: 400;
+  letter-spacing: -0.2px;
+  border-radius: 8px;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  font-size: 15px;
+}
+
+.el-button--primary {
+  background: var(--apple-blue);
+  border-color: var(--apple-blue);
+}
+
+.el-button--primary:not(:disabled):hover {
+  background: #0077ed;
+  border-color: #0077ed;
+}
+
+.el-button--primary:not(:disabled):active {
+  background: #005ab8;
+  border-color: #005ab8;
+}
+
+.el-button:not(:disabled):focus-visible {
+  outline: 2px solid var(--apple-blue);
+  outline-offset: 2px;
+}
+
+/* 小尺寸按钮 */
+.el-button--small {
+  font-size: 13px;
+  border-radius: 6px;
+  padding: 5px 11px;
+}
+
+/* ─── 卡片 ─── */
+.el-card {
+  border-radius: 12px;
+  border: none !important;
+  box-shadow: none;
+  background: var(--apple-white);
+  overflow: hidden;
+}
+
+.el-card.is-hover-shadow:hover,
+.el-card.is-always-shadow {
+  box-shadow: var(--apple-shadow-card);
+}
+
+.el-card.is-never-shadow {
+  box-shadow: none;
+  border: 1px solid var(--apple-border) !important;
+}
+
+.el-card__header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--apple-border);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--apple-near-black);
+  letter-spacing: -0.2px;
+}
+
+.el-card__body {
+  padding: 20px;
+}
+
+/* ─── 对话框 ─── */
+.el-dialog {
+  border-radius: 16px !important;
+  box-shadow: var(--apple-shadow-dialog) !important;
+  border: none !important;
+  overflow: hidden;
+}
+
+.el-dialog__header {
+  padding: 24px 24px 20px !important;
+  border-bottom: 1px solid var(--apple-border);
+  margin-right: 0 !important;
+}
+
+.el-dialog__title {
+  font-family: var(--apple-font-display);
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.3px;
+  color: var(--apple-near-black);
+}
+
+.el-dialog__headerbtn {
+  top: 20px !important;
+  right: 20px !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.el-dialog__headerbtn .el-dialog__close {
+  font-size: 16px !important;
+  color: var(--apple-text-secondary) !important;
+}
+
+.el-dialog__body {
+  padding: 24px !important;
+  color: var(--apple-near-black);
+}
+
+.el-dialog__footer {
+  padding: 20px 24px 24px !important;
+  border-top: 1px solid var(--apple-border);
+}
+
+/* ─── 输入框 ─── */
+.el-input__wrapper {
+  border-radius: 8px !important;
+  background: var(--apple-input-bg) !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1) !important;
+  transition: box-shadow 0.15s;
+}
+
+.el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22) !important;
+}
+
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25), 0 0 0 1px var(--apple-blue) !important;
+}
+
+.el-input__inner {
+  font-family: var(--apple-font-text);
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  color: var(--apple-near-black);
+}
+
+.el-textarea__inner {
+  font-family: var(--apple-font-text);
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  color: var(--apple-near-black);
+  border-radius: 8px;
+  background: var(--apple-input-bg);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  border: none;
+  resize: vertical;
+}
+
+.el-textarea__inner:hover {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22);
+}
+
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25), 0 0 0 1px var(--apple-blue);
+  outline: none;
+}
+
+/* ─── 下拉选择 ─── */
+.el-select__wrapper {
+  border-radius: 8px !important;
+  background: var(--apple-input-bg) !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1) !important;
+}
+
+.el-select__wrapper:hover,
+.el-select__wrapper.is-hovering {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22) !important;
+}
+
+.el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25), 0 0 0 1px var(--apple-blue) !important;
+}
+
+/* 下拉弹出层 */
+.el-select-dropdown {
+  border-radius: 10px !important;
+  border: 1px solid var(--apple-border) !important;
+  box-shadow: var(--apple-shadow-card) !important;
+  overflow: hidden;
+}
+
+.el-select-dropdown__item {
+  font-family: var(--apple-font-text);
+  font-size: 14px;
+  padding: 8px 16px;
+  letter-spacing: -0.2px;
+}
+
+.el-select-dropdown__item.is-selected {
+  color: var(--apple-blue);
+  font-weight: 600;
+}
+
+.el-select-dropdown__item.is-hovering {
+  background: rgba(0, 113, 227, 0.06);
+}
+
+/* ─── 数字输入框 ─── */
+.el-input-number .el-input__wrapper {
+  border-radius: 8px !important;
+}
+
+/* ─── 表单 ─── */
+.el-form-item__label {
+  font-family: var(--apple-font-text);
+  font-size: 13px !important;
+  font-weight: 500;
+  color: var(--apple-text-secondary) !important;
+  letter-spacing: -0.1px;
+  line-height: 1.4;
+}
+
+.el-form-item {
+  margin-bottom: 20px;
+}
+
+.el-form-item.is-error .el-input__wrapper {
+  box-shadow: 0 0 0 3px rgba(229, 72, 77, 0.2), 0 0 0 1px var(--el-color-danger) !important;
+}
+
+.el-form-item__error {
+  font-size: 12px;
+  letter-spacing: -0.1px;
+  color: var(--el-color-danger);
+}
+
+/* ─── 表格 ─── */
+.el-table {
+  background: transparent !important;
+  font-family: var(--apple-font-text);
+  font-size: 14px;
+  letter-spacing: -0.15px;
+}
+
+.el-table th.el-table__cell {
+  background: var(--apple-light-gray) !important;
+  color: var(--apple-text-secondary) !important;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--apple-border) !important;
+}
+
+.el-table td.el-table__cell {
+  padding: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+  color: var(--apple-near-black);
+}
+
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: rgba(0, 0, 0, 0.015) !important;
+}
+
+.el-table__row:hover > td.el-table__cell {
+  background: rgba(0, 113, 227, 0.04) !important;
+}
+
+.el-table__empty-text {
+  color: var(--apple-text-secondary);
+  font-size: 14px;
+}
+
+/* ─── 分页 ─── */
+.el-pagination {
+  justify-content: flex-end;
+  padding: 16px 0 0;
+  font-family: var(--apple-font-text);
+  font-size: 13px;
+}
+
+.el-pagination.is-background .el-pager li:not(.is-disabled).is-active {
+  background-color: var(--apple-blue);
+}
+
+.el-pagination.is-background .el-pager li:not(.is-disabled):hover {
+  color: var(--apple-blue);
+}
+
+/* ─── Tag 标签 ─── */
+.el-tag {
+  border-radius: 5px;
+  font-family: var(--apple-font-text);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.1px;
+  padding: 2px 8px;
+  border: none !important;
+  height: auto;
+}
+
+.el-tag--success {
+  background: rgba(48, 164, 108, 0.1);
+  color: #1a7a4a;
+}
+
+.el-tag--warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+}
+
+.el-tag--danger {
+  background: rgba(229, 72, 77, 0.1);
+  color: #c53030;
+}
+
+.el-tag--info {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--apple-text-secondary);
+}
+
+.el-tag--primary {
+  background: rgba(0, 113, 227, 0.1);
+  color: var(--apple-blue);
+}
+
+/* ─── Alert 提示 ─── */
+.el-alert {
+  border-radius: 10px;
+  border: none !important;
+  font-family: var(--apple-font-text);
+  font-size: 14px;
+  letter-spacing: -0.2px;
+}
+
+.el-alert--error.is-light {
+  background: rgba(229, 72, 77, 0.08);
+  color: #c53030;
+}
+
+.el-alert--warning.is-light {
+  background: rgba(245, 158, 11, 0.08);
+  color: #b45309;
+}
+
+.el-alert--success.is-light {
+  background: rgba(48, 164, 108, 0.08);
+  color: #1a7a4a;
+}
+
+/* ─── Descriptions 描述列表 ─── */
+.el-descriptions {
+  font-family: var(--apple-font-text);
+  font-size: 14px;
+}
+
+.el-descriptions__label.el-descriptions-item__label {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--apple-text-secondary);
+  letter-spacing: -0.1px;
+}
+
+.el-descriptions__content.el-descriptions-item__content {
+  font-size: 14px;
+  color: var(--apple-near-black);
+}
+
+.el-descriptions--bordered .el-descriptions__cell {
+  border-color: var(--apple-border) !important;
+  padding: 12px 16px;
+}
+
+/* ─── Progress 进度条 ─── */
+.el-progress-bar__outer {
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+
+.el-progress-bar__inner {
+  border-radius: 4px;
+}
+
+/* ─── Divider 分割线 ─── */
+.el-divider {
+  border-color: var(--apple-border) !important;
+  margin: 20px 0;
+}
+
+.el-divider__text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--apple-text-secondary);
+  background: var(--apple-white);
+}
+
+/* ─── Switch 开关 ─── */
+.el-switch.is-checked .el-switch__core {
+  background: var(--apple-blue);
+  border-color: var(--apple-blue);
+}
+
+/* ─── DatePicker ─── */
+.el-date-picker,
+.el-picker-panel {
+  border-radius: 12px !important;
+  border: 1px solid var(--apple-border) !important;
+  box-shadow: var(--apple-shadow-card) !important;
+  font-family: var(--apple-font-text);
+}
+
+/* ─── 下拉菜单 ─── */
+.el-dropdown-menu {
+  border-radius: 10px !important;
+  border: 1px solid var(--apple-border) !important;
+  box-shadow: var(--apple-shadow-card) !important;
+  padding: 6px !important;
+  overflow: hidden;
+}
+
+.el-dropdown-menu__item {
+  border-radius: 6px;
+  font-family: var(--apple-font-text);
+  font-size: 14px;
+  padding: 8px 12px;
+  letter-spacing: -0.2px;
+  margin: 2px 0;
+}
+
+.el-dropdown-menu__item:not(.is-disabled):focus {
+  color: var(--apple-near-black);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* ─── Page Header ─── */
+.el-page-header {
+  padding: 0;
+  align-items: center;
+}
+
+.el-page-header__back {
+  color: var(--apple-link-light);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.el-page-header__back:hover {
+  color: var(--apple-blue);
+}
+
+/* ─── Tree 组件 ─── */
+.el-tree {
+  font-family: var(--apple-font-text);
+  font-size: 14px;
+  background: transparent;
+}
+
+.el-tree-node__content {
+  height: 40px;
+  border-radius: 8px;
+}
+
+.el-tree-node__content:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.el-tree-node.is-current > .el-tree-node__content {
+  background: rgba(0, 113, 227, 0.08);
+}
+
+/* ─── Message 提示 ─── */
+.el-message {
+  border-radius: 10px !important;
+  border: none !important;
+  box-shadow: var(--apple-shadow-card) !important;
+  font-family: var(--apple-font-text) !important;
+  font-size: 14px !important;
+  letter-spacing: -0.2px;
+  min-width: 280px;
+}
+
+/* ─── MessageBox 确认框 ─── */
+.el-message-box {
+  border-radius: 16px !important;
+  box-shadow: var(--apple-shadow-dialog) !important;
+  border: none !important;
+  overflow: hidden;
+}
+
+.el-message-box__header {
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid var(--apple-border);
+}
+
+.el-message-box__title {
+  font-family: var(--apple-font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.el-message-box__content {
+  padding: 20px 24px;
+  font-family: var(--apple-font-text);
+  font-size: 14px;
+  color: var(--apple-text-secondary);
+  letter-spacing: -0.2px;
+}
+
+.el-message-box__btns {
+  padding: 0 24px 20px;
+  gap: 8px;
+}
+
+/* ─── Result 结果页 ─── */
+.el-result__title p {
+  font-family: var(--apple-font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--apple-near-black);
+}
+
+.el-result__subtitle p {
+  font-family: var(--apple-font-text);
+  color: var(--apple-text-secondary);
+}
+
+/* ─── Empty 空状态 ─── */
+.el-empty__description {
+  font-family: var(--apple-font-text);
+  font-size: 14px;
+  color: var(--apple-text-secondary);
+  letter-spacing: -0.2px;
+}
+
+/* ─── Button Group ─── */
+.el-button-group .el-button:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.el-button-group .el-button:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+/* ─── Upload ─── */
+.el-upload-dragger {
+  border-radius: 12px !important;
+  border-color: var(--apple-border) !important;
+  background: var(--apple-light-gray) !important;
+}
+
+.el-upload-dragger:hover {
+  border-color: var(--apple-blue) !important;
+}
+
+/* ─── 滚动条 ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+/* ═══════════════════════════════════════════════════════
+   通用页面布局工具类
+   ═══════════════════════════════════════════════════════ */
+
+/* 标准页面头部 */
+.apple-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 20px;
+  padding: 0;
+}
+
+.apple-page-title {
+  font-family: var(--apple-font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  line-height: 1.1;
+  color: var(--apple-near-black);
+  margin: 0;
+}
+
+.apple-page-subtitle {
+  font-size: 14px;
+  color: var(--apple-text-secondary);
+  margin: 4px 0 0;
+  letter-spacing: -0.2px;
+}
+
+/* 操作按钮组 */
+.apple-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 过滤卡片 */
+.apple-filter-card {
+  margin-bottom: 16px;
+}
+
+.apple-filter-card .el-card__body {
+  padding: 16px 20px;
+}
+
+/* 数据卡片 */
+.apple-data-card {
+  margin-bottom: 16px;
+}
+
+/* 统计卡片 */
+.apple-stat-card {
+  text-align: left;
+  padding: 4px 0;
+}
+
+.apple-stat-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--apple-text-secondary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.apple-stat-value {
+  font-family: var(--apple-font-display);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  color: var(--apple-near-black);
+  margin-bottom: 4px;
+}
+
+.apple-stat-desc {
+  font-size: 13px;
+  color: var(--apple-text-secondary);
+  letter-spacing: -0.1px;
+}
+
+/* 返回链接 */
+.apple-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--apple-link-light);
+  cursor: pointer;
+  letter-spacing: -0.2px;
+  text-decoration: none;
+  margin-bottom: 16px;
+}
+
+.apple-back-link:hover {
+  text-decoration: underline;
+}
+
+/* 表格操作链接 */
+.apple-table-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* 费率展示 */
+.apple-rate-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.apple-rate-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--apple-near-black);
+  min-width: 48px;
+  text-align: right;
+  letter-spacing: -0.1px;
+}
+
+/* Dialog 中的提示文本 */
+.apple-dialog-tip {
+  font-size: 13px;
+  color: var(--apple-text-secondary);
+  line-height: 1.5;
+  letter-spacing: -0.1px;
+  margin-top: 6px;
+}
+
+/* 表单分区标题 */
+.apple-form-section {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--apple-text-secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 24px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--apple-border);
+}
+
+/* 状态栏 */
+.apple-status-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+/* Placeholder 页面 */
+.apple-placeholder-page {
+  padding: 48px 32px;
+  text-align: center;
+}
+
+.apple-placeholder-title {
+  font-family: var(--apple-font-display);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--apple-near-black);
+  letter-spacing: -0.5px;
+  margin-bottom: 12px;
+}
+
+.apple-placeholder-desc {
+  font-size: 16px;
+  color: var(--apple-text-secondary);
+  letter-spacing: -0.2px;
+}

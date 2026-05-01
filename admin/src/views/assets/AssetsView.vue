@@ -196,38 +196,89 @@ function formatArea(v: number | null): string {
 
 function rateColor(rate: number): string {
   if (rate >= 0.9) return 'var(--el-color-success)'
-  if (rate >= 0.7) return 'var(--el-color-primary)'
+  if (rate >= 0.7) return 'var(--apple-blue)'
   if (rate >= 0.5) return 'var(--el-color-warning)'
   return 'var(--el-color-danger)'
 }
 </script>
 
 <style scoped>
-.assets-view { padding: 24px; }
+.assets-view { padding: 24px 28px; }
+
+/* 页头 */
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin: 0 0 16px;
+  align-items: flex-start;
+  margin: 0 0 24px;
 }
-.page-title { margin: 0; font-size: 20px; }
-.actions { display: flex; gap: 8px; }
-.stat-row { margin-bottom: 24px; }
+
+.page-title {
+  font-family: var(--apple-font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--apple-near-black);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 统计行 */
+.stat-row { margin-bottom: 20px; }
+
 .stat-card { height: 100%; }
-.stat-title { font-size: 14px; color: var(--el-text-color-regular); }
-.stat-value { font-size: 28px; font-weight: 600; margin: 8px 0 4px; }
-.stat-sub { font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 12px; }
-.stat-rate { color: var(--el-color-primary); font-weight: 600; }
-.total-card { margin-bottom: 24px; }
+
+.stat-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--apple-text-secondary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-family: var(--apple-font-display);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--apple-near-black);
+  margin-bottom: 6px;
+}
+
+.stat-sub {
+  font-size: 12px;
+  color: var(--apple-text-secondary);
+  margin-bottom: 12px;
+  letter-spacing: -0.1px;
+}
+
+.stat-rate {
+  color: var(--apple-blue);
+  font-weight: 600;
+}
+
+/* 汇总卡片 */
+.total-card { margin-bottom: 20px; }
+
+/* 楼栋表格 */
 .buildings-card :deep(.el-table) { cursor: pointer; }
+
 .rate-cell {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
 .rate-text {
   font-size: 12px;
-  color: var(--el-text-color-regular);
+  font-weight: 500;
+  color: var(--apple-near-black);
   min-width: 48px;
   text-align: right;
 }

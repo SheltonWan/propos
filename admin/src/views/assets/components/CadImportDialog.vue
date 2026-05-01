@@ -269,48 +269,55 @@ function handleClosed(): void {
 </script>
 
 <style scoped>
-.upload-zone .tip {
-  margin-bottom: 16px;
-}
-.upload {
-  margin-top: 8px;
-}
+.upload-zone .tip { margin-bottom: 16px; }
+
+.upload { margin-top: 8px; }
+
 .tip-sm {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--apple-text-secondary);
   margin-top: 4px;
+  letter-spacing: -0.1px;
 }
-.error-msg {
-  margin-top: 16px;
-}
-.processing {
-  padding: 24px 0;
-}
+
+.error-msg { margin-top: 16px; }
+
+.processing { padding: 24px 0; }
+
 .processing .hint {
   margin-top: 12px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--apple-text-secondary);
   text-align: center;
+  letter-spacing: -0.1px;
 }
-.failed {
-  padding: 12px 0;
-}
-.done .unmatched-section {
-  margin-top: 16px;
-}
+
+.failed { padding: 12px 0; }
+
+.done .unmatched-section { margin-top: 16px; }
+
 .done h4 {
   margin: 0 0 8px;
   font-size: 14px;
+  font-weight: 600;
+  color: var(--apple-near-black);
+  letter-spacing: -0.2px;
 }
+
 .done .hint {
   margin: 0 0 12px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--apple-text-secondary);
   line-height: 1.5;
+  letter-spacing: -0.1px;
 }
+
 .path {
   font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
   font-size: 12px;
-  color: var(--el-text-color-regular);
+  color: var(--apple-near-black);
+  background: var(--apple-light-gray);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 </style>

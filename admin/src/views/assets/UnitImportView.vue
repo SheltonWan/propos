@@ -243,62 +243,112 @@ function downloadErrorReport(): void {
 </script>
 
 <style scoped>
-.unit-import { padding: 24px; }
-.header { margin-bottom: 16px; }
-.title { font-size: 18px; font-weight: 600; }
+.unit-import { padding: 24px 28px; }
+
+.header { margin-bottom: 20px; }
+
+.title {
+  font-family: var(--apple-font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--apple-near-black);
+}
+
 .alert { margin-bottom: 16px; }
+
 .steps { margin: 16px 0 24px; max-width: 720px; }
-.step-card { margin-bottom: 24px; }
+
+.step-card { margin-bottom: 20px; }
+
 .form-row {
   display: flex;
   gap: 12px;
   align-items: center;
   margin-bottom: 16px;
 }
-.row-label { font-size: 14px; color: var(--el-text-color-regular); }
+
+.row-label {
+  font-size: 14px;
+  color: var(--apple-near-black);
+  letter-spacing: -0.2px;
+}
+
 .uploader { margin: 16px 0; }
-.upload-icon { font-size: 56px; color: var(--el-color-primary); }
-.upload-text { color: var(--el-text-color-regular); margin-top: 8px; font-size: 14px; }
-.upload-tip { color: var(--el-text-color-secondary); font-size: 12px; }
+
+.upload-icon {
+  font-size: 56px;
+  color: var(--apple-blue);
+}
+
+.upload-text {
+  color: var(--apple-text-body);
+  margin-top: 8px;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+}
+
+.upload-tip {
+  color: var(--apple-text-secondary);
+  font-size: 12px;
+}
+
 .template-row {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 12px 16px;
   margin-top: 8px;
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
+  background: rgba(0, 113, 227, 0.05);
+  border-radius: 8px;
   font-size: 13px;
-  color: var(--el-text-color-regular);
+  color: var(--apple-near-black);
+  border: 1px solid rgba(0, 113, 227, 0.12);
+  letter-spacing: -0.1px;
 }
+
 .template-hint {
   margin-left: 8px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--apple-text-secondary);
 }
+
 .actions {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
   margin-top: 16px;
 }
+
 .dry-run-summary {
   display: flex;
   gap: 32px;
   margin-bottom: 16px;
   padding: 12px 16px;
-  background: var(--el-fill-color-light);
+  background: var(--apple-light-gray);
+  border-radius: 10px;
+  border: 1px solid var(--apple-border);
+}
+
+.metric-label {
+  display: block;
+  font-size: 12px;
+  color: var(--apple-text-secondary);
+  letter-spacing: -0.1px;
+  margin-bottom: 4px;
+}
+
+.metric-value {
+  font-family: var(--apple-font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.metric-value.success { color: #1a7a4a; }
+.metric-value.danger { color: var(--el-color-danger); }
+</style>
   border-radius: 4px;
 }
 .metric-label {
   display: block;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.metric-value {
-  font-size: 24px;
-  font-weight: 600;
-}
-.metric-value.success { color: var(--el-color-success); }
-.metric-value.danger { color: var(--el-color-danger); }
-</style>

@@ -454,35 +454,46 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.users-view {
-  padding: 16px;
-}
+.users-view { padding: 24px 28px; }
+
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+  align-items: flex-start;
+  margin-bottom: 20px;
 }
+
 .page-header .title {
-  font-size: 18px;
+  font-family: var(--apple-font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--apple-near-black);
   margin: 0;
 }
-.alert {
-  margin-bottom: 12px;
-}
-.filter-card {
-  margin-bottom: 12px;
-}
-.list-card :deep(.el-table) {
-  margin-top: 4px;
-}
+
+.actions { display: flex; gap: 8px; }
+
+.alert { margin-bottom: 12px; }
+
+.filter-card { margin-bottom: 16px; }
+
+.list-card :deep(.el-table) { margin-top: 4px; }
+
 .pagination {
-  margin-top: 12px;
+  margin-top: 16px;
   display: flex;
   justify-content: flex-end;
 }
+
 .dialog-tip {
   margin-bottom: 12px;
-  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  color: var(--apple-text-secondary);
+  letter-spacing: -0.1px;
+  padding: 10px 12px;
+  background: rgba(0, 113, 227, 0.05);
+  border-radius: 8px;
+  border-left: 3px solid var(--apple-blue);
 }
 </style>

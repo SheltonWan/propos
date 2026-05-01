@@ -170,44 +170,63 @@ function ratePct(rate: number): number {
 }
 function rateColor(rate: number): string {
   if (rate >= 0.9) return 'var(--el-color-success)'
-  if (rate >= 0.7) return 'var(--el-color-primary)'
+  if (rate >= 0.7) return 'var(--apple-blue)'
   if (rate >= 0.5) return 'var(--el-color-warning)'
   return 'var(--el-color-danger)'
 }
 </script>
 
 <style scoped>
-.building-detail { padding: 24px; }
-.header { margin-bottom: 16px; }
-.title { font-size: 18px; font-weight: 600; }
-.info { margin-bottom: 24px; }
+.building-detail { padding: 24px 28px; }
+
+.header { margin-bottom: 20px; }
+
+.title {
+  font-family: var(--apple-font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--apple-near-black);
+}
+
+.info { margin-bottom: 20px; }
+
 .floors :deep(.el-table) { cursor: pointer; }
+
 .floors-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
+
 .section-title {
   font-size: 14px;
   font-weight: 600;
+  color: var(--apple-near-black);
+  letter-spacing: -0.2px;
 }
+
 .rate-value {
   font-weight: 600;
-  color: var(--el-color-primary);
+  color: var(--apple-blue);
 }
+
 .rate-sub {
   margin-left: 8px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--apple-text-secondary);
 }
+
 .rate-cell {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
 .rate-text {
   font-size: 12px;
-  color: var(--el-text-color-regular);
+  font-weight: 500;
+  color: var(--apple-near-black);
   min-width: 48px;
   text-align: right;
 }

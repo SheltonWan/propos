@@ -46,34 +46,47 @@ import {
 const fakeMeta = { page: 1, pageSize: 20, total: 2 }
 
 const fakeUser1: UserSummary = {
-  id: 'u1',
-  name: '张三',
-  email: 'zhang@propos.com',
-  role: 'admin',
-  department_name: '运营部',
+  id: "u1",
+  name: "张三",
+  email: "zhang@propos.com",
+  role: "super_admin",
+  department_id: null,
+  department_name: "运营部",
   is_active: true,
-  created_at: '2024-01-01T00:00:00Z',
-} as UserSummary
+  last_login_at: null,
+  created_at: "2024-01-01T00:00:00Z",
+};
 
 const fakeUser2: UserSummary = {
-  id: 'u2',
-  name: '李四',
-  email: 'li@propos.com',
-  role: 'property_manager',
-  department_name: '资产部',
+  id: "u2",
+  name: "李四",
+  email: "li@propos.com",
+  role: "operations_manager",
+  department_id: null,
+  department_name: "资产部",
   is_active: true,
-  created_at: '2024-01-02T00:00:00Z',
-} as UserSummary
+  last_login_at: null,
+  created_at: "2024-01-02T00:00:00Z",
+};
 
 const fakeDetail: UserDetail = {
-  id: 'u1',
-  name: '张三',
-  email: 'zhang@propos.com',
-  role: 'admin',
+  id: "u1",
+  name: "张三",
+  email: "zhang@propos.com",
+  role: "super_admin",
+  department_id: null,
+  department_name: null,
   is_active: true,
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z',
-} as UserDetail
+  last_login_at: null,
+  created_at: "2024-01-01T00:00:00Z",
+  updated_at: "2024-01-01T00:00:00Z",
+  bound_contract_id: null,
+  failed_login_attempts: 0,
+  locked_until: null,
+  password_changed_at: null,
+  frozen_at: null,
+  frozen_reason: null,
+};
 
 // ── useUsersStore ──────────────────────────────────────
 
@@ -162,11 +175,11 @@ describe('useUsersStore', () => {
 
       const store = useUsersStore()
       const result = await store.create({
-        name: '张三',
-        email: 'zhang@propos.com',
-        password: 'pass123',
-        role: 'admin',
-      })
+        name: "张三",
+        email: "zhang@propos.com",
+        password: "pass123",
+        role: "super_admin",
+      });
 
       expect(result).toEqual(fakeDetail)
       expect(fetchUsers).toHaveBeenCalled()
@@ -239,9 +252,13 @@ describe('useUsersStore', () => {
       vi.mocked(fetchUsers).mockResolvedValue({ data: [], meta: fakeMeta })
 
       const store = useUsersStore()
-      await store.changeRole('u1', 'property_manager')
+      await store.changeRole("u1", "operations_manager");
 
-      expect(updateUserRole).toHaveBeenCalledWith('u1', 'property_manager', undefined)
+      expect(updateUserRole).toHaveBeenCalledWith(
+        "u1",
+        "operations_manager",
+        undefined,
+      );
       expect(fetchUsers).toHaveBeenCalled()
     })
 
@@ -249,7 +266,9 @@ describe('useUsersStore', () => {
       vi.mocked(updateUserRole).mockRejectedValue(new ApiError('ERR', '变更角色失败', 500))
 
       const store = useUsersStore()
-      await expect(store.changeRole('u1', 'admin')).rejects.toBeInstanceOf(ApiError)
+      await expect(
+        store.changeRole("u1", "super_admin"),
+      ).rejects.toBeInstanceOf(ApiError);
       expect(store.error).toBe('变更角色失败')
     })
   })

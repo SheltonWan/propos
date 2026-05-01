@@ -49,12 +49,13 @@ import router from '@/router'
 // ── 测试数据 ───────────────────────────────────────────
 
 const fakeProfile = {
-  id: 'u1',
-  name: '张三',
-  email: 'zhang@propos.com',
-  role: 'admin',
-  departmentId: 'd1',
-}
+  id: "u1",
+  name: "张三",
+  email: "zhang@propos.com",
+  role: "admin",
+  departmentId: "d1",
+  permissions: [],
+};
 
 const fakeLoginResponse = {
   access_token: 'access-abc',
