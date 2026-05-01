@@ -93,6 +93,14 @@
 | `UNIT_NOT_FOUND` | 404 | 资产相关 | 单元不存在 |
 | `INVALID_CAD_FILE` | 400 | `POST /api/floors/:id/cad` | 不是有效的 DWG 文件 |
 | `CAD_CONVERSION_FAILED` | 500 | `POST /api/floors/:id/cad` | DWG → SVG 转换失败 |
+| `FLOOR_MAP_CANDIDATES_NOT_GENERATED` | 404 | `GET /api/floors/:id/structures/candidates` | 楼层尚未生成候选结构（DXF 抽取流水线未运行） |
+| `FLOOR_MAP_SCHEMA_UNSUPPORTED` | 400 | `PUT /api/floors/:id/structures` | 请求体 schema_version 不是当前支持版本（'2.0'） |
+| `FLOOR_MAP_COORDINATE_OUT_OF_RANGE` | 400 | `PUT /api/floors/:id/structures` | 结构 rect/point 坐标超出 viewport |
+| `FLOOR_MAP_STRUCTURE_LIMIT_EXCEEDED` | 400 | `PUT /api/floors/:id/structures` | structures 数量 > 200 或 windows > 100 |
+| `FLOOR_MAP_INVALID_STRUCTURE_TYPE` | 400 | `PUT /api/floors/:id/structures` | structure type 不在允许枚举内 |
+| `FLOOR_MAP_NOT_READY_FOR_SEMANTIC` | 422 | `PATCH /api/floors/:id/render-mode` | 切换到 semantic 模式时 outline 缺失，或 structures 不含 core/corridor |
+| `FLOOR_MAP_VERSION_CONFLICT` | 409 | `PUT /api/floors/:id/structures` | 请求 If-Match 与当前 floor_map_updated_at 不一致（并发编辑冲突） |
+| `INVALID_RENDER_MODE` | 400 | `PATCH /api/floors/:id/render-mode` | render_mode 取值不是 'vector' 或 'semantic' |
 
 ---
 
@@ -283,6 +291,15 @@ class ErrorCodes {
   static const unitNotFound = 'UNIT_NOT_FOUND';
   static const invalidCadFile = 'INVALID_CAD_FILE';
   static const cadConversionFailed = 'CAD_CONVERSION_FAILED';
+  // ── 楼层结构标注（Floor Map v2）──
+  static const floorMapCandidatesNotGenerated = 'FLOOR_MAP_CANDIDATES_NOT_GENERATED';
+  static const floorMapSchemaUnsupported = 'FLOOR_MAP_SCHEMA_UNSUPPORTED';
+  static const floorMapCoordinateOutOfRange = 'FLOOR_MAP_COORDINATE_OUT_OF_RANGE';
+  static const floorMapStructureLimitExceeded = 'FLOOR_MAP_STRUCTURE_LIMIT_EXCEEDED';
+  static const floorMapInvalidStructureType = 'FLOOR_MAP_INVALID_STRUCTURE_TYPE';
+  static const floorMapNotReadyForSemantic = 'FLOOR_MAP_NOT_READY_FOR_SEMANTIC';
+  static const floorMapVersionConflict = 'FLOOR_MAP_VERSION_CONFLICT';
+  static const invalidRenderMode = 'INVALID_RENDER_MODE';
 
   // ── 租客 ──
   static const tenantNotFound = 'TENANT_NOT_FOUND';

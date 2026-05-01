@@ -17,3 +17,4 @@ export {
     useDepartmentsStore,
     useDepartmentImportStore,
 } from './departments'
+export { useFloorStructuresStore } from './floorStructuresStore'

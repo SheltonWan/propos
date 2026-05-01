@@ -22,6 +22,12 @@ class Floor {
   final String? pngPath;
   /// 本层净可租面积（m²）
   final double? nla;
+  /// 渲染模式：'vector'（默认、SVG 原图）或 'semantic'（按 floor_maps 语义渲染）
+  final String renderMode;
+  /// floor_maps 最近一次保存使用的 schema 版本号
+  final String? floorMapSchemaVersion;
+  /// floor_maps 最近一次保存时间，前端作为 ETag/If-Match 乐观锁版本号
+  final DateTime? floorMapUpdatedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -34,6 +40,9 @@ class Floor {
     this.svgPath,
     this.pngPath,
     this.nla,
+    this.renderMode = 'vector',
+    this.floorMapSchemaVersion,
+    this.floorMapUpdatedAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -48,6 +57,9 @@ class Floor {
       svgPath: map['svg_path'] as String?,
       pngPath: map['png_path'] as String?,
       nla: _pd(map['nla']),
+      renderMode: (map['render_mode'] as String?) ?? 'vector',
+      floorMapSchemaVersion: map['floor_map_schema_version'] as String?,
+      floorMapUpdatedAt: map['floor_map_updated_at'] as DateTime?,
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
     );
@@ -62,6 +74,9 @@ class Floor {
         'svg_path': svgPath,
         'png_path': pngPath,
         'nla': nla,
+        'render_mode': renderMode,
+        'floor_map_schema_version': floorMapSchemaVersion,
+        'floor_map_updated_at': floorMapUpdatedAt?.toUtc().toIso8601String(),
         'created_at': createdAt.toUtc().toIso8601String(),
         'updated_at': updatedAt.toUtc().toIso8601String(),
       };

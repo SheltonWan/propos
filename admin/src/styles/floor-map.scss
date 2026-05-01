@@ -1,0 +1,20 @@
+/**
+ * 楼层结构标注器：CSS 变量定义
+ * 所有颜色必须通过 var(--floor-*) 引用，禁止在 .vue 内硬编码 #xxx
+ */
+:root {
+  --floor-core: rgba(150, 150, 150, 0.40);
+  --floor-elevator: rgba(100, 150, 255, 0.40);
+  --floor-stair: rgba(100, 200, 150, 0.40);
+  --floor-restroom: rgba(200, 150, 200, 0.40);
+  --floor-equipment: rgba(160, 130, 100, 0.40);
+  --floor-corridor: rgba(200, 200, 160, 0.30);
+  --floor-column: rgba(80, 80, 80, 0.60);
+  --floor-window: rgba(255, 153, 0, 0.90);
+  --floor-outline-bg: rgba(245, 245, 245, 1);
+  --floor-outline-stroke: rgba(60, 60, 60, 0.70);
+  --floor-grid: rgba(0, 0, 0, 0.05);
+  --floor-selected-stroke: rgba(255, 102, 0, 0.95);
+  --floor-handle-fill: rgba(255, 255, 255, 1);
+  --floor-handle-stroke: rgba(255, 102, 0, 1);
+}

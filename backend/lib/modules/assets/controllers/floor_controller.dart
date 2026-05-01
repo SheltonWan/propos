@@ -34,6 +34,11 @@ class FloorController {
     r.get('/floors/<id>/heatmap', _heatmap);
     r.get('/floors/<id>/units', _unitsByFloor);
     r.get('/floors/<id>/plans', _plans);
+    // 楼层结构标注（Floor Map v2）
+    r.get('/floors/<id>/structures/candidates', _candidates);
+    r.get('/floors/<id>/structures', _getStructures);
+    r.put('/floors/<id>/structures', _putStructures);
+    r.patch('/floors/<id>/render-mode', _patchRenderMode);
     return r;
   }
 
@@ -120,6 +125,78 @@ class FloorController {
     return _jsonResponse(200, {
       'data': plans.map((p) => p.toJson()).toList(),
     });
+  }
+
+  // ─── 楼层结构标注（Floor Map v2）───────────────────────
+
+  /// GET /api/floors/:id/structures/candidates
+  /// 返回 DXF 抽取生成的候选结构（仅 source='auto'）。
+  Future<Response> _candidates(Request request, String id) async {
+    final candidates = await _service.getCandidates(id);
+    return _jsonResponse(200, {'data': candidates});
+  }
+
+  /// GET /api/floors/:id/structures
+  /// 返回已确认的结构，响应头 ETag 携带乐观锁版本号。
+  Future<Response> _getStructures(Request request, String id) async {
+    final result = await _service.getConfirmedStructures(id);
+    final headers = <String, String>{
+      'content-type': 'application/json; charset=utf-8',
+    };
+    final v = result.version;
+    if (v != null) {
+      headers['etag'] = '"${v.toUtc().toIso8601String()}"';
+    }
+    return Response(
+      200,
+      body: jsonEncode({'data': result.map.toJson()}),
+      headers: headers,
+    );
+  }
+
+  /// PUT /api/floors/:id/structures
+  /// Header: If-Match: "<floor_map_updated_at>" （乐观锁）
+  /// Body: FloorMapV2 子集（schema_version / viewport / outline / structures / windows? / north?）
+  Future<Response> _putStructures(Request request, String id) async {
+    final ctx = request.context[kRequestContextKey] as RequestContext;
+    final body = await _parseBody(request);
+    final ifMatch = request.headers['if-match'];
+
+    final result = await _service.saveStructures(
+      floorId: id,
+      payload: body,
+      ifMatch: ifMatch,
+      updatedBy: ctx.userId,
+    );
+
+    return Response(
+      200,
+      body: jsonEncode({'data': result.map.toJson()}),
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'etag': '"${result.version.toUtc().toIso8601String()}"',
+      },
+    );
+  }
+
+  /// PATCH /api/floors/:id/render-mode
+  /// Body: { render_mode: 'vector' | 'semantic' }
+  Future<Response> _patchRenderMode(Request request, String id) async {
+    final ctx = request.context[kRequestContextKey] as RequestContext;
+    final body = await _parseBody(request);
+    final renderMode = body['render_mode'];
+    if (renderMode is! String) {
+      throw const ValidationException(
+        'INVALID_RENDER_MODE',
+        'render_mode 必须为字符串',
+      );
+    }
+    final result = await _service.switchRenderMode(
+      floorId: id,
+      renderMode: renderMode,
+      userId: ctx.userId,
+    );
+    return _jsonResponse(200, {'data': result});
   }
 
   // ─── 辅助 ─────────────────────────────────────────────────────────────────

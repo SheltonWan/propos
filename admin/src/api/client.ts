@@ -101,8 +101,40 @@ function _redirectToLogin() {
 
 // ── 封装方法（解封装 data 字段）─────────────────────────
 
-export async function apiGet<T>(url: string, params?: Record<string, unknown>): Promise<T> {
-  const res = await http.get<ApiResponse<T>>(url, { params })
+/** 携带响应头的扩展返回值，用于乐观锁 ETag 等场景 */
+export interface WithHeaders<T> {
+  data: T
+  headers: Record<string, string>
+}
+
+interface RequestExtras {
+  /** 自定义请求头（如 If-Match） */
+  headers?: Record<string, string>
+}
+
+/** 仅当显式传入 withResponseHeaders=true 时才返回 WithHeaders<T> */
+type GetOptions = RequestExtras & { params?: Record<string, unknown>; withResponseHeaders?: false }
+type GetOptionsWithHeaders = RequestExtras & { params?: Record<string, unknown>; withResponseHeaders: true }
+
+export async function apiGet<T>(url: string, options: GetOptionsWithHeaders): Promise<WithHeaders<T>>
+export async function apiGet<T>(url: string, options: GetOptions): Promise<T>
+export async function apiGet<T>(url: string, params?: Record<string, unknown>): Promise<T>
+export async function apiGet<T>(
+  url: string,
+  arg?: Record<string, unknown> | GetOptions | GetOptionsWithHeaders,
+): Promise<T | WithHeaders<T>> {
+  const isOptions =
+    arg !== undefined &&
+    typeof arg === 'object' &&
+    ('withResponseHeaders' in arg || 'headers' in arg || 'params' in arg)
+  const params = isOptions ? (arg as GetOptions).params : (arg as Record<string, unknown> | undefined)
+  const headers = isOptions ? (arg as GetOptions).headers : undefined
+  const wantHeaders = isOptions ? (arg as GetOptionsWithHeaders).withResponseHeaders === true : false
+
+  const res = await http.get<ApiResponse<T>>(url, { params, headers })
+  if (wantHeaders) {
+    return { data: res.data.data, headers: _normalizeHeaders(res.headers) }
+  }
   return res.data.data
 }
 
@@ -124,13 +156,46 @@ export async function apiPatch<T>(url: string, data?: unknown): Promise<T> {
   return res.data.data
 }
 
-export async function apiPut<T>(url: string, data?: unknown): Promise<T> {
-  const res = await http.put<ApiResponse<T>>(url, data)
+interface PutOptions extends RequestExtras {
+  withResponseHeaders?: false
+}
+interface PutOptionsWithHeaders extends RequestExtras {
+  withResponseHeaders: true
+}
+
+export async function apiPut<T>(url: string, data?: unknown, options?: PutOptions): Promise<T>
+export async function apiPut<T>(
+  url: string,
+  data: unknown,
+  options: PutOptionsWithHeaders,
+): Promise<WithHeaders<T>>
+export async function apiPut<T>(
+  url: string,
+  data?: unknown,
+  options?: PutOptions | PutOptionsWithHeaders,
+): Promise<T | WithHeaders<T>> {
+  const res = await http.put<ApiResponse<T>>(url, data, { headers: options?.headers })
+  if (options && (options as PutOptionsWithHeaders).withResponseHeaders === true) {
+    return { data: res.data.data, headers: _normalizeHeaders(res.headers) }
+  }
   return res.data.data
 }
 
 export async function apiDelete(url: string): Promise<void> {
   await http.delete(url)
+}
+
+/** 将 Axios 响应头规范化为小写键的纯对象 */
+function _normalizeHeaders(headers: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  if (headers && typeof headers === 'object') {
+    for (const [k, v] of Object.entries(headers as Record<string, unknown>)) {
+      if (v !== undefined && v !== null) {
+        out[k.toLowerCase()] = String(v)
+      }
+    }
+  }
+  return out
 }
 
 /** 获取原始响应体（跳过 JSON 信封解包），适用于 SVG/文本等非 JSON 资源 */

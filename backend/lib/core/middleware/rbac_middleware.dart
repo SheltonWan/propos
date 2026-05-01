@@ -141,7 +141,8 @@ const Map<String, Map<String, Set<String>>> _routePermissionMatrix = {
       'report_viewer',
     },
     'POST': _kAssetWrite,
-    'PATCH': _kAssetWrite,
+    'PUT': _kAssetWrite,    // PUT /api/floors/:id/structures
+    'PATCH': _kAssetWrite,  // PATCH /api/floors/:id/render-mode
   },
   '/api/units': {
     'GET': {

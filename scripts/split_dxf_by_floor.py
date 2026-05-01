@@ -841,6 +841,18 @@ def main():
         default="",
         help="额外追加要隐藏的图层名，逗号分隔（与默认 ANNOTATION_LAYERS 合并）",
     )
+    # ─── Stage 7：候选结构抽取 ───────────────────────────────
+    parser.add_argument(
+        "--extract-structures",
+        action="store_true",
+        default=False,
+        help="启用 Floor Map v2 候选结构抽取，输出 <prefix>_<label>.candidates.json",
+    )
+    parser.add_argument(
+        "--db-url",
+        default="",
+        help="PostgreSQL 连接串；提供后候选结构同时 UPSERT 到 floor_maps 表",
+    )
     args = parser.parse_args()
 
     if not Path(args.input).exists():
@@ -980,9 +992,116 @@ def main():
             hide_layers=hide_layers,
         ):
             success += 1
+            # ── Stage 7：候选结构抽取（仅 --extract-structures 开启时） ──
+            if args.extract_structures:
+                _stage7_extract_candidates(
+                    msp=msp,
+                    region=region,
+                    label=label,
+                    out_dir=out_dir,
+                    prefix=args.prefix,
+                    entity_centers=entity_centers,
+                    db_url=args.db_url,
+                )
 
     print(f"\n完成: 成功渲染 {success}/{len(regions)} 个楼层")
     print(f"输出目录: {out_dir}")
+
+
+def _stage7_extract_candidates(
+    msp,
+    region,
+    label: str,
+    out_dir: Path,
+    prefix: str,
+    entity_centers: dict,
+    db_url: str,
+) -> None:
+    """Stage 7：对单个楼层区域抽取候选结构，并写入 JSON（可选 DB）。"""
+    try:
+        # 确保以脚本方式运行时也能找到同目录下的 floor_map 包
+        _scripts_dir = str(Path(__file__).resolve().parent)
+        if _scripts_dir not in sys.path:
+            sys.path.insert(0, _scripts_dir)
+        from floor_map.structure_detector import (  # noqa: WPS433
+            extract_candidates_from_entities,
+        )
+    except ImportError as e:
+        print(f"  [{label}] Stage 7: 跳过抽取（floor_map 包未安装: {e}）")
+        return
+
+    # 收集区域内实体 + 计算 bbox
+    region_min = region.extmin
+    region_max = region.extmax
+    in_region = []
+    xs: list[float] = []
+    ys: list[float] = []
+    for e in msp:
+        center = entity_centers.get(id(e))
+        if center is None:
+            continue
+        cx, cy = center
+        if region_min.x <= cx <= region_max.x and region_min.y <= cy <= region_max.y:
+            in_region.append(e)
+    if not in_region:
+        return
+
+    # bbox 取区域本身（避免逐实体重算包围盒耗时）
+    bbox_t = (region_min.x, region_min.y, region_max.x, region_max.y)
+    try:
+        candidates = extract_candidates_from_entities(in_region, bbox_t)
+    except Exception as ex:  # noqa: BLE001
+        print(f"  [{label}] Stage 7 抽取失败: {ex}")
+        return
+
+    out_json = out_dir / f"{prefix}_{label}.candidates.json"
+    out_json.write_text(
+        json.dumps(candidates, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(
+        f"  [{label}] Stage 7: outline={'✓' if candidates['outline'] else '✗'} "
+        f"columns={len(candidates['structures'])} windows={len(candidates['windows'])} "
+        f"→ {out_json.name}"
+    )
+
+    if db_url:
+        _stage7_upsert_db(db_url, label, candidates)
+
+
+def _stage7_upsert_db(db_url: str, label: str, candidates: dict) -> None:
+    """将候选结构 UPSERT 到 floor_maps 表。需 floor_id 映射（按 label 查 floors.label）。。"""
+    try:
+        import psycopg  # type: ignore
+    except ImportError:
+        print(f"  [{label}] Stage 7 DB 同步跳过：未安装 psycopg")
+        return
+    try:
+        with psycopg.connect(db_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id FROM floors WHERE floor_name = %s LIMIT 1",
+                    (label,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    print(f"  [{label}] Stage 7 DB: floors.floor_name='{label}' 未找到，跳过")
+                    return
+                floor_id = row[0]
+                cur.execute(
+                    """
+                    INSERT INTO floor_maps (floor_id, candidates, candidates_extracted_at)
+                    VALUES (%s, %s::jsonb, NOW())
+                    ON CONFLICT (floor_id) DO UPDATE SET
+                        candidates = EXCLUDED.candidates,
+                        candidates_extracted_at = NOW()
+                    """,
+                    (floor_id, json.dumps(candidates, ensure_ascii=False)),
+                )
+            conn.commit()
+        print(f"  [{label}] Stage 7 DB: 已 UPSERT 到 floor_maps (floor_id={floor_id})")
+    except Exception as ex:  # noqa: BLE001
+        print(f"  [{label}] Stage 7 DB UPSERT 失败: {ex}")
 
 
 if __name__ == "__main__":

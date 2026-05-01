@@ -52,6 +52,12 @@ export interface Floor {
   svg_path: string | null
   png_path: string | null
   nla: number | null
+  /** Floor Map v2：当前渲染模式 */
+  render_mode?: 'vector' | 'semantic'
+  /** Floor Map v2：当前 floor_map 的 schema 版本 */
+  floor_map_schema_version?: string | null
+  /** Floor Map v2：最近一次 PUT structures 的时间，作为乐观锁基准 */
+  floor_map_updated_at?: string | null
   created_at: string
   updated_at: string
 }

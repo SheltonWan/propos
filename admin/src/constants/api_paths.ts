@@ -45,3 +45,11 @@ export const API_IMPORT_BATCHES = '/api/import-batches'
 export const API_IMPORTS = '/api/imports'
 export const API_UNITS_IMPORT = '/api/units/import'
 export const API_UNITS_EXPORT = '/api/units/export'
+
+// 楼层结构标注（Floor Map v2）
+export const apiFloorStructureCandidates = (floorId: string): string =>
+  `/api/floors/${floorId}/structures/candidates`
+export const apiFloorStructures = (floorId: string): string =>
+  `/api/floors/${floorId}/structures`
+export const apiFloorRenderMode = (floorId: string): string =>
+  `/api/floors/${floorId}/render-mode`

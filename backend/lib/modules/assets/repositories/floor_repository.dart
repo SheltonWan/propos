@@ -23,6 +23,7 @@ class FloorRepository {
                b.name AS building_name,
                f.floor_number, f.floor_name,
                f.svg_path, f.png_path, f.nla,
+               f.render_mode, f.floor_map_schema_version, f.floor_map_updated_at,
                f.created_at, f.updated_at
         FROM floors f
         JOIN buildings b ON b.id = f.building_id
@@ -42,6 +43,7 @@ class FloorRepository {
                b.name AS building_name,
                f.floor_number, f.floor_name,
                f.svg_path, f.png_path, f.nla,
+               f.render_mode, f.floor_map_schema_version, f.floor_map_updated_at,
                f.created_at, f.updated_at
         FROM floors f
         JOIN buildings b ON b.id = f.building_id
@@ -86,6 +88,7 @@ class FloorRepository {
                b.name AS building_name,
                i.floor_number, i.floor_name,
                i.svg_path, i.png_path, i.nla,
+               i.render_mode, i.floor_map_schema_version, i.floor_map_updated_at,
                i.created_at, i.updated_at
         FROM inserted i
         JOIN buildings b ON b.id = i.building_id
@@ -113,6 +116,56 @@ class FloorRepository {
       '''),
       parameters: {'id': id, 'svgPath': svgPath, 'pngPath': pngPath},
     );
+  }
+
+  /// 切换楼层渲染模式（vector / semantic）。
+  /// 同时推进 floor_map_updated_at，作为乐观锁版本号。
+  Future<void> updateRenderMode(String floorId, String renderMode) async {
+    await _db.execute(
+      Sql.named('''
+        UPDATE floors SET
+          render_mode          = @renderMode,
+          floor_map_updated_at = NOW(),
+          updated_at           = NOW()
+        WHERE id = @floorId
+      '''),
+      parameters: {'floorId': floorId, 'renderMode': renderMode},
+    );
+  }
+
+  /// 仅推进楼层的 floor_map 版本号与 schema 版本（保存 structures 后同步调用）。
+  /// 返回调整后的 floor_map_updated_at，用于作为 ETag 返回。
+  Future<DateTime> bumpFloorMapVersion(
+    String floorId, {
+    String schemaVersion = '2.0',
+  }) async {
+    final result = await _db.execute(
+      Sql.named('''
+        UPDATE floors SET
+          floor_map_schema_version = @schemaVersion,
+          floor_map_updated_at     = NOW(),
+          updated_at               = NOW()
+        WHERE id = @floorId
+        RETURNING floor_map_updated_at
+      '''),
+      parameters: {'floorId': floorId, 'schemaVersion': schemaVersion},
+    );
+    return result.first.toColumnMap()['floor_map_updated_at'] as DateTime;
+  }
+
+  /// 读取楼层的当前 floor_map_updated_at（用于乐观锁比对）。
+  /// 楼层不存在时返回 null。
+  Future<DateTime?> findFloorMapVersion(String floorId) async {
+    final result = await _db.execute(
+      Sql.named('''
+        SELECT floor_map_updated_at FROM floors
+        WHERE id = @floorId
+        LIMIT 1
+      '''),
+      parameters: {'floorId': floorId},
+    );
+    if (result.isEmpty) return null;
+    return result.first.toColumnMap()['floor_map_updated_at'] as DateTime?;
   }
 
   // ─── 热区查询（跨合同/租客数据，仅读取 units 及当前合同快照）────────────

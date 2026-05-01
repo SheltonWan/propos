@@ -48,6 +48,11 @@ const router = createRouter({
           component: () => import('@/views/assets/FloorPlanView.vue'),
         },
         {
+          path: 'assets/buildings/:buildingId/floors/:floorId/structures',
+          name: 'FloorStructureAnnotator',
+          component: () => import('@/views/assets/floor-structures/AnnotatorView.vue'),
+        },
+        {
           path: 'assets/units/:id',
           name: 'unit-detail',
           component: () => import('@/views/assets/UnitDetailView.vue'),
