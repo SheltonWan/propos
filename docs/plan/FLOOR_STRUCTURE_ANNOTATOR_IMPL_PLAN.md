@@ -1,7 +1,15 @@
 # 楼层结构标注器 — 完整实施计划
 
-> 版本：v1.2（贯通 Column point 形态与 windows 校验）  
+> 版本：v1.3（修订一致性遗漏）  
 > 日期：2026-05-01  
+> v1.3 修订摘要：
+> - 🔴 `floor_map.v2.schema.json` 的 `Column` 定义补 `confidence` 属性，与前端 `Column.confidence?` / detector 输出一致（修复 `additionalProperties: false` 冲突）
+> - 🔴 `FLOOR_MAP_EXTRACTOR_SPEC.md` `Column` dataclass 补 `confidence: float = 1.0`
+> - 🔴 §0-G `window_detector` 输出字段名 `x` → `offset`，与 schema 严格一致
+> - 🟡 §0-B 标题"新增 7 个错误码" → "新增 8 个错误码"（含 `FLOOR_MAP_VERSION_CONFLICT`）
+> - 🟡 §2 store action 形参 `setRenderMode(floorId, mode)` → `setRenderMode(floorId, renderMode)`
+> - 🟢 §3-6 type 切换 column↔rect 时显式声明：清空 `confidence` 并强制 `source=manual`
+>
 > v1.2 修订摘要：
 > - 🔴 `column_detector` 输出改为 `point: [cx, cy]`（取矩形几何中心），与 schema 一致
 > - 🔴 `CanvasStage.vue` SVG 渲染区分 `<rect>` 与 `<circle>`，处理 column
@@ -144,7 +152,7 @@ ALTER TABLE floors
 
 **文件**：`docs/backend/ERROR_CODE_REGISTRY.md`
 
-新增 7 个错误码：
+新增 8 个错误码：
 
 | 错误码 | HTTP 状态码 | 触发场景 |
 |---|---|---|
@@ -391,7 +399,7 @@ def detect_windows(msp, region, scale_x, scale_y) -> list[dict]:
 - 扫描图层含 `窗` / `WINDOW` / `WIN` / `GLAZ` 的 LINE/LWPOLYLINE
 - 过滤条件：线段中点到外轮廓边界距离 ≤ 200mm（DXF 单位）
 - 按外轮廓中心原点判断方位，归入 `N / S / E / W` 四组
-- 每条窗线输出 `{side, x, width, source: "auto"}`（x/width 为沿该边的局部坐标，单位 SVG px）
+- 每条窗线输出 `{side, offset, width, source: "auto"}`（offset/width 为沿该边的局部坐标，单位 SVG px；字段名与 schema 严格一致，前端 store 校验 `width ≥ 8` 且 `offset + width ≤ sideLen`）
 - 上限 100 个/层
 
 ---
@@ -437,7 +445,7 @@ Stage 7: 候选结构抽取（仅 --extract-structures 开启时执行）
 | `test_outline_extractor.py` | mock msp 含 TK 图层矩形 → 输出 `{type: "rect", ...}` |
 | `test_structure_detector.py` | mock INSERT 块含电梯图层 → 检测出 `elevator`；code 自动生成 |
 | `test_column_detector.py` | 12 个柱位含 2 个相邻重复（距离 <500mm）→ 输出 11 个 |
-| `test_window_detector.py` | 北侧 3 扇窗 → `side=N`，x/width 正确 |
+| `test_window_detector.py` | 北侧 3 扇窗 → `side=N`，offset/width 正确 |
 
 运行方式：`python -m pytest scripts/floor_map/tests/ -v`
 
@@ -651,7 +659,7 @@ catch (e) {
 |---|---|
 | `load(floorId)` | **并行** `Promise.all([getCandidates, getConfirmedStructures])`，二者均允许 404；`draft = confirmed ?? candidates`（保护人工修改不被覆盖）；`baselineSnapshot = deepClone(draft)`；`ifMatch = confirmed?.floor_map_updated_at ?? null` |
 | `save(floorId)` | 前端 validate → `putStructures(floorId, draft, ifMatch)` → 用响应回填 `confirmed` 与 `ifMatch` → `dirty=false`；捕获 `FLOOR_MAP_VERSION_CONFLICT` 时弹窗提示「数据已被他人更新，是否放弃当前修改并重载？」 |
-| `setRenderMode(floorId, mode)` | PATCH render-mode；调用前由组件层校验 `!dirty`，本 action 仅做 API 调用 |
+| `setRenderMode(floorId, renderMode)` | PATCH render-mode；调用前由组件层校验 `!dirty`，本 action 仅做 API 调用（请求体字段名 `render_mode` 由 api 层负责转换） |
 | `addStructure(s)` | 入栈 `draft.structures`，记录历史，`dirty=true` |
 | `updateStructure(idx, patch)` | 更新指定下标，记录历史，`dirty=true` |
 | `removeStructure(idx)` | 删除，记录历史，`dirty=true` |
@@ -852,7 +860,7 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
 | `point[0]/point[1]` | `el-input-number` × 2 | `column` 必填 | 须落在 viewport 内 |
 | `confidence` | 只读 `el-tag`（百分比） | `source=auto` 时显示 | — |
 
-切换 `type` 时若从矩形类切到 column（或反之），需弹确认框并自动补默认几何（rect→取选中矩形中心作为 point；column→以 point 为中心生成 100×100 矩形）。
+切换 `type` 时若从矩形类切到 column（或反之），需弹确认框并自动补默认几何（rect→取选中矩形中心作为 point；column→以 point 为中心生成 100×100 矩形）。同时 `source` 强制改为 `manual` 并清空 `confidence` 字段（手动改型后置信度不再适用）。
 
 校验失败时字段下方显示错误文字，同时禁用 Toolbar 保存按钮（通过 `store.canSave` 驱动）。
 

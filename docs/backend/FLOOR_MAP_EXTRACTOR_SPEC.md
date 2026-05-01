@@ -55,6 +55,7 @@ class Column:
     type: Literal["column"]
     point: Tuple[int, int]              # SVG 中心点
     source: SourceTag = "auto"
+    confidence: float = 1.0             # 自动识别置信度，0.0-1.0
 
 @dataclass
 class Window:
