@@ -1,7 +1,17 @@
 # 楼层结构标注器 — 完整实施计划
 
-> 版本：v1.0  
+> 版本：v1.1（修订版，对齐契约文档）  
 > 日期：2026-05-01  
+> 修订摘要：
+> - 对齐 schema：StructureType 收敛为 6 种（含 `equipment`），Column 独立；`gender` 枚举改为 `M/F/unknown/null`
+> - 对齐 API 契约：PUT 响应改为 `200 + 完整 FloorMap`；PATCH 请求体字段为 `render_mode`；Window 字段为 `offset`
+> - 加严 semantic 切换前置条件：structures 至少含一个 `core` 或 `corridor`
+> - 新增乐观锁机制（If-Match + `FLOOR_MAP_VERSION_CONFLICT`）
+> - 修正 candidates/confirmed 加载策略，避免覆盖人工修改
+> - 历史栈深度从 50 改为 20 条；新增 `beforeunload` 守卫
+> - Migration 文件名定为 `027_create_floor_maps.sql`
+> - 新增 detector 命中率验收门槛与图层名预探阶段
+>
 > 关联规范：
 > - [`docs/frontend/FLOOR_STRUCTURE_ANNOTATOR_SPEC.md`](../frontend/FLOOR_STRUCTURE_ANNOTATOR_SPEC.md)
 > - [`docs/backend/FLOOR_MAP_API_SPEC.md`](../backend/FLOOR_MAP_API_SPEC.md)
@@ -87,7 +97,7 @@
 
 #### 0-A  数据库迁移（无依赖，立即开始）
 
-**文件**：`backend/migrations/NNN_create_floor_maps.sql`
+**文件**：`backend/migrations/027_create_floor_maps.sql`（当前最新为 026，下一个序号即 027）
 
 新建 `floor_maps` 表：
 
@@ -133,8 +143,9 @@ ALTER TABLE floors
 | `FLOOR_MAP_COORDINATE_OUT_OF_RANGE` | 400 | 结构 rect 坐标超出 viewport |
 | `FLOOR_MAP_STRUCTURE_LIMIT_EXCEEDED` | 400 | structures 数量 > 200 或 windows > 100 |
 | `FLOOR_MAP_INVALID_STRUCTURE_TYPE` | 400 | type 不在 6 种枚举内 |
-| `FLOOR_MAP_NOT_READY_FOR_SEMANTIC` | 422 | PATCH render-mode=semantic 时 structures 为空 |
-| `INVALID_RENDER_MODE` | 400 | PATCH render-mode 的 mode 值非法 |
+| `FLOOR_MAP_NOT_READY_FOR_SEMANTIC` | 422 | PATCH render-mode=semantic 时 outline 为空，或 structures 不含 `core`/`corridor` |
+| `FLOOR_MAP_VERSION_CONFLICT` | 409 | PUT 请求 `If-Match` 版本号与当前 `floor_map_updated_at` 不一致（并发编辑） |
+| `INVALID_RENDER_MODE` | 400 | PATCH render-mode 的 render_mode 值非法 |
 
 #### 0-C  后端 Dart 模型扩展（依赖 0-A）
 
@@ -207,33 +218,44 @@ class FloorMapRepository {
 4. 返回 candidates JSON
 ```
 
-**`saveStructures(String floorId, Map payload, String updatedBy)`**
+**`saveStructures(String floorId, Map payload, String? ifMatch, String updatedBy)`**
 
 ```
 前置校验（失败抛 ValidationException）：
+  - schema_version == '2.0'，否则 FLOOR_MAP_SCHEMA_UNSUPPORTED
   - outline 必填
-  - structures 数量 ≤ 200
+  - structures 数量 ≤ 200，否则 FLOOR_MAP_STRUCTURE_LIMIT_EXCEEDED
   - windows 数量 ≤ 100
-  - 每个 elevator 必须有 code
-  - 每个 restroom 必须有 gender
-  - 所有 rect 坐标须在 viewport 内
+  - 每个 elevator 必须有 code（正则 ^[A-Z]\d{1,3}$）
+  - 每个 restroom 必须有 gender（M/F/unknown）
+  - structures[].source 必须为 'manual'（PUT 端点不接收 auto，与契约一致）
+  - column 使用 point 字段，其余 type 使用 rect 字段
+  - 所有 x/y/w/h/offset/width 为整数像素，且坐标须在 viewport 内
+
+乐观锁（若提供 ifMatch）：
+  读取当前 floor_map_updated_at
+  与 ifMatch 比对，不一致抛 VersionConflictException('FLOOR_MAP_VERSION_CONFLICT', 409)
 
 通过后：
   FloorMapRepository.upsert(...)
   floors.floor_map_updated_at = NOW()
   floors.floor_map_schema_version = '2.0'
   写审计日志：action='floor_map.structures.update', entity_id=floorId
+  返回完整 FloorMap（含 units[]，units 由 annotate_hotzone.py 维护，不被 PUT 修改）
 ```
 
-**`switchRenderMode(String floorId, String mode, String userId)`**
+**`switchRenderMode(String floorId, String renderMode, String userId)`**
 
 ```
-校验 mode IN ('vector', 'semantic')
-若 mode == 'semantic'：
-  检查 FloorMapRepository.findByFloorId(floorId).structures 非空
-  否则抛 InvalidStateTransitionException('FLOOR_MAP_NOT_READY_FOR_SEMANTIC')
-调 FloorRepository.updateRenderMode(floorId, mode)
+校验 renderMode IN ('vector', 'semantic')，否则抛 ValidationException('INVALID_RENDER_MODE')
+若 renderMode == 'semantic'：
+  读 FloorMapRepository.findByFloorId(floorId)
+  要求 outline 非空 且 structures 含至少一个 type='core' 或 'corridor'
+  否则抛 InvalidStateTransitionException('FLOOR_MAP_NOT_READY_FOR_SEMANTIC', 422)
+切换回 vector 永远允许
+调 FloorRepository.updateRenderMode(floorId, renderMode)
 写审计日志：action='floor_map.render_mode.change', entity_id=floorId
+返回 { floor_id, render_mode, render_mode_changed_at, changed_by }
 ```
 
 #### 0-F  后端 Controller（依赖 0-E）
@@ -244,9 +266,11 @@ class FloorMapRepository {
 
 | 路由 | 权限 | 调用 | 成功响应 |
 |---|---|---|---|
-| `GET /api/floors/:floorId/structures/candidates` | `assets.read` | `getCandidates` | `200 { data: FloorMapV2 }` |
-| `PUT /api/floors/:floorId/structures` | `assets.write` | `saveStructures` | `204 No Content` |
-| `PATCH /api/floors/:floorId/render-mode` | `assets.write` | `switchRenderMode` | `200 { data: { render_mode } }` |
+| `GET /api/floors/<floorId>/structures/candidates` | `assets.read` | `getCandidates` | `200 { data: FloorMapV2 }` |
+| `PUT /api/floors/<floorId>/structures` | `assets.write` | `saveStructures`（读取 `If-Match` header） | `200 { data: FloorMap }`（与契约 §2.2 一致，含 `units[]`） |
+| `PATCH /api/floors/<floorId>/render-mode` | `assets.write` | `switchRenderMode` | `200 { data: { floor_id, render_mode, render_mode_changed_at, changed_by } }` |
+
+> shelf_router 路径占位符语法为 `<floorId>`，文档中 `:floorId` 仅为契约文档表述风格。
 
 扩展 `GET /api/floors/:floorId` — 响应 `data` 中新增：
 ```json
@@ -261,11 +285,18 @@ class FloorMapRepository {
 
 **目录**：`scripts/floor_map/`（新建）
 
+**前置探查（动工前必做）**：
+```bash
+python scripts/list_layers.py cad_intermediate/building_a/<sample>.dxf > docs/plan/_floor_layer_inventory.txt
+```
+据此输出 24 层真实图层名清单，调整下文 `LAYER_KEYWORDS` 表后再写 detector。否则 detector 在真实 DXF 上可能全 0 命中。
+
 **共用约定**：
 - 所有 detector 为纯函数，无副作用
 - 失败返回 `[]` / `None`，不抛异常（调用层捕获日志）
-- 统一函数签名 `(msp, region, scale_x, scale_y)`（`region` 来自 `split_dxf_by_floor.py` 已有的图框识别结果）
+- 统一函数签名 `(msp, region, scale_x, scale_y)`（`region` 来自 `split_dxf_by_floor.py` 已有的图框识别结果，参见 `find_title_frames` / `compute_floor_regions`）
 - 单层全部 detector 合计处理时间 ≤ 3 秒
+- **验收门槛**：A 座 24 层批量跑完后，`elevator` / `core` 自动命中率均 ≥ 80%（人工抽检），否则需迭代 detector 后再进入 Phase 0-F 联调
 
 ---
 
@@ -355,7 +386,7 @@ def detect_windows(msp, region, scale_x, scale_y) -> list[dict]:
 
 **扩展 `scripts/split_dxf_by_floor.py`**
 
-在现有 Stage 6（JSON 骨架输出）之后新增 **Stage 7：候选结构抽取**：
+现有脚本 `main()` 在调用 `render_region_to_svg(...)` 完成 SVG 写盘后即结束（约第 870 行后）。在此插入点新增 **候选结构抽取阶段**（受 `--extract-structures` 旗标短路绕过，对现有 SVG 流水线零侵入）：
 
 ```
 Stage 7: 候选结构抽取（仅 --extract-structures 开启时执行）
@@ -406,44 +437,62 @@ Stage 7: 候选结构抽取（仅 --extract-structures 开启时执行）
 
 **文件**（新建）：`admin/src/types/floorMap.ts`
 
+严格对齐 [`floor_map.v2.schema.json`](../backend/schemas/floor_map.v2.schema.json)：StructureType 仅 6 种，`column` 是独立的 `Column` 接口（用 `point` 而非 `rect`），`gender` 取值 `'M' | 'F' | 'unknown' | null`。
+
 ```ts
 export type StructureType =
-  | 'core' | 'elevator' | 'stair' | 'restroom'
-  | 'shaft' | 'column' | 'corridor' | 'lobby';
+  | 'core' | 'elevator' | 'stair' | 'restroom' | 'equipment' | 'corridor';
+
+export type Source = 'auto' | 'manual';
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
 export interface Structure {
   type: StructureType;
   rect: Rect;
-  label?: string;
-  code?: string;          // elevator 必填
-  gender?: 'M' | 'F' | 'U';  // restroom 必填
-  source: 'auto' | 'manual';
-  confidence?: number;    // 仅 auto 时存在
+  label?: string | null;
+  code?: string | null;                            // elevator 必填，正则 ^[A-Z]\d{1,3}$
+  gender?: 'M' | 'F' | 'unknown' | null;           // restroom 必填
+  source: Source;
+  confidence?: number;                              // 仅 auto 时存在，[0, 1]
 }
+
+export interface Column {
+  type: 'column';
+  point: [number, number];                          // 注意：column 用 point，不用 rect
+  source: Source;
+}
+
+export type StructureOrColumn = Structure | Column;
 
 export interface WindowSegment {
   side: 'N' | 'S' | 'E' | 'W';
-  x: number;
-  width: number;
-  source?: 'auto' | 'manual';
+  offset: number;                                   // 注意：契约字段名为 offset，非 x
+  width: number;                                    // ≥ 8
 }
 
 export interface Outline {
   type: 'rect' | 'polygon';
-  x?: number; y?: number; w?: number; h?: number;  // type=rect
-  points?: [number, number][];                       // type=polygon
+  x?: number; y?: number; w?: number; h?: number;   // type=rect
+  points?: [number, number][];                      // type=polygon
 }
 
 export interface FloorMapV2 {
   schema_version: '2.0';
   viewport?: { width: number; height: number };
   outline: Outline;
-  structures: Structure[];
+  structures: StructureOrColumn[];
   windows?: WindowSegment[];
   north?: { x: number; y: number; rotation_deg?: number };
+  // 由后端 PUT 响应回填，前端用作下次 PUT 的 If-Match 值
+  floor_map_updated_at?: string;
 }
+```
+
+类型助手（用于 type guard）：
+
+```ts
+export const isColumn = (s: StructureOrColumn): s is Column => s.type === 'column';
 ```
 
 字段定义直接对应 `floor_map.v2.schema.json`，修改 schema 后必须同步更新此文件。
@@ -472,30 +521,31 @@ floorRenderMode: (floorId: string) =>
 import type { StructureType } from '@/types/floorMap';
 
 // 结构类型颜色（全部使用 CSS 变量，禁止 #xxx 硬编码）
-export const STRUCTURE_TYPE_COLORS: Record<StructureType, string> = {
+export const STRUCTURE_TYPE_COLORS: Record<StructureType | 'column', string> = {
   core:      'var(--floor-core)',
   elevator:  'var(--floor-elevator)',
   stair:     'var(--floor-stair)',
   restroom:  'var(--floor-restroom)',
-  column:    'var(--floor-column)',
+  equipment: 'var(--floor-equipment)',
   corridor:  'var(--floor-corridor)',
-  shaft:     'var(--floor-shaft)',
-  lobby:     'var(--floor-lobby)',
+  column:    'var(--floor-column)',
 };
 ```
 
-CSS 变量在 `admin/src/styles/tokens.scss`（或全局样式）中定义默认值：
+> Admin 端无 `tokens.scss`（uni-app 端约定），CSS 变量统一写入 `admin/src/styles/floor-map.scss`（新建），并在 `admin/src/main.ts` 中引入：
 
 ```scss
+// admin/src/styles/floor-map.scss
 :root {
-  --floor-core:      rgba(150, 150, 150, 0.4);
-  --floor-elevator:  rgba(100, 150, 255, 0.4);
-  --floor-stair:     rgba(100, 200, 150, 0.4);
-  --floor-restroom:  rgba(200, 150, 200, 0.4);
-  --floor-column:    rgba(80, 80, 80, 0.6);
-  --floor-corridor:  rgba(200, 200, 160, 0.3);
-  --floor-shaft:     rgba(160, 130, 100, 0.4);
-  --floor-lobby:     rgba(130, 190, 230, 0.3);
+  --floor-core:      rgba(150, 150, 150, 0.40);
+  --floor-elevator:  rgba(100, 150, 255, 0.40);
+  --floor-stair:     rgba(100, 200, 150, 0.40);
+  --floor-restroom:  rgba(200, 150, 200, 0.40);
+  --floor-equipment: rgba(160, 130, 100, 0.40);
+  --floor-corridor:  rgba(200, 200, 160, 0.30);
+  --floor-column:    rgba(80, 80, 80, 0.60);
+  --floor-window:    rgba(255, 153, 0, 0.90);
+  --floor-outline-bg: rgba(245, 245, 245, 1);
 }
 ```
 
@@ -508,7 +558,7 @@ import { apiGet, apiPut, apiPatch } from '@/api/client';
 import { API_PATHS } from '@/constants/api_paths';
 import type { FloorMapV2 } from '@/types/floorMap';
 
-// 获取候选项（DXF 自动抽取）
+// 获取候选项（DXF 自动抽取，仅 source=auto）
 export const getCandidates = (floorId: string) =>
   apiGet<FloorMapV2>(API_PATHS.floorStructureCandidates(floorId));
 
@@ -516,14 +566,30 @@ export const getCandidates = (floorId: string) =>
 export const getConfirmedStructures = (floorId: string) =>
   apiGet<FloorMapV2>(API_PATHS.floorStructures(floorId));
 
-// 保存审核后的结构（覆盖写）
-export const putStructures = (floorId: string, payload: FloorMapV2) =>
-  apiPut<void>(API_PATHS.floorStructures(floorId), payload);
+// 保存审核后的结构（覆盖写，PUT 端点仅接收 source='manual'）
+// ifMatch 为上次拉取/保存得到的 floor_map_updated_at，用于乐观锁
+export const putStructures = (
+  floorId: string,
+  payload: FloorMapV2,
+  ifMatch?: string,
+) =>
+  apiPut<FloorMapV2>(
+    API_PATHS.floorStructures(floorId),
+    payload,
+    ifMatch ? { headers: { 'If-Match': ifMatch } } : undefined,
+  );
 
-// 切换渲染模式
-export const patchRenderMode = (floorId: string, mode: 'vector' | 'semantic') =>
-  apiPatch<{ render_mode: string }>(API_PATHS.floorRenderMode(floorId), { mode });
+// 切换渲染模式（注意：契约字段名 render_mode，非 mode）
+export const patchRenderMode = (floorId: string, renderMode: 'vector' | 'semantic') =>
+  apiPatch<{
+    floor_id: string;
+    render_mode: 'vector' | 'semantic';
+    render_mode_changed_at: string;
+    changed_by: string;
+  }>(API_PATHS.floorRenderMode(floorId), { render_mode: renderMode });
 ```
+
+> `apiPut` 当前签名为 `(url, data?)`，需扩展为 `(url, data?, config?)` 以支持透传 `If-Match` 头。修改 `admin/src/api/client.ts` 时保持现有调用站点向后兼容（第三个参数可选）。
 
 ---
 
@@ -534,8 +600,11 @@ export const patchRenderMode = (floorId: string, mode: 'vector' | 'semantic') =>
 Setup 风格，≤ 200 行。Store state 固定字段：
 
 ```ts
-const candidates   = ref<FloorMapV2 | null>(null)   // GET candidates 返回值（原始，只读）
+const candidates   = ref<FloorMapV2 | null>(null)   // GET candidates 返回值（原始只读，作为左侧候选清单源）
+const confirmed    = ref<FloorMapV2 | null>(null)   // GET confirmed 返回值（人工审核后的最近版本）
 const draft        = ref<FloorMapV2 | null>(null)   // 当前编辑草稿（深拷贝）
+const baselineSnapshot = ref<FloorMapV2 | null>(null) // 最近一次 load 完成时的 draft 快照，供 reset() 使用
+const ifMatch      = ref<string | null>(null)       // 乐观锁：confirmed.floor_map_updated_at
 const renderMode   = ref<'vector' | 'semantic'>('vector')
 const loading      = ref(false)
 const saving       = ref(false)
@@ -543,9 +612,10 @@ const error        = ref<string | null>(null)
 const dirty        = ref(false)
 const selectedIndex = ref<number | null>(null)      // 当前选中结构的下标
 
-// 历史栈（支持撤销/重做）
+// 历史栈（支持撤销/重做）—— 上限 20 条，FloorMapV2 完整深拷贝单条 50~100KB，峰值 < 2MB
 const history      = ref<FloorMapV2[]>([])
-const historyIndex = ref(-1)                        // 上限 50 条
+const historyIndex = ref(-1)
+const HISTORY_LIMIT = 20
 ```
 
 Actions（全部用 `try/catch` 包装，错误处理统一模式）：
@@ -558,26 +628,35 @@ catch (e) {
 
 | Action | 说明 |
 |---|---|
-| `loadCandidates(floorId)` | GET candidates；失败降级 GET confirmed；仍失败显示空状态 |
-| `loadConfirmed(floorId)` | GET 已确认数据 |
-| `save(floorId)` | 前端 validate → PUT structures → `dirty=false`；412 时提示刷新 |
-| `setRenderMode(floorId, mode)` | PATCH render-mode；`dirty=true` 时禁用（由组件层判断） |
-| `addStructure(s)` | push 到 `draft.structures`，记录历史，`dirty=true` |
+| `load(floorId)` | **并行** `Promise.all([getCandidates, getConfirmedStructures])`，二者均允许 404；`draft = confirmed ?? candidates`（保护人工修改不被覆盖）；`baselineSnapshot = deepClone(draft)`；`ifMatch = confirmed?.floor_map_updated_at ?? null` |
+| `save(floorId)` | 前端 validate → `putStructures(floorId, draft, ifMatch)` → 用响应回填 `confirmed` 与 `ifMatch` → `dirty=false`；捕获 `FLOOR_MAP_VERSION_CONFLICT` 时弹窗提示「数据已被他人更新，是否放弃当前修改并重载？」 |
+| `setRenderMode(floorId, mode)` | PATCH render-mode；调用前由组件层校验 `!dirty`，本 action 仅做 API 调用 |
+| `addStructure(s)` | 入栈 `draft.structures`，记录历史，`dirty=true` |
 | `updateStructure(idx, patch)` | 更新指定下标，记录历史，`dirty=true` |
 | `removeStructure(idx)` | 删除，记录历史，`dirty=true` |
 | `undo()` | `historyIndex--`，恢复 draft |
 | `redo()` | `historyIndex++`，前进 draft |
-| `reset()` | 恢复到 candidates 初始状态，清空历史，`dirty=false` |
+| `reset()` | `draft = deepClone(baselineSnapshot)`，清空历史，`dirty=false`（与 candidates/confirmed 来源无关） |
 
 内联 `validate(map: FloorMapV2): string | null`（与后端 §0-E 校验保持一致）：
 
 ```ts
+import { isColumn } from '@/types/floorMap';
+
 if (!map.outline) return 'outline 缺失';
 if (map.structures.length > 200) return '结构数量超过 200';
+if ((map.windows?.length ?? 0) > 100) return '窗洞数量超过 100';
+
+const codeRe = /^[A-Z]\d{1,3}$/;
 for (const s of map.structures) {
+  if (isColumn(s)) {
+    if (!Array.isArray(s.point) || s.point.length !== 2) return 'column.point 非法';
+    continue;
+  }
   if (s.rect.w <= 0 || s.rect.h <= 0) return '矩形尺寸非法';
-  if (s.type === 'elevator' && !s.code) return '电梯必须填写编号';
+  if (s.type === 'elevator' && (!s.code || !codeRe.test(s.code))) return '电梯编号必须形如 E1/E12';
   if (s.type === 'restroom' && !s.gender) return '卫生间必须选择性别';
+  if (s.source !== 'manual') return '保存时所有 structure source 必须为 manual';
 }
 return null;
 ```
@@ -605,11 +684,13 @@ admin/src/views/assets/floor-structures/
 
 #### 3-1  `AnnotatorView.vue`（容器，≤ 250 行）
 
-- `onMounted`：解析路由参数 `floorId`，调 `store.loadCandidates(floorId)`
+- `onMounted`：解析路由参数 `floorId`，调 `store.load(floorId)`；注册 `beforeunload` 监听
+- `onBeforeUnmount`：解绑 `beforeunload` 监听
 - 三栏布局：`CandidatesPanel`（左 240px）/ `CanvasStage`（居中，flex-1）/ `InspectorPanel`（右 320px），顶部 `Toolbar`
-- `beforeRouteLeave` inline dirty 守卫：
+- 双重 dirty 守卫：
 
 ```ts
+// 1. SPA 内跳转拦截
 onBeforeRouteLeave(() => {
   if (!store.dirty) return true;
   return ElMessageBox.confirm('有未保存的修改，确认离开？', '提示', {
@@ -617,6 +698,16 @@ onBeforeRouteLeave(() => {
     type: 'warning'
   }).then(() => true).catch(() => false);
 });
+
+// 2. 浏览器刷新/关闭拦截
+const onBeforeUnload = (e: BeforeUnloadEvent) => {
+  if (store.dirty) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+};
+onMounted(() => window.addEventListener('beforeunload', onBeforeUnload));
+onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload));
 ```
 
 #### 3-2  `Toolbar.vue`
@@ -781,11 +872,17 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
 | `removeStructure` 删除指定下标 | 删除正确 |
 | `updateStructure` 更新 rect | 更新正确 |
 | `save` 失败时 `error.value` 被赋值 | 错误处理 |
-| `save` 成功时 `dirty === false` | dirty 清除 |
+| `save` 成功时 `dirty === false`，`ifMatch` 被刷新为响应中的 `floor_map_updated_at` | dirty 清除 + 乐观锁推进 |
+| `save` 遇 `FLOOR_MAP_VERSION_CONFLICT` (409) | error 被赋值，`dirty` 仍为 true 不丢失草稿 |
+| `load` 同时拿到 candidates 与 confirmed 时，`draft` 取自 confirmed | 不覆盖人工修改 |
+| `load` 仅有 candidates 时，`draft` 取自 candidates | 首次审核场景 |
 | `validate` 缺 outline → 返回错误字符串 | 前置校验 |
 | `validate` elevator 无 code → 返回错误字符串 | 前置校验 |
-| `reset` 后 `dirty === false`，`draft` 恢复初始 | 重置正确 |
-| 历史栈深度 > 50 时最早记录被丢弃 | 内存保护 |
+| `validate` elevator code 不符合 `^[A-Z]\d{1,3}$` | 正则校验 |
+| `validate` restroom 无 gender | 前置校验 |
+| `validate` source !== 'manual' | 保存前规范化 |
+| `reset` 后 `dirty === false`，`draft` 恢复至 baselineSnapshot | 重置正确 |
+| 历史栈深度 > 20 时最早记录被丢弃 | 内存保护 |
 
 #### 5-2  E2E 测试
 
@@ -793,13 +890,18 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
 
 使用 Playwright，通过 fixtures 注入 mock 候选数据：
 
+Fixture 文件：`admin/e2e/fixtures/candidates.mock.json` （新建）。
+
 | 场景 | 步骤 |
 |---|---|
 | 加载候选项 | 进入页面 → 左侧候选清单非空 → 结构自动渲染在画布 |
-| 添加候选 → 保存 | 点击候选项 → 修改 type/label → 点保存 → 刷新后结构保留 |
+| 添加候选 → 保存 | 点击候选项 → 修改 type/label → 点保存 → 刷新后结构保留（confirmed 加载） |
 | 框选新建 restroom | 工具栏「新增矩形」→ 画布拖框 → 设为 restroom + gender=F → 保存 |
-| 渲染模式切换 | 保存后切换 vector→semantic → 楼层卡片 render_mode Tag 更新为「语义」 |
-| 离开守卫 | 修改后点导航跳转 → 弹出「有未保存修改」弹窗 → 点取消 → 留在页面 |
+| 渲染模式切换 | 保存（含 ≥1 个 core/corridor）后切换 vector→semantic → 楼层卡片 render_mode Tag 更新为「语义」 |
+| semantic 前置校验失败 | 仅含 elevator 时切换 semantic → 报 `FLOOR_MAP_NOT_READY_FOR_SEMANTIC` |
+| 版本冲突 | 模拟服务端 409 → 弹窗提示数据已被更新 |
+| 离开守卫（SPA） | 修改后点导航跳转 → 弹出「有未保存修改」弹窗 → 点取消 → 留在页面 |
+| 离开守卫（刷新） | 修改后按 F5 → 浏览器原生 beforeunload 拦截 |
 
 ---
 
@@ -809,8 +911,8 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
 
 | 文件 | 操作 |
 |---|---|
-| `backend/migrations/NNN_create_floor_maps.sql` | 新建 |
-| `docs/backend/ERROR_CODE_REGISTRY.md` | 增补 7 个错误码 |
+| `backend/migrations/027_create_floor_maps.sql` | 新建 |
+| `docs/backend/ERROR_CODE_REGISTRY.md` | 增补 8 个错误码（含 `FLOOR_MAP_VERSION_CONFLICT`） |
 | `backend/lib/modules/assets/models/floor.dart` | 增 3 字段 |
 | `backend/lib/modules/assets/models/floor_map.dart` | 新建 |
 | `backend/lib/modules/assets/repositories/floor_repository.dart` | 增 `updateRenderMode` 方法 |
@@ -842,7 +944,11 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
 | `admin/src/types/floorMap.ts` | 新建 |
 | `admin/src/constants/api_paths.ts` | 增补 3 条路径 |
 | `admin/src/constants/ui_constants.ts` | 增补 `STRUCTURE_TYPE_COLORS` |
+| `admin/src/styles/floor-map.scss` | 新建（CSS 变量） |
+| `admin/src/main.ts` | 引入 `floor-map.scss` |
+| `admin/src/api/client.ts` | `apiPut` 签名扩展为 `(url, data?, config?)` 透传 headers |
 | `admin/src/api/modules/floorStructures.ts` | 新建 |
+| `admin/e2e/fixtures/candidates.mock.json` | 新建（E2E mock 数据） |
 | `admin/src/stores/floorStructuresStore.ts` | 新建 |
 | `admin/src/stores/index.ts` | 导出新 store |
 | `admin/src/views/assets/floor-structures/AnnotatorView.vue` | 新建 |
@@ -863,12 +969,15 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
 
 | 层次 | 命令 | 通过标准 |
 |---|---|---|
+| 图层名预探 | `python scripts/list_layers.py <sample.dxf>` | 输出真实图层清单并据此校准 detector 关键字表 |
 | Python 脚本单测 | `python -m pytest scripts/floor_map/tests/ -v` | 5 个测试全绿 |
-| 后端单元测试 | `cd backend && dart test test/modules/assets/` | 新增 Service/Repository 测试全绿 |
-| 前端 Store 单测 | `pnpm --filter admin test:unit` | 11 个 store 测试用例全绿 |
+| Detector 命中率 | A 座 24 层批跑 + 人工抽检 | `elevator` / `core` 命中率 ≥ 80% |
+| 后端单元测试 | `cd backend && dart test test/modules/assets/` | 新增 Service/Repository 测试全绿，覆盖：candidates 不存在 / coord 越界 / elevator 无 code / column 用 point / semantic 前置不足 / 版本冲突 |
+| 前端 Store 单测 | `pnpm --filter admin test:unit` | 17 个 store 测试用例全绿 |
 | TypeScript 检查 | `pnpm --filter admin lint` | `strict: true` 无报错 |
 | 本地端到端联调 | 手动操作 | 候选加载 → 拖拽 → 保存 → `dirty=false` → 模式切换成功 |
-| Playwright E2E | `pnpm --filter admin test:e2e floor-structures` | 5 个场景全通过 |
+| Playwright E2E | `pnpm --filter admin test:e2e floor-structures` | 8 个场景全通过 |
+| 回归 | 手动 | `BuildingDetailView` / `FloorPlanView` 既有入口未受影响 |
 
 ---
 
@@ -877,9 +986,13 @@ export function useCanvasInteraction(store: ReturnType<typeof useFloorStructures
 | 风险 | 决策 |
 |---|---|
 | `router/guards.ts` 不存在 | `beforeRouteLeave` inline 写在 `AnnotatorView.vue`，不新建 guards.ts |
+| 浏览器刷新/关闭绕过 SPA 守卫 | 同时注册 `window.beforeunload`，`onBeforeUnmount` 解绑 |
 | 后端 API 未就绪时前端无法真实联调 | Phase 3 期间使用 `admin/e2e/fixtures/candidates.mock.json` mock 数据，Phase 0-F 完成后切换真实 API |
-| Python detector 识别率难以保证 | confidence 字段透传给前端显示，低置信度候选不自动加入画布，由人工决策；detector 失败返回空列表不中断流程 |
+| Python detector 识别率难以保证 | ① 动工前先用 `list_layers.py` 输出真实图层清单 ② confidence 透传给前端显示 ③ detector 失败返回空列表不中断流程 ④ 验收门槛 elevator/core 命中率 ≥ 80% |
+| 并发编辑覆盖 | PUT 请求带 `If-Match: <floor_map_updated_at>`，后端比对不一致返回 `FLOOR_MAP_VERSION_CONFLICT` (409)；前端弹窗让用户选择放弃或重载 |
+| candidates 覆盖 confirmed 风险 | `load` 并行加载二者，`draft = confirmed ?? candidates`；candidates 仅作只读候选源 |
 | SVG 元素总数上限 | structures ≤ 200 + windows ≤ 100 + 控制点 8 = 约 310，原生 SVG 足够，不引入虚拟化 |
-| 历史栈内存占用 | 深度上限 50 条，每条为 FloorMapV2 完整深拷贝（预估 < 5MB，可接受） |
+| 历史栈内存占用 | 深度上限 20 条，每条 FloorMapV2 完整深拷贝（预估 < 2MB，可接受）；后续如需更深可改为 patch 栈 |
 | 坐标一致性 | SVG viewBox 坐标系与后端 JSON 完全一致（Y 轴已翻转，左上为原点），前端不做二次坐标变换 |
 | 颜色规范 | 禁止 `#xxx` 硬编码，全部通过 CSS 变量；`STRUCTURE_TYPE_COLORS` 只引用 `var(--floor-*)` |
+| 审计 action 命名 | `audit_logs.action` 在 [003_create_users_and_audit.sql](../../backend/migrations/003_create_users_and_audit.sql) 中无 CHECK 约束，可直接写 `floor_map.structures.update` / `floor_map.render_mode.change` |
