@@ -51,9 +51,13 @@
         <!-- 系统设置 -->
         <div class="nav-group">
           <div v-if="!collapsed" class="nav-group-label">系统</div>
-          <router-link to="/system/users" class="nav-item" :class="{ active: activeSection === 'system' }">
-            <el-icon class="nav-icon"><Setting /></el-icon>
-            <span v-if="!collapsed" class="nav-label">系统设置</span>
+          <router-link to="/system/users" class="nav-item" :class="{ active: activeSection === 'system/users' }">
+            <el-icon class="nav-icon"><User /></el-icon>
+            <span v-if="!collapsed" class="nav-label">员工管理</span>
+          </router-link>
+          <router-link to="/system/departments" class="nav-item" :class="{ active: activeSection === 'system/departments' }">
+            <el-icon class="nav-icon"><OfficeBuilding /></el-icon>
+            <span v-if="!collapsed" class="nav-label">组织结构</span>
           </router-link>
         </div>
       </nav>
@@ -102,7 +106,7 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   Odometer, OfficeBuilding, Document, Money, Tools,
-  Connection, Fold, Expand, ArrowDown, Setting,
+  Connection, Fold, Expand, ArrowDown, User,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores'
 
@@ -110,8 +114,12 @@ const authStore = useAuthStore()
 const route = useRoute()
 const collapsed = ref(false)
 
-/* 当前激活的一级路由段 */
-const activeSection = computed(() => route.path.split('/')[1] || 'dashboard')
+/* 当前激活的路由段（支持二级路径如 system/users、system/departments）*/
+const activeSection = computed(() => {
+  const parts = route.path.split('/').filter(Boolean)
+  if (parts[0] === 'system' && parts[1]) return `system/${parts[1]}`
+  return parts[0] || 'dashboard'
+})
 
 /* 页面标题映射 */
 const PAGE_TITLES: Record<string, string> = {
@@ -121,7 +129,8 @@ const PAGE_TITLES: Record<string, string> = {
   finance: '财务管理',
   workorders: '工单管理',
   subleases: '二房东管理',
-  system: '系统设置',
+  'system/users': '员工管理',
+  'system/departments': '组织结构',
 }
 
 const pageTitle = computed(() => PAGE_TITLES[activeSection.value] ?? 'PropOS')
