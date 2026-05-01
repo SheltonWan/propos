@@ -98,9 +98,9 @@ class _BuildingDetailPageState extends State<BuildingDetailPage> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
+                const Text(
                   '楼层索引',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 14, fontWeight: FontWeight.w700),
                 ),
                 const Spacer(),
