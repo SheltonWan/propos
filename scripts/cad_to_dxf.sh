@@ -77,7 +77,7 @@ if [[ "$DXF_COUNT" -eq "$DWG_COUNT" ]] && [[ "$EMPTY_COUNT" -eq 0 ]]; then
   echo ""
   ls -lh "$OUTPUT_DIR"/*.dxf 2>/dev/null || ls -lh "$OUTPUT_DIR"/*.DXF 2>/dev/null
 else
-  echo "⚠️  转换可能不完整（空文件: $EMPTY_COUNT，数量不符或有异常）"
+  echo "⚠️  转换可能不完整（空文件: ${EMPTY_COUNT}，数量不符或有异常）"
   echo "提示: 如 DXF 无输出，尝试将输出版本改为 ACAD2013"
   exit 1
 fi
