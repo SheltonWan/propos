@@ -226,15 +226,23 @@ UPDATE kpi_metric_definitions SET id = 'cc000000-0000-4000-8000-000000000014' WH
 -- =========================================================================
 -- 4. 同步修正 _schema_migrations 中 020/023 的 hash 记录
 --    使其与当前文件（已修正 UUID 的版本）保持一致，避免 setup_server.sh 再次报错
+--    注：仅 setup_server.sh 维护 _schema_migrations(file_hash) 表；
+--    init_local_postgres.sh 使用的是 schema_migrations（无下划线、无 file_hash 列），
+--    因此用 to_regclass 判断后再执行，保证两种环境都能跑通本迁移。
 -- =========================================================================
-UPDATE _schema_migrations
-    SET file_hash = 'a36685dd396165ae7eca7c9f223012bd'
-    WHERE filename = '020_seed_reference_data.sql'
-      AND file_hash = 'fffb6dc4a84eafcc229e6caaa851ae4b';
+DO $$
+BEGIN
+    IF to_regclass('public._schema_migrations') IS NOT NULL THEN
+        UPDATE _schema_migrations
+            SET file_hash = 'a36685dd396165ae7eca7c9f223012bd'
+            WHERE filename = '020_seed_reference_data.sql'
+              AND file_hash = 'fffb6dc4a84eafcc229e6caaa851ae4b';
 
-UPDATE _schema_migrations
-    SET file_hash = 'b434cfb2a6ccdbee54bac0f94fe9c546'
-    WHERE filename = '023_seed_company_node.sql'
-      AND file_hash = 'd4637734d918f1c045e6253062bdb259';
+        UPDATE _schema_migrations
+            SET file_hash = 'b434cfb2a6ccdbee54bac0f94fe9c546'
+            WHERE filename = '023_seed_company_node.sql'
+              AND file_hash = 'd4637734d918f1c045e6253062bdb259';
+    END IF;
+END$$;
 
 COMMIT;
