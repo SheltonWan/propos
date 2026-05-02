@@ -42,7 +42,7 @@
       <el-form-item v-if="isGenderRequired" label="性别">
         <el-radio-group
           :model-value="(selected as Structure).gender ?? 'unknown'"
-          @change="(v: 'M' | 'F' | 'unknown') => onUpdate({ gender: v } as Partial<StructureOrColumn>)"
+          @change="(v: string | number | boolean | undefined) => onUpdate({ gender: v as 'M' | 'F' | 'unknown' } as Partial<StructureOrColumn>)"
         >
           <el-radio value="M">男</el-radio>
           <el-radio value="F">女</el-radio>
