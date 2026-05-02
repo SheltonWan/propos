@@ -489,7 +489,7 @@ void main() {
       expect(resp.statusCode, 200);
       final data = jsonBody(resp)['data'] as Map;
       expect((data['total_units'] as int), greaterThanOrEqualTo(1));
-      expect(data.containsKey('occupancy_rate'), isTrue);
+      expect(data.containsKey('total_occupancy_rate'), isTrue);
     });
 
     test('GET /api/units/export → 200 content-type=xlsx 含字节', () async {

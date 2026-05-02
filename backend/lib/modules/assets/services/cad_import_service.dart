@@ -12,6 +12,7 @@ import '../models/floor.dart';
 import '../repositories/building_repository.dart';
 import '../repositories/cad_import_job_repository.dart';
 import '../repositories/floor_repository.dart';
+import '../repositories/unit_repository.dart';
 
 /// CadImportService — 楼栋级 DXF 上传 + 异步切分 + 楼层匹配的核心服务。
 ///
@@ -467,7 +468,7 @@ class CadImportService {
     );
     await repo.setCurrentPlan(plan.id);
 
-    // 回写 JSON 骨架：填入真实 floor_id / building_id / svg_version
+    // 回写 JSON 骨架：填入真实 floor_id / building_id / svg_version，并提取 units 数据
     if (jsonSiblingFile != null) {
       try {
         final raw = await jsonSiblingFile.readAsString();
@@ -480,13 +481,30 @@ class CadImportService {
         await File(jsonAbs).writeAsString(
           const JsonEncoder.withIndent('  ').convert(meta),
         );
+
+        // 从 JSON units 数组自动创建楼层房间记录
+        final rawUnits = meta['units'];
+        if (rawUnits is List && rawUnits.isNotEmpty) {
+          final building =
+              await BuildingRepository(_db).findById(floor.buildingId);
+          if (building != null) {
+            final created = await _createUnitsFromJsonData(
+              floor: floor,
+              propertyType: building.propertyType,
+              units: rawUnits,
+            );
+            print(
+                '[CadImportService] 楼层 ${floor.id}（${floor.floorName}）自动创建 $created 个 Unit');
+          }
+        }
       } catch (_) {
-        // JSON 回写失败不阻断主流程
+        // JSON 处理失败不阻断主流程
       }
     }
   }
 
-  /// 给定临时路径下的 SVG，复制到楼层正式路径并创建 floor_plan
+  /// 给定临时路径下的 SVG，复制到楼层正式路径并创建 floor_plan。
+  /// 同时尝试读取同名 .json 兄弟文件，存在时触发 Unit 自动创建。
   Future<void> _attachSvgToFloor({
     required String tmpRel,
     required Floor floor,
@@ -500,12 +518,80 @@ class CadImportService {
           'UNMATCHED_SVG_FILE_LOST', '原始 SVG 文件不存在或已被清理');
     }
     final bytes = await tmpFile.readAsBytes();
+    // 查找与 SVG 同名的 JSON 骨架文件（annotate_hotzone.py 生成）
+    final jsonSibling = File('${p.withoutExtension(tmpAbs)}.json');
     await _writeAndAttach(
       floor: floor,
       svgBytes: bytes,
       versionLabel: versionLabel,
       uploadedBy: uploadedBy,
+      jsonSiblingFile: await jsonSibling.exists() ? jsonSibling : null,
     );
+  }
+
+  // ─── 辅助：DXF Unit 自动创建 ─────────────────────────────────────────
+
+  /// 从 annotate_hotzone.py 生成的 JSON units 数组批量创建 Unit 记录。
+  ///
+  /// 策略：按 (building_id, unit_number) 查重，仅补充新增，跳过已有编号（保护现有数据）。
+  /// unit_number 使用 JSON 的 unit_id 字段（带楼层前缀，如 "11-01"）。
+  /// 单条异常隔离：单个 unit 创建失败不中断整批。
+  ///
+  /// 返回实际创建的数量。
+  Future<int> _createUnitsFromJsonData({
+    required Floor floor,
+    required String propertyType,
+    required List<dynamic> units,
+  }) async {
+    // 提取所有非空 unit_id 作为候选 unit_number
+    final candidates = units
+        .whereType<Map<String, dynamic>>()
+        .map((u) => (u['unit_id'] as String? ?? '').trim())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+
+    if (candidates.isEmpty) return 0;
+
+    final unitRepo = UnitRepository(_db);
+    // 查重：获取已存在的 unit_number 集合
+    final existing = await unitRepo.findExistingUnitNumbers(
+      floor.buildingId,
+      candidates,
+    );
+
+    var created = 0;
+    for (final u in units.whereType<Map<String, dynamic>>()) {
+      final unitId = (u['unit_id'] as String? ?? '').trim();
+      if (unitId.isEmpty) continue;
+      if (existing.contains(unitId)) continue; // 已存在，跳过
+
+      try {
+        // 从 JSON 提取面积（gross_area 口径）
+        final areaRaw = u['area_m2'];
+        final grossArea = areaRaw is num ? areaRaw.toDouble() : null;
+
+        // 构建 ext_fields：保存房间名称与 SVG 热区坐标，供楼层地图交互使用
+        final extFields = <String, dynamic>{};
+        final roomName = u['room_name'] as String? ?? '';
+        if (roomName.isNotEmpty) extFields['room_name'] = roomName;
+        final hotspot = u['hotspot'];
+        if (hotspot != null) extFields['hotspot'] = hotspot;
+
+        await unitRepo.create(
+          floorId: floor.id,
+          buildingId: floor.buildingId,
+          unitNumber: unitId,
+          propertyType: propertyType,
+          grossArea: grossArea,
+          extFields: extFields.isEmpty ? null : extFields,
+        );
+        created++;
+      } catch (e) {
+        // 单条创建失败不中断整批，仅记录日志
+        print('[CadImportService] Unit 创建失败（unitId=$unitId）：$e');
+      }
+    }
+    return created;
   }
 
   // ─── 辅助：错误信息截断 ────────────────────────────────────────────────

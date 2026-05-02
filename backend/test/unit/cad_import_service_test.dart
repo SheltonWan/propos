@@ -163,9 +163,12 @@ void main() {
         }
       };
 
+      // 提供最小合法 DXF 内容：纯文本 + 包含 SECTION 关键字，满足 _validateDxfMagic 校验
+      final validDxfBytes =
+          '  0\r\nSECTION\r\n  2\r\nHEADER\r\n  0\r\nENDSEC\r\n  0\r\nEOF\r\n'.codeUnits;
       final job = await svc.uploadDxf(
         buildingId: 'b-1',
-        fileBytes: const [1, 2, 3],
+        fileBytes: validDxfBytes,
         originalFilename: 'PLAN.DXF',
       );
       expect(job.id, 'job-1');
@@ -381,6 +384,238 @@ void main() {
         svc.assignUnmatched('job-1', svgLabel: 'F1', floorId: 'f-1'),
         throwsA(isA<ValidationException>()
             .having((e) => e.code, 'code', 'INVALID_FILE_PATH')),
+      );
+    });
+  });
+
+  // ─── Unit 自动创建（通过 assignUnmatched 触发 _writeAndAttach）──────────
+
+  group('Unit 自动创建', () {
+    // setCurrentPlan 内部 SQL 序列（5 步），共享辅助函数：
+    //   步骤 N+0: INSERT floor_plans（createPlan）
+    //   步骤 N+1: SELECT floor_id FROM floor_plans（setCurrentPlan step1）
+    //   步骤 N+2: UPDATE floor_plans is_current=FALSE（setCurrentPlan step2）
+    //   步骤 N+3: UPDATE floor_plans is_current=TRUE（setCurrentPlan step3）
+    //   步骤 N+4: UPDATE floors（updatePaths）
+    //   步骤 N+5: SELECT floor_plans（findPlanById）
+
+    /// setCurrentPlan SELECT floor_plans 返回值（step1 需要 floor_id + svg_path）
+    setPlanSelect(String floorId, String svgPath) => makeResult([
+          'floor_id',
+          'svg_path',
+          'png_path'
+        ], [
+          [floorId, svgPath, null]
+        ]);
+
+    test('JSON 含 units → 创建对应 Unit 记录（跳过已存在编号）', () async {
+      // ── 准备文件 ──
+      final svgRel = 'cad/b-1/jobs/job-1/plan_F11.svg';
+      final svgAbs = File('${tmpDir.path}/$svgRel');
+      await svgAbs.parent.create(recursive: true);
+      await svgAbs.writeAsString('<svg/>');
+      final jsonAbs = File('${tmpDir.path}/cad/b-1/jobs/job-1/plan_F11.json');
+      await jsonAbs.writeAsString(jsonEncode({
+        'dxf_region': {'min_x': 0, 'min_y': 0, 'max_x': 100, 'max_y': 100},
+        'viewport': {'width': 1000, 'height': 1000},
+        'units': [
+          // unit_id 已存在 → 跳过
+          {
+            'unit_id': '11-01',
+            'unit_number': '01',
+            'room_name': '产业研发用房',
+            'area_m2': 52.01,
+            'hotspot': {'type': 'circle', 'cx': 100, 'cy': 200, 'r': 30},
+          },
+          // 新建
+          {
+            'unit_id': '11-02',
+            'unit_number': '02',
+            'room_name': '会议室',
+            'area_m2': 30.5,
+            'hotspot': {'type': 'circle', 'cx': 200, 'cy': 200, 'r': 30},
+          },
+          // unit_id 空 → 跳过
+          {'unit_id': '', 'unit_number': '', 'room_name': '公共走廊'},
+        ],
+      }));
+
+      // ── SQL 序列：共 13 步 ──
+      // 1  CadImportJobRepository.findById
+      // 2  FloorRepository.findById
+      // 3  FloorRepository.createPlan (INSERT floor_plans)
+      // 4  setCurrentPlan SELECT floor_plans
+      // 5  setCurrentPlan UPDATE floor_plans is_current=FALSE
+      // 6  setCurrentPlan UPDATE floor_plans is_current=TRUE
+      // 7  setCurrentPlan.updatePaths UPDATE floors
+      // 8  setCurrentPlan.findPlanById SELECT floor_plans
+      // 9  BuildingRepository.findById
+      // 10 UnitRepository.findExistingUnitNumbers
+      // 11 UnitRepository.create ('11-02')
+      // 12 repo.updateAssignments UPDATE cad_import_jobs
+      // 13 repo.findById SELECT cad_import_jobs
+      var idx = 0;
+      pool.executeHandler = (q, p) {
+        idx++;
+        switch (idx) {
+          case 1:
+            return makeResult(_kJobCols, [
+              _jobRow(status: 'done', unmatchedSvgs: [
+                {'label': 'F11', 'tmp_path': svgRel},
+              ])
+            ]);
+          case 2:
+            return makeResult(kFloorCols, [floorRow(id: 'f-11', buildingId: 'b-1')]);
+          case 3:
+            return makeResult(
+                kFloorPlanCols, [floorPlanRow(id: 'fp-11', floorId: 'f-11', isCurrent: false)]);
+          case 4:
+            return setPlanSelect('f-11', 'floors/b-1/f-11.svg');
+          case 5:
+          case 6:
+          case 7:
+            return makeResult([], []);
+          case 8:
+            return makeResult(
+                kFloorPlanCols, [floorPlanRow(id: 'fp-11', floorId: 'f-11', isCurrent: true)]);
+          case 9:
+            return makeResult(kBuildingCols, [buildingRow()]);
+          case 10:
+            // findExistingUnitNumbers：'11-01' 已存在
+            return makeResult([
+              'unit_number'
+            ], [
+              ['11-01']
+            ]);
+          case 11:
+            // UnitRepository.create for '11-02'
+            return makeResult(
+                kUnitCols, [unitRow(buildingId: 'b-1', floorId: 'f-11', unitNumber: '11-02')]);
+          case 12:
+            return makeResult([], []);
+          default:
+            return makeResult(
+                _kJobCols, [_jobRow(status: 'done', matchedCount: 1, unmatchedSvgs: [])]);
+        }
+      };
+
+      final job = await svc.assignUnmatched(
+        'job-1',
+        svgLabel: 'F11',
+        floorId: 'f-11',
+      );
+
+      expect(job, isNotNull);
+      // SVG 已复制到正式路径
+      expect(
+        File('${tmpDir.path}/floors/b-1/f-11.svg').existsSync(),
+        isTrue,
+      );
+    });
+
+    test('JSON 无 units 字段 → 静默跳过，不抛异常', () async {
+      // 写一个没有 units 字段的 JSON
+      final svgRel = 'cad/b-1/jobs/job-1/plan_F12.svg';
+      final svgAbs = File('${tmpDir.path}/$svgRel');
+      await svgAbs.parent.create(recursive: true);
+      await svgAbs.writeAsString('<svg/>');
+      await File('${tmpDir.path}/cad/b-1/jobs/job-1/plan_F12.json').writeAsString(jsonEncode({
+        'dxf_region': {'min_x': 0, 'min_y': 0, 'max_x': 100, 'max_y': 100},
+        'viewport': {'width': 1000, 'height': 1000},
+        // 无 units 字段 → 不触发 UnitRepository
+      }));
+
+      // SQL 序列：共 10 步（无 BuildingRepo/UnitRepo 调用）
+      // 1  CadImportJobRepository.findById
+      // 2  FloorRepository.findById
+      // 3  FloorRepository.createPlan
+      // 4  setCurrentPlan SELECT floor_plans
+      // 5-7 setCurrentPlan UPDATEs + updatePaths
+      // 8  setCurrentPlan.findPlanById
+      // 9  repo.updateAssignments
+      // 10 repo.findById
+      var idx = 0;
+      pool.executeHandler = (q, p) {
+        idx++;
+        switch (idx) {
+          case 1:
+            return makeResult(_kJobCols, [
+              _jobRow(status: 'done', unmatchedSvgs: [
+                {'label': 'F12', 'tmp_path': svgRel},
+              ])
+            ]);
+          case 2:
+            return makeResult(kFloorCols, [floorRow(id: 'f-12', buildingId: 'b-1')]);
+          case 3:
+            return makeResult(
+                kFloorPlanCols, [floorPlanRow(id: 'fp-12', floorId: 'f-12', isCurrent: false)]);
+          case 4:
+            return setPlanSelect('f-12', 'floors/b-1/f-12.svg');
+          case 5:
+          case 6:
+          case 7:
+            return makeResult([], []);
+          case 8:
+            return makeResult(
+                kFloorPlanCols, [floorPlanRow(id: 'fp-12', floorId: 'f-12', isCurrent: true)]);
+          case 9:
+            return makeResult([], []);
+          default:
+            return makeResult(
+                _kJobCols, [_jobRow(status: 'done', matchedCount: 1, unmatchedSvgs: [])]);
+        }
+      };
+
+      await expectLater(
+        svc.assignUnmatched('job-1', svgLabel: 'F12', floorId: 'f-12'),
+        completes,
+      );
+    });
+
+    test('无同名 JSON 文件 → 静默跳过，不抛异常', () async {
+      // 只有 SVG，无 JSON 骨架文件
+      final svgRel = 'cad/b-1/jobs/job-1/plan_F13.svg';
+      final svgAbs = File('${tmpDir.path}/$svgRel');
+      await svgAbs.parent.create(recursive: true);
+      await svgAbs.writeAsString('<svg/>');
+      // 故意不写 plan_F13.json
+
+      // SQL 序列：共 10 步（jsonSiblingFile=null，整个 JSON 块跳过）
+      var idx = 0;
+      pool.executeHandler = (q, p) {
+        idx++;
+        switch (idx) {
+          case 1:
+            return makeResult(_kJobCols, [
+              _jobRow(status: 'done', unmatchedSvgs: [
+                {'label': 'F13', 'tmp_path': svgRel},
+              ])
+            ]);
+          case 2:
+            return makeResult(kFloorCols, [floorRow(id: 'f-13', buildingId: 'b-1')]);
+          case 3:
+            return makeResult(
+                kFloorPlanCols, [floorPlanRow(id: 'fp-13', floorId: 'f-13', isCurrent: false)]);
+          case 4:
+            return setPlanSelect('f-13', 'floors/b-1/f-13.svg');
+          case 5:
+          case 6:
+          case 7:
+            return makeResult([], []);
+          case 8:
+            return makeResult(
+                kFloorPlanCols, [floorPlanRow(id: 'fp-13', floorId: 'f-13', isCurrent: true)]);
+          case 9:
+            return makeResult([], []);
+          default:
+            return makeResult(
+                _kJobCols, [_jobRow(status: 'done', matchedCount: 1, unmatchedSvgs: [])]);
+        }
+      };
+
+      await expectLater(
+        svc.assignUnmatched('job-1', svgLabel: 'F13', floorId: 'f-13'),
+        completes,
       );
     });
   });

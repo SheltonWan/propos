@@ -332,7 +332,7 @@ void main() {
       expect((json['data'] as Map)['total_units'], 30);
       expect((json['data'] as Map)['total_leasable_units'], 27);
       expect(
-          (json['data'] as Map)['occupancy_rate'], closeTo(0.5, 0.001));
+          (json['data'] as Map)['total_occupancy_rate'], closeTo(0.5, 0.001));
       expect(
           (json['data'] as Map)['wale_income_weighted'], closeTo(2.5, 0.001));
       expect((json['data'] as Map)['wale_area_weighted'], closeTo(2.3, 0.001));

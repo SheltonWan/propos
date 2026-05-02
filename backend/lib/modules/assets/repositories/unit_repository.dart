@@ -406,6 +406,31 @@ class UnitRepository {
     );
   }
 
+  /// 查询指定楼栋中已存在的 unit_number 集合（仅含未归档记录）。
+  ///
+  /// 用于 DXF 导入时的去重校验：调用方将候选列表传入，返回集合的差集即为需要新建的房间。
+  /// 使用 `ANY(@candidates)` 参数化，候选列表可为空（返回空集，不发送 SQL）。
+  Future<Set<String>> findExistingUnitNumbers(
+    String buildingId,
+    List<String> candidates,
+  ) async {
+    if (candidates.isEmpty) return const {};
+    final result = await _db.execute(
+      Sql.named('''
+        SELECT unit_number
+        FROM units
+        WHERE building_id = @buildingId::UUID
+          AND unit_number = ANY(@candidates)
+          AND archived_at IS NULL
+      '''),
+      parameters: {
+        'buildingId': buildingId,
+        'candidates': candidates,
+      },
+    );
+    return result.map((r) => r.toColumnMap()['unit_number'] as String).toSet();
+  }
+
   /// 统计可租单元总数：is_leasable=true 且未归档
   ///
   /// 用作 `getOverview` 中分母 `totalLeasableUnits` 的权威口径。
