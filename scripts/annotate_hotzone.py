@@ -62,13 +62,18 @@ MATCH_DIST_THRESHOLD = 8_000   # 8m，足够跨过一个走廊找到对面标注
 # 面积标注 TEXT 高度（h≈350 mm）
 AREA_TEXT_HEIGHT_APPROX = 350.0
 AREA_TEXT_HEIGHT_TOL = 100.0   # ±100mm 容差
-# 面积标注正则：匹配 "52.01m" 或 "878.41m" 等格式（含整数如 "800m"）
-AREA_TEXT_RE = re.compile(r"^(\d+[\.,]\d+)m$")
+# 面积标注正则：匹配 "52.01m"、"878.41m" 等小数格式，也匹配 "800m" 等整数格式
+AREA_TEXT_RE = re.compile(r"^(\d+(?:[\.,]\d+)?)m$")
 
 # SVG 热区圆半径倍数（相对于 DXF 坐标系中圆圈的实际半径）
 HOTSPOT_RADIUS_FACTOR = 3.0
 # 热区最小 SVG 半径（当比例尺极小时的保底值）
 HOTSPOT_MIN_RADIUS_SVG = 2_000
+
+# 几何面积：过滤噪声面积（小于此值的多边形视为标注框/家具线，跳过）
+GEO_AREA_MIN_M2 = 2.0
+# DXF 坐标单位：1 unit = 1mm（1:100 图纸模型空间存真实尺寸，mm 为单位）
+DXF_UNIT_MM = 1.0
 
 # SVG 命名空间
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -240,6 +245,92 @@ def _collect_area_labels(msp, region: dict) -> list[tuple[float, float, float]]:
 
 
 # ---------------------------------------------------------------------------
+# 几何面积计算（LWPOLYLINE / HATCH 兜底）
+# ---------------------------------------------------------------------------
+
+def _calc_polygon_area(pts: list[tuple[float, float]]) -> float:
+    """Shoelace（鞋带）公式计算多边形面积，单位与坐标相同的平方。"""
+    n = len(pts)
+    if n < 3:
+        return 0.0
+    area = 0.0
+    for i in range(n):
+        j = (i + 1) % n
+        area += pts[i][0] * pts[j][1]
+        area -= pts[j][0] * pts[i][1]
+    return abs(area) / 2.0
+
+
+def _point_in_polygon(px: float, py: float, pts: list[tuple[float, float]]) -> bool:
+    """射线法（ray-casting）判断点 (px, py) 是否在多边形内。"""
+    inside = False
+    n = len(pts)
+    j = n - 1
+    for i in range(n):
+        xi, yi = pts[i]
+        xj, yj = pts[j]
+        if ((yi > py) != (yj > py)) and (
+            px < (xj - xi) * (py - yi) / (yj - yi) + xi
+        ):
+            inside = not inside
+        j = i
+    return inside
+
+
+def _collect_geometric_polygons(
+    msp, region: dict
+) -> list[tuple[list[tuple[float, float]], float]]:
+    """收集楼层区域内所有有效闭合多边形，供点在多边形判断使用。
+
+    DXF 图纸 1:100，模型空间坐标单位 = mm（实际尺寸），
+    面积换算：area_mm2 / 1_000_000 → m²。
+
+    Returns: [(pts, area_m2), ...]
+        pts: 多边形顶点列表；area_m2: 多边形面积（m²）。
+    """
+    results: list[tuple[list[tuple[float, float]], float]] = []
+
+    for entity in msp:
+        try:
+            if entity.dxftype() == "LWPOLYLINE":
+                if not entity.is_closed:
+                    continue
+                pts = [(p[0], p[1]) for p in entity.get_points()]
+                if len(pts) < 3:
+                    continue
+                # 至少有一个顶点在楼层区域内（快速过滤跨区域大多边形）
+                if not any(_is_in_region(x, y, region) for x, y in pts[:4]):
+                    continue
+                area_m2 = round(
+                    _calc_polygon_area(pts) * (DXF_UNIT_MM ** 2) / 1_000_000.0, 2
+                )
+                if area_m2 >= GEO_AREA_MIN_M2:
+                    results.append((pts, area_m2))
+
+            elif entity.dxftype() == "HATCH":
+                for path in entity.paths:
+                    if not hasattr(path, "vertices") or not path.vertices:
+                        continue
+                    pts = [(float(v[0]), float(v[1])) for v in path.vertices]
+                    if len(pts) < 3:
+                        continue
+                    if not any(_is_in_region(x, y, region) for x, y in pts[:4]):
+                        continue
+                    area_m2 = round(
+                        _calc_polygon_area(pts)
+                        * (DXF_UNIT_MM ** 2)
+                        / 1_000_000.0,
+                        2,
+                    )
+                    if area_m2 >= GEO_AREA_MIN_M2:
+                        results.append((pts, area_m2))
+        except Exception:
+            pass
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # 核心提取：按楼层区域提取所有房间
 # ---------------------------------------------------------------------------
 
@@ -332,6 +423,14 @@ def extract_rooms(msp, region: dict) -> list[dict]:
                 best_d = d
                 best_area = area
         room["area_m2"] = best_area
+
+    # ---- Step 4: 无面积标注的房间保持 null ----
+    # 此 DXF 房间边界由 LINE 实体围合，不存在可靠的闭合 LWPOLYLINE 房间轮廓，
+    # 几何面积兜底无法在此图纸样式中正确工作，故不执行几何匹配。
+    # 无面积标注的房间将以 null 写入 JSON，后续在管理后台手动录入。
+    null_count = sum(1 for r in rooms if r["area_m2"] is None)
+    if null_count:
+        print(f"    [提示] {null_count} 个房间无面积标注，area_m2=null（可在后台手动录入）")
 
     # 按房号排序（空字符串排末尾）
     rooms.sort(key=lambda r: (not r["room_no"], r["room_no"]))
@@ -523,12 +622,15 @@ def _load_floor_meta(json_path: Path) -> Optional[tuple[dict, dict]]:
 
 
 def _floor_label_to_prefix(floor_label: str) -> str:
-    """将楼层标签转为房号前缀，如 'F11' → '11'，'F6-F8-F10' → '060810'。"""
+    """将楼层标签转为房号前缀，如 'F11' → '11'，'F6-F8-F10' → '6'（取首层编号）。
+
+    多楼层共用同一 SVG 时（如 F20-F22），只取第一个楼层号作为前缀（'20'）。
+    后端导入时会按每个楼层的实际 floor_number 重新推导 unit_number，
+    JSON 中的前缀仅作参考标识，不直接用于写库。
+    """
     nums = re.findall(r"\d+", floor_label)
-    if len(nums) == 1:
-        return nums[0]
     if nums:
-        return "".join(f"{int(n):02d}" for n in nums)
+        return nums[0]  # 单楼层或多楼层共用时均取第一个楼层号
     return floor_label
 
 

@@ -7,9 +7,9 @@
 #      libc/glibc 版本兼容），从而 Dart AOT 二进制可直接运行
 #   3. 装入 ezdxf + lxml（pip wheel 含预编译 manylinux 二进制，无需 apt 装
 #      libxml2-dev/libxslt-dev 系统库）
-#   4. 把 scripts/split_dxf_by_floor.py 复制进 /app/scripts 供 CadImportService
-#      通过 Process.run('python3', ['/app/scripts/split_dxf_by_floor.py', ...])
-#      调用
+#   4. 把 scripts/split_dxf_by_floor.py、scripts/annotate_hotzone.py 及其依赖包
+#      scripts/floor_map/ 复制进 /app/scripts 供 CadImportService 通过
+#      Process.run('python3', ['/app/scripts/split_dxf_by_floor.py', ...]) 调用
 #
 # 部署目标：腾讯云容器镜像服务，OpenCloudOS 8 + Docker 26.1.3
 # =============================================================================
@@ -78,6 +78,8 @@ COPY --from=build /app/output/bundle/ /app/
 COPY scripts/split_dxf_by_floor.py /app/scripts/split_dxf_by_floor.py
 # 热区标注脚本（Python，由 CadImportService 在切分后调用，注入 unit-hotspots 层）
 COPY scripts/annotate_hotzone.py /app/scripts/annotate_hotzone.py
+# floor_map Python 包（split_dxf_by_floor.py 的依赖，缺失会导致 ModuleNotFoundError）
+COPY scripts/floor_map/ /app/scripts/floor_map/
 
 # 文件存储根目录（与 AppConfig.fileStoragePath 对齐，由 docker run -v 挂载）
 RUN mkdir -p /data/uploads

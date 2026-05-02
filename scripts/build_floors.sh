@@ -213,9 +213,12 @@ ANNOTATE_SCRIPT="scripts/annotate_hotzone.py"
 echo ""
 if [[ -f "$ANNOTATE_SCRIPT" ]]; then
   echo "=== [4/4] 热区标注（annotate_hotzone.py）==="
-  python3 "$ANNOTATE_SCRIPT" "$DXF_PATH" "$FLOORS_DIR" --prefix "$PREFIX" 2>&1 \
-    | grep -v "DIMASSOC" \
-    || true
+  ANNOTATE_LOG=$(python3 "$ANNOTATE_SCRIPT" "$DXF_PATH" "$FLOORS_DIR" --prefix "$PREFIX" 2>&1 || true)
+  ANNOTATE_EXIT=${PIPESTATUS[0]:-$?}
+  echo "$ANNOTATE_LOG" | grep -v "DIMASSOC" || true
+  if [[ "$ANNOTATE_EXIT" -ne 0 ]]; then
+    echo "[警告] annotate_hotzone.py 执行失败（退出码 $ANNOTATE_EXIT），房间热区数据可能不完整" >&2
+  fi
   ROOM_COUNT=$(python3 -c "
 import json, glob, os
 total = 0

@@ -431,6 +431,37 @@ class UnitRepository {
     return result.map((r) => r.toColumnMap()['unit_number'] as String).toSet();
   }
 
+  /// 仅当 gross_area 当前为 NULL 时才更新，避免覆盖手动修正值。
+  ///
+  /// 用于 CAD 重新导入场景：首次导入面积缺失，后续 DXF 补充了标注后
+  /// 重新导入可自动回填，同时保护已有非空面积不被意外改写。
+  ///
+  /// 返回实际更新条数（0 或 1）。
+  Future<int> updateGrossAreaIfNull(
+    String buildingId,
+    String unitNumber,
+    double grossArea,
+  ) async {
+    final result = await _db.execute(
+      Sql.named('''
+        UPDATE units
+        SET gross_area = @grossArea,
+            updated_at = NOW()
+        WHERE building_id = @buildingId::UUID
+          AND unit_number = @unitNumber
+          AND gross_area IS NULL
+          AND archived_at IS NULL
+        RETURNING id
+      '''),
+      parameters: {
+        'buildingId': buildingId,
+        'unitNumber': unitNumber,
+        'grossArea': grossArea,
+      },
+    );
+    return result.length;
+  }
+
   /// 统计可租单元总数：is_leasable=true 且未归档
   ///
   /// 用作 `getOverview` 中分母 `totalLeasableUnits` 的权威口径。

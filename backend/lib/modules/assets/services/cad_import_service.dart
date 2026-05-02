@@ -237,6 +237,13 @@ class CadImportService {
           print('[CadImportService] 热区标注警告 (jobId=$jobId): '
               '${_truncate(annotateResult.stderr.toString())}');
         }
+      } else {
+        // 脚本文件不存在（本地开发未设置 ANNOTATE_SCRIPT_PATH）：跳过标注
+        // 后果：JSON units 为空 → 各楼层不自动创建 Unit 记录
+        // 解决：在 .env 中设置 ANNOTATE_SCRIPT_PATH 指向本地脚本路径
+        print('[CadImportService] 跳过热区标注：'
+            'ANNOTATE_SCRIPT_PATH=$_annotateScriptPath 文件不存在。'
+            '如需自动创建房间，请在 .env 中配置正确的脚本路径。');
       }
 
       // 扫描输出 SVG 并尝试匹配
@@ -494,7 +501,9 @@ class CadImportService {
               units: rawUnits,
             );
             print(
-                '[CadImportService] 楼层 ${floor.id}（${floor.floorName}）自动创建 $created 个 Unit');
+              '[CadImportService] 楼层 ${floor.id}（${floor.floorName}）'
+              '新增 $created 个 Unit（共 ${rawUnits.length} 条，已有编号自动跳过/回填面积）',
+            );
           }
         }
       } catch (_) {
@@ -534,7 +543,15 @@ class CadImportService {
   /// 从 annotate_hotzone.py 生成的 JSON units 数组批量创建 Unit 记录。
   ///
   /// 策略：按 (building_id, unit_number) 查重，仅补充新增，跳过已有编号（保护现有数据）。
-  /// unit_number 使用 JSON 的 unit_id 字段（带楼层前缀，如 "11-01"）。
+  ///
+  /// unit_number 由当前楼层的真实 floorNumber 重新推导，而非直接使用 JSON 的 unit_id：
+  ///   - 多楼层共用同一 SVG 时（如 F20-F22），annotate_hotzone.py 会将前缀拼接为 "2022"，
+  ///     导致 unit_id 为 "2022-01"，逐楼层分别创建时必须替换为各自的编号（"20-01"/"22-01"）。
+  ///   - unit_id 格式：<floor_prefix>-<room_seq> 或纯 <room_seq>（无楼层前缀时）。
+  ///   - 推导规则：取 unit_id 首个连字符后的 room_seq，前缀替换为 floor.floorNumber：
+  ///       正楼层 → "<floorNumber>-<room_seq>"
+  ///       地下层 → "B<abs(floorNumber)>-<room_seq>"
+  ///
   /// 单条异常隔离：单个 unit 创建失败不中断整批。
   ///
   /// 返回实际创建的数量。
@@ -543,14 +560,31 @@ class CadImportService {
     required String propertyType,
     required List<dynamic> units,
   }) async {
-    // 提取所有非空 unit_id 作为候选 unit_number
-    final candidates = units
+    // 多楼层共用 SVG 时，JSON 的 floor_prefix 可能包含多个楼层号（如 "2022"），
+    // 必须按当前楼层 floorNumber 重新生成 unit_number。
+    String deriveUnitNumber(String rawUnitId) {
+      final dashIdx = rawUnitId.indexOf('-');
+      // 首个连字符后为 room_seq（若无连字符则整体作为 room_seq）
+      final roomSeq =
+          dashIdx >= 0 ? rawUnitId.substring(dashIdx + 1) : rawUnitId;
+      final floorPrefix = floor.floorNumber < 0
+          ? 'B${floor.floorNumber.abs()}'
+          : '${floor.floorNumber}';
+      return '$floorPrefix-$roomSeq';
+    }
+
+    // 过滤有效 unit 条目
+    final unitMaps = units
         .whereType<Map<String, dynamic>>()
-        .map((u) => (u['unit_id'] as String? ?? '').trim())
-        .where((id) => id.isNotEmpty)
+        .where((u) => (u['unit_id'] as String? ?? '').trim().isNotEmpty)
         .toList(growable: false);
 
-    if (candidates.isEmpty) return 0;
+    if (unitMaps.isEmpty) return 0;
+
+    // 候选 unit_number 基于当前楼层真实编号（而非 JSON 原始 unit_id）
+    final candidates = unitMaps
+        .map((u) => deriveUnitNumber((u['unit_id'] as String).trim()))
+        .toList(growable: false);
 
     final unitRepo = UnitRepository(_db);
     // 查重：获取已存在的 unit_number 集合
@@ -560,16 +594,35 @@ class CadImportService {
     );
 
     var created = 0;
-    for (final u in units.whereType<Map<String, dynamic>>()) {
-      final unitId = (u['unit_id'] as String? ?? '').trim();
-      if (unitId.isEmpty) continue;
-      if (existing.contains(unitId)) continue; // 已存在，跳过
+    var updated = 0; // 已存在但 gross_area 为 null → 本次回填
+    for (final u in unitMaps) {
+      final rawUnitId = (u['unit_id'] as String).trim();
+      final unitNumber = deriveUnitNumber(rawUnitId);
+
+      // 从 JSON 提取面积（gross_area 口径）
+      final areaRaw = u['area_m2'];
+      final grossArea = areaRaw is num ? areaRaw.toDouble() : null;
+
+      if (existing.contains(unitNumber)) {
+        // 已存在：仅在面积有值且数据库当前为 null 时回填（保护手动修正的非空值）
+        if (grossArea != null) {
+          try {
+            final rows = await unitRepo.updateGrossAreaIfNull(
+              floor.buildingId,
+              unitNumber,
+              grossArea,
+            );
+            updated += rows;
+          } catch (e) {
+            print(
+              '[CadImportService] gross_area 回填失败（unitNumber=$unitNumber）：$e',
+            );
+          }
+        }
+        continue;
+      }
 
       try {
-        // 从 JSON 提取面积（gross_area 口径）
-        final areaRaw = u['area_m2'];
-        final grossArea = areaRaw is num ? areaRaw.toDouble() : null;
-
         // 构建 ext_fields：保存房间名称与 SVG 热区坐标，供楼层地图交互使用
         final extFields = <String, dynamic>{};
         final roomName = u['room_name'] as String? ?? '';
@@ -580,7 +633,7 @@ class CadImportService {
         await unitRepo.create(
           floorId: floor.id,
           buildingId: floor.buildingId,
-          unitNumber: unitId,
+          unitNumber: unitNumber,
           propertyType: propertyType,
           grossArea: grossArea,
           extFields: extFields.isEmpty ? null : extFields,
@@ -588,8 +641,13 @@ class CadImportService {
         created++;
       } catch (e) {
         // 单条创建失败不中断整批，仅记录日志
-        print('[CadImportService] Unit 创建失败（unitId=$unitId）：$e');
+        print('[CadImportService] Unit 创建失败（unitNumber=$unitNumber）：$e');
       }
+    }
+    if (updated > 0) {
+      print(
+        '[CadImportService] 面积回填：$updated 个已有 Unit 的 gross_area 由 null 更新为 DXF 标注值',
+      );
     }
     return created;
   }

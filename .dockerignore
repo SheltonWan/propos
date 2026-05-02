@@ -13,7 +13,7 @@ pdfdocs/
 cad_source/
 cad_intermediate/
 
-# 脚本目录中只需要 split_dxf_by_floor.py，其余排除
+# 脚本目录中需要保留：split_dxf_by_floor.py、annotate_hotzone.py、floor_map/（其余排除）
 scripts/build_floors.sh
 scripts/cad_to_dxf.sh
 scripts/check_env.sh
@@ -29,6 +29,11 @@ scripts/postprocess_svg.py
 scripts/seed_buildings_24f.sql
 scripts/seed.sql
 scripts/setup_server.sh
+
+# Python 字节码缓存（运行时自动生成，不应打包进镜像）
+**/__pycache__/
+**/*.pyc
+**/*.pyo
 
 # 后端构建产物与临时文件
 backend/build/

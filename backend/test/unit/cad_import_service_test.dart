@@ -465,7 +465,9 @@ void main() {
               ])
             ]);
           case 2:
-            return makeResult(kFloorCols, [floorRow(id: 'f-11', buildingId: 'b-1')]);
+            // floorNumber=11，保证 deriveUnitNumber("11-xx") → "11-xx"
+            return makeResult(kFloorCols,
+                [floorRow(id: 'f-11', buildingId: 'b-1', floorNumber: 11)]);
           case 3:
             return makeResult(
                 kFloorPlanCols, [floorPlanRow(id: 'fp-11', floorId: 'f-11', isCurrent: false)]);
@@ -481,14 +483,14 @@ void main() {
           case 9:
             return makeResult(kBuildingCols, [buildingRow()]);
           case 10:
-            // findExistingUnitNumbers：'11-01' 已存在
+            // findExistingUnitNumbers：候选为派生后的 ['11-01','11-02']，'11-01' 已存在
             return makeResult([
               'unit_number'
             ], [
               ['11-01']
             ]);
           case 11:
-            // UnitRepository.create for '11-02'
+            // UnitRepository.create for '11-02'（由 deriveUnitNumber 推导）
             return makeResult(
                 kUnitCols, [unitRow(buildingId: 'b-1', floorId: 'f-11', unitNumber: '11-02')]);
           case 12:
@@ -570,6 +572,111 @@ void main() {
         svc.assignUnmatched('job-1', svgLabel: 'F12', floorId: 'f-12'),
         completes,
       );
+    });
+
+    test('多楼层共用 SVG：unit_number 按各自 floorNumber 生成（不拼接）', () async {
+      // 场景：F20-F22 共用一张 SVG，annotate_hotzone.py 生成 unit_id="2022-01"（前缀拼接错误）。
+      // 修复后：服务层对 22 楼按 floorNumber=22 重新推导 → unit_number="22-01"（正确）。
+      final svgRel = 'cad/b-1/jobs/job-1/plan_F22.svg';
+      final svgAbs = File('${tmpDir.path}/$svgRel');
+      await svgAbs.parent.create(recursive: true);
+      await svgAbs.writeAsString('<svg/>');
+      await File('${tmpDir.path}/cad/b-1/jobs/job-1/plan_F22.json')
+          .writeAsString(jsonEncode({
+        'dxf_region': {'min_x': 0, 'min_y': 0, 'max_x': 100, 'max_y': 100},
+        'viewport': {'width': 1000, 'height': 1000},
+        'units': [
+          // unit_id 前缀为 "2022"（annotate_hotzone 拼接 F20+F22 的错误输出）
+          {
+            'unit_id': '2022-01',
+            'room_name': '产业研发用房',
+            'area_m2': 88.0,
+            'hotspot': {'type': 'circle', 'cx': 300, 'cy': 400, 'r': 40},
+          },
+          {
+            'unit_id': '2022-02',
+            'room_name': '开放办公',
+            'area_m2': 120.0,
+            'hotspot': {'type': 'circle', 'cx': 500, 'cy': 400, 'r': 40},
+          },
+        ],
+      }));
+
+      // SQL 序列：共 14 步
+      // 1  CadImportJobRepository.findById
+      // 2  FloorRepository.findById（f-22，floorNumber=22）
+      // 3  FloorRepository.createPlan
+      // 4  setCurrentPlan SELECT
+      // 5-7 setCurrentPlan UPDATEs
+      // 8  setCurrentPlan.findPlanById
+      // 9  BuildingRepository.findById
+      // 10 UnitRepository.findExistingUnitNumbers（候选：["22-01","22-02"]）
+      // 11 UnitRepository.create for '22-01'
+      // 12 UnitRepository.create for '22-02'
+      // 13 repo.updateAssignments
+      // 14 repo.findById
+      String? capturedCreateUnitNumber1;
+      String? capturedCreateUnitNumber2;
+      var createCallIdx = 0;
+      var idx = 0;
+      pool.executeHandler = (q, p) {
+        idx++;
+        switch (idx) {
+          case 1:
+            return makeResult(_kJobCols, [
+              _jobRow(status: 'done', unmatchedSvgs: [
+                {'label': 'F22', 'tmp_path': svgRel},
+              ])
+            ]);
+          case 2:
+            // floorNumber=22，不含 floor 20
+            return makeResult(kFloorCols,
+                [floorRow(id: 'f-22', buildingId: 'b-1', floorNumber: 22)]);
+          case 3:
+            return makeResult(kFloorPlanCols,
+                [floorPlanRow(id: 'fp-22', floorId: 'f-22', isCurrent: false)]);
+          case 4:
+            return setPlanSelect('f-22', 'floors/b-1/f-22.svg');
+          case 5:
+          case 6:
+          case 7:
+            return makeResult([], []);
+          case 8:
+            return makeResult(kFloorPlanCols,
+                [floorPlanRow(id: 'fp-22', floorId: 'f-22', isCurrent: true)]);
+          case 9:
+            return makeResult(kBuildingCols, [buildingRow()]);
+          case 10:
+            // findExistingUnitNumbers：候选应为 ["22-01","22-02"]，均不存在
+            return makeResult(['unit_number'], []);
+          case 11:
+          case 12:
+            // create：捕获实际写入的 unit_number
+            createCallIdx++;
+            final params = p as Map<String, dynamic>?;
+            final unitNum = params?['unitNumber'] as String? ?? '';
+            if (createCallIdx == 1) {
+              capturedCreateUnitNumber1 = unitNum;
+            } else {
+              capturedCreateUnitNumber2 = unitNum;
+            }
+            final un = createCallIdx == 1 ? '22-01' : '22-02';
+            return makeResult(kUnitCols,
+                [unitRow(buildingId: 'b-1', floorId: 'f-22', unitNumber: un)]);
+          case 13:
+            return makeResult([], []);
+          default:
+            return makeResult(_kJobCols,
+                [_jobRow(status: 'done', matchedCount: 1, unmatchedSvgs: [])]);
+        }
+      };
+
+      await svc.assignUnmatched('job-1', svgLabel: 'F22', floorId: 'f-22');
+
+      // 关键断言：unit_number 必须是「22-XX」而非「2022-XX」
+      expect(capturedCreateUnitNumber1, '22-01',
+          reason: '多楼层共用SVG时，应用 floorNumber=22 替换 JSON 前缀 "2022"');
+      expect(capturedCreateUnitNumber2, '22-02');
     });
 
     test('无同名 JSON 文件 → 静默跳过，不抛异常', () async {
