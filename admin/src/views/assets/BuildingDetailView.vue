@@ -93,9 +93,20 @@
             <el-tag v-else type="info" size="small">未上传</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="渲染模式" width="120">
+          <template #default="{ row }">
+            <el-tag
+              v-if="row.render_mode"
+              :type="row.render_mode === 'vector' ? 'primary' : 'success'"
+              size="small"
+            >{{ row.render_mode === 'vector' ? 'vector' : 'semantic' }}</el-tag>
+            <el-tag v-else type="info" size="small">未标注</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click.stop="goFloor(row)">查看热区图</el-button>
+            <el-button type="success" link @click.stop="goStructures(row)">结构标注</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -148,6 +159,13 @@ function goBack(): void {
 function goFloor(row: Floor): void {
   router.push({
     name: 'floor-plan',
+    params: { buildingId: row.building_id, floorId: row.id },
+  })
+}
+
+function goStructures(row: Floor): void {
+  router.push({
+    name: 'FloorStructureAnnotator',
     params: { buildingId: row.building_id, floorId: row.id },
   })
 }
