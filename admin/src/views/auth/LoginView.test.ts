@@ -65,14 +65,17 @@ describe('LoginView', () => {
   })
 
   describe('渲染', () => {
-    it('显示"PropOS 管理平台"标题', () => {
+    it('显示品牌 Logo 与登录标题', () => {
       renderLoginView()
-      expect(screen.getByText('PropOS 管理平台')).toBeTruthy()
+      // 左侧品牌区 logo
+      expect(screen.getByText('PropOS')).toBeTruthy()
+      // 右侧表单副标题（h2 标题"登录"与按钮文案"登录"重名，改用唯一副标题断言）
+      expect(screen.getByText('使用账号邮箱登录管理平台')).toBeTruthy()
     })
 
     it('渲染邮箱输入框', () => {
       renderLoginView()
-      expect(screen.getByPlaceholderText('请输入账号邮箱')).toBeTruthy()
+      expect(screen.getByPlaceholderText('example@propos.cn')).toBeTruthy()
     })
 
     it('渲染密码输入框', () => {
@@ -132,7 +135,7 @@ describe('LoginView', () => {
 
     it('邮箱字段接收了校验规则（is-required class 存在）', () => {
       renderLoginView()
-      const emailInput = screen.getByPlaceholderText('请输入账号邮箱')
+      const emailInput = screen.getByPlaceholderText('example@propos.cn')
       const formItem = emailInput.closest('.el-form-item')
       // required: true 规则触发 is-required class，视觉上显示红色必填星号
       expect(formItem?.classList.contains('is-required')).toBe(true)
@@ -146,7 +149,7 @@ describe('LoginView', () => {
       // createTestingPinia 安装后，useAuthStore() 返回同一 store 实例，actions 已被 vi.fn() 替换
       const authStore = useAuthStore()
 
-      await user.type(screen.getByPlaceholderText('请输入账号邮箱'), 'test@propos.com')
+      await user.type(screen.getByPlaceholderText('example@propos.cn'), 'test@propos.com')
       await user.type(screen.getByPlaceholderText('请输入密码'), 'password123')
 
       // 直接触发 form submit，确保 handleLogin 被调用
