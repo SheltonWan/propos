@@ -125,7 +125,7 @@ class AssetsRepositoryImpl implements AssetsRepository {
           UnitStatus.expiringSoon => 'expiring_soon',
           UnitStatus.nonLeasable => 'non_leasable',
         },
-      'building_id': ?buildingId,
+      if (buildingId != null) 'building_id': buildingId,
     };
     final response = await _client.apiGetList<UnitSummaryModel>(
       ApiPaths.units,

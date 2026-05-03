@@ -76,7 +76,7 @@ GoRouter buildAppRouter() => GoRouter(
               routes: [
                 GoRoute(
                   path: RoutePaths.dashboard,
-              builder: (_, _) => const DashboardPage(),
+              builder: (_, __) => const DashboardPage(),
                 ),
               ],
             ),
@@ -85,7 +85,7 @@ GoRouter buildAppRouter() => GoRouter(
               routes: [
                 GoRoute(
                   path: RoutePaths.assets,
-                  builder: (_, _) => BlocProvider(
+                  builder: (_, __) => BlocProvider(
                     create: (_) => getIt<AssetOverviewCubit>(),
                     child: const AssetsPage(),
                   ),
@@ -151,7 +151,7 @@ GoRouter buildAppRouter() => GoRouter(
               routes: [
                 GoRoute(
                   path: RoutePaths.contracts,
-                  builder: (_, _) =>
+                  builder: (_, __) =>
                       const _PlaceholderPage(title: '合同'),
                 ),
               ],
@@ -161,7 +161,7 @@ GoRouter buildAppRouter() => GoRouter(
               routes: [
                 GoRoute(
                   path: RoutePaths.workorders,
-                  builder: (_, _) =>
+                  builder: (_, __) =>
                       const _PlaceholderPage(title: '工单'),
                 ),
               ],
@@ -171,7 +171,7 @@ GoRouter buildAppRouter() => GoRouter(
               routes: [
                 GoRoute(
                   path: RoutePaths.finance,
-                  builder: (_, _) =>
+                  builder: (_, __) =>
                       const _PlaceholderPage(title: '财务'),
                 ),
               ],

@@ -258,7 +258,7 @@ class _FloorImageViewer extends StatelessWidget {
                     imagePath,
                     width: constraints.maxWidth,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => const Padding(
+                    errorBuilder: (_, __, ___) => const Padding(
                       padding: EdgeInsets.all(32),
                       child: Text('平面图加载失败，请检查网络连接'),
                     ),

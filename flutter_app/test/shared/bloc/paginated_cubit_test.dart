@@ -76,7 +76,7 @@ void main() {
     blocTest<_TestCubit, PaginatedState<_TestItem>>(
       'load emits [loading, error] with ApiException message',
       build: () => _TestCubit(
-        (_, _) async => throw const ApiException(
+        (_, __) async => throw const ApiException(
           code: 'INTERNAL_ERROR',
           message: '服务异常',
           statusCode: 500,
@@ -93,7 +93,7 @@ void main() {
     blocTest<_TestCubit, PaginatedState<_TestItem>>(
       'load emits [loading, error] with fallback message on non-API error',
       build: () => _TestCubit(
-        (_, _) async => throw Exception('network'),
+        (_, __) async => throw Exception('network'),
       ),
       act: (cubit) => cubit.load(),
       expect: () => [
@@ -129,7 +129,7 @@ void main() {
     blocTest<_TestCubit, PaginatedState<_TestItem>>(
       'loadMore is no-op when no more pages',
       build: () => _TestCubit(
-        (_, _) async => throw StateError('should not be called'),
+        (_, __) async => throw StateError('should not be called'),
       ),
       seed: () => PaginatedState.loaded(_page1Items, meta: _metaLast),
       act: (cubit) => cubit.loadMore(),
@@ -140,7 +140,7 @@ void main() {
     blocTest<_TestCubit, PaginatedState<_TestItem>>(
       'loadMore is no-op when state is not loaded',
       build: () => _TestCubit(
-        (_, _) async => throw StateError('should not be called'),
+        (_, __) async => throw StateError('should not be called'),
       ),
       act: (cubit) => cubit.loadMore(),
       expect: () => <PaginatedState<_TestItem>>[],
@@ -150,7 +150,7 @@ void main() {
     blocTest<_TestCubit, PaginatedState<_TestItem>>(
       'loadMore keeps existing data on error (no emission)',
       build: () => _TestCubit(
-        (_, _) async => throw const ApiException(
+        (_, __) async => throw const ApiException(
           code: 'TIMEOUT',
           message: '超时',
           statusCode: 504,

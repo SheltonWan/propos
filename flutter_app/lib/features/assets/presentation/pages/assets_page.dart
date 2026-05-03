@@ -308,7 +308,7 @@ class _PropertyTypeStatsRow extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: stats.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 10),
+          separatorBuilder: (_, __) => const SizedBox(width: 10),
           itemBuilder: (context, index) => GestureDetector(
             onTap: () => onTypeSelected(stats[index].propertyType),
             child: PropertyTypeStatCard(stat: stats[index]),
@@ -334,7 +334,7 @@ class _FilterChipRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: types.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final type = types[index];
           final label = type?.label ?? '全部';

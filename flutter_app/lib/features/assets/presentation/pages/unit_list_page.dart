@@ -150,7 +150,7 @@ class _UnitListBody extends StatelessWidget {
                     child: ListView.separated(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: items.length + (meta.hasMore ? 1 : 0),
-                      separatorBuilder: (_, _) =>
+                      separatorBuilder: (_, __) =>
                           const Divider(height: 1, indent: 16),
                       itemBuilder: (context, index) {
                         if (index == items.length) {
