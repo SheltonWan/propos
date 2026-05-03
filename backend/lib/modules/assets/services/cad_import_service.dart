@@ -336,7 +336,7 @@ class CadImportService {
         status: 'failed',
         matchedCount: 0,
         unmatchedSvgs: const [],
-        errorMessage: '切分超时（>5 分钟），请检查 DXF 文件是否过大或损坏',
+        errorMessage: '切分超时（>8 分钟），请检查 DXF 文件是否过大或损坏',
       );
     } catch (e) {
       await repo.updateResult(
