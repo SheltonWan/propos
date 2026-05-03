@@ -27,8 +27,16 @@ ls scripts/floor_map/layer_constants.py
 ls scripts/apply_migration.sh
 ```
 
-### 0.2 Python 检测器依赖（两条路径都要写库）
-检测器使用 `--db-url` 参数时依赖 `psycopg`（v3），但当前未在锁定依赖中：
+### 0.2 Python 检测器依赖
+
+两条路径的执行位置不同，依赖安装方式也不同：
+
+| 路径 | Python 在哪里运行 | 依赖如何安装 |
+|------|-----------------|------------|
+| Track A（本地） | 开发机本地 `.venv` | 手动 `pip install`（见下） |
+| Track B（远程） | 远程服务器的临时 Docker 容器内 | 容器启动时自动 `pip install`，**本地无需 Python 环境** |
+
+**Track A 需在本地执行**：
 ```bash
 source .venv/bin/activate
 pip install ezdxf lxml Pillow psycopg[binary]
@@ -82,13 +90,21 @@ PGPASSWORD=ChangeMe_2026! psql -h localhost -U propos -d propos_dev \
 
 ### A5. 跑检测器并写库
 ```bash
+# 使用封装脚本（推荐）：自动读取本地默认 DB 连接
+bash scripts/extract_candidates.sh \
+  --target local \
+  --dxf cad_intermediate/building_a/A座.dxf \
+  --out cad_intermediate/building_a/floors
+```
+
+或手动调用（`output_dir` 为位置参数，**不是** `--output-dir`）：
+```bash
 source .venv/bin/activate
 export DATABASE_URL='postgresql://propos:ChangeMe_2026!@localhost:5432/propos_dev'
 
-# 单楼栋一气呵成：DXF→SVG → 候选写库
 python3 scripts/split_dxf_by_floor.py \
   cad_intermediate/building_a/A座.dxf \
-  --output-dir cad_intermediate/building_a/floors \
+  cad_intermediate/building_a/floors \
   --extract-structures \
   --db-url "$DATABASE_URL"
 ```
@@ -186,21 +202,22 @@ ssh propos-server "docker cp /tmp/seed_buildings_24f.sql propos-postgres:/tmp/ &
 ```
 
 ### B6. 跑检测器（在本机执行，写远程库）
+
+**执行拓扑**：Python 脚本 rsync 到远程服务器 → 在远程宿主机以 `docker run python:3.11-slim` 容器运行 → 容器加入 `propos-net` 网络 → 直接通过 Docker 内部 DNS 访问 `propos-postgres:5432`，无需 SSH 隧道。
+
 ```bash
-source .venv/bin/activate
-# 远程 DB 端口需通过 SSH 隧道暴露，或临时放开安全组（仅限验证）
-ssh -fNL 15432:localhost:5432 propos-server
-export DATABASE_URL='postgresql://propos:<REMOTE_PG_PASSWORD>@localhost:15432/propos'
-
-python3 scripts/split_dxf_by_floor.py \
-  cad_intermediate/building_a/A座.dxf \
-  --output-dir cad_intermediate/building_a/floors \
-  --extract-structures \
-  --db-url "$DATABASE_URL"
-
-# 用完关闭隧道
-pkill -f 'ssh -fNL 15432'
+bash scripts/extract_candidates.sh \
+  --target remote \
+  --dxf cad_intermediate/building_a/A座.dxf \
+  --out cad_intermediate/building_a/floors
 ```
+
+脚本行为：
+1. SSH 连通性预检
+2. 从远程 `/opt/propos/.env` 读取 `DATABASE_URL`（已含 `propos-postgres` 主机名）
+3. `rsync` Python 脚本 + DXF 文件到远程 `/tmp/propos_extract/`
+4. `ssh propos-server docker run --rm --network propos-net python:3.11-slim ...` 在容器内安装依赖并运行抽取
+5. `rsync` 生成的 SVG 文件回本地 `--out` 目录
 
 ### B7. UI 走查（生产）
 浏览器访问 `http://111.230.112.246` → 登录 → 资产 → 楼栋详情 → 任选一层 → 完成 [A8](#a8-ui-操作走查) 中相同清单。

@@ -20,6 +20,7 @@ import ezdxf
 from .column_detector import detect_columns, detect_columns_from_entities
 from .coordinate_mapper import CoordinateMapper, Viewport, compute_bbox
 from .outline_extractor import extract_outline, extract_outline_from_entities
+from .semantic_detector import detect_structures, detect_structures_from_entities
 from .window_detector import detect_windows, detect_windows_from_entities
 
 
@@ -61,18 +62,21 @@ def extract_candidates(
     outline = extract_outline(dxf_path, mapper)
     columns = detect_columns(dxf_path, mapper)
     windows = detect_windows(dxf_path, mapper)
+    semantic = detect_structures(dxf_path, mapper)
 
-    return _assemble(mapper, outline, columns, windows)
+    return _assemble(mapper, outline, columns + semantic, windows)
 
 
 def extract_candidates_from_entities(
     entities: list,
     bbox: tuple[float, float, float, float],
     viewport: Viewport | None = None,
+    doc=None,
 ) -> dict:
     """从内存实体列表抽取候选结构（供 split_dxf_by_floor.py 调用）。
 
     调用方负责提供已过滤的实体列表与其包围盒。
+    doc 可选传入，用于语义检测 Strategy 1（INSERT 块名匹配）。
     """
     if bbox[2] <= bbox[0] or bbox[3] <= bbox[1]:
         raise ValueError("非法包围盒")
@@ -80,12 +84,14 @@ def extract_candidates_from_entities(
     outline = extract_outline_from_entities(entities, mapper)
     columns = detect_columns_from_entities(entities, mapper)
     windows = detect_windows_from_entities(entities, mapper)
-    return _assemble(mapper, outline, columns, windows)
+    semantic = detect_structures_from_entities(entities, mapper, doc=doc)
+    return _assemble(mapper, outline, columns + semantic, windows)
 
 
 def _assemble(mapper: CoordinateMapper, outline, columns, windows) -> dict:
     return {
         "schema_version": "2.0",
+        "render_mode": "vector",
         "viewport": {
             "width": mapper.viewport.width,
             "height": mapper.viewport.height,

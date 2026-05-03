@@ -999,6 +999,7 @@ def main():
                     prefix=args.prefix,
                     entity_centers=entity_centers,
                     db_url=args.db_url,
+                    doc=doc,
                 )
 
     print(f"\n完成: 成功渲染 {success}/{len(regions)} 个楼层")
@@ -1046,6 +1047,7 @@ def _stage7_extract_candidates(
     prefix: str,
     entity_centers: dict,
     db_url: str,
+    doc=None,
 ) -> None:
     """Stage 7：对单个楼层区域抽取候选结构，并写入 JSON（可选 DB）。"""
     try:
@@ -1100,8 +1102,22 @@ def _stage7_extract_candidates(
 
     # bbox 取区域本身（避免逐实体重算包围盒耗时）
     bbox_t = (region_min.x, region_min.y, region_max.x, region_max.y)
+
+    # 补充原始顶层 INSERT 实体（未展开），供语义检测 Strategy 1 用块名匹配。
+    # 展开后的虚拟实体已丢失 INSERT 块名，Strategy 1 需要原始 INSERT 对象 + doc。
+    if doc is not None:
+        for top in msp:
+            if top.dxftype() == "INSERT":
+                center = entity_centers.get(id(top))
+                if center is None:
+                    center = _entity_anchor(top)
+                if center is not None:
+                    cx, cy = center
+                    if region_min.x <= cx <= region_max.x and region_min.y <= cy <= region_max.y:
+                        in_region.append(top)
+
     try:
-        candidates = extract_candidates_from_entities(in_region, bbox_t)
+        candidates = extract_candidates_from_entities(in_region, bbox_t, doc=doc)
     except Exception as ex:  # noqa: BLE001
         print(f"  [{label}] Stage 7 抽取失败: {ex}")
         return
@@ -1113,7 +1129,9 @@ def _stage7_extract_candidates(
     )
     print(
         f"  [{label}] Stage 7: outline={'✓' if candidates['outline'] else '✗'} "
-        f"columns={len(candidates['structures'])} windows={len(candidates['windows'])} "
+        f"columns={sum(1 for s in candidates['structures'] if s.get('type') == 'column')} "
+        f"semantic={sum(1 for s in candidates['structures'] if s.get('type') != 'column')} "
+        f"windows={len(candidates['windows'])} "
         f"→ {out_json.name}"
     )
 
@@ -1122,22 +1140,62 @@ def _stage7_extract_candidates(
 
 
 def _stage7_upsert_db(db_url: str, label: str, candidates: dict) -> None:
-    """将候选结构 UPSERT 到 floor_maps 表。需 floor_id 映射（按 label 查 floors.label）。。"""
+    """将候选结构 UPSERT 到 floor_maps 表。需 floor_id 映射（按 label 查 floors.floor_name）。
+
+    floor_name 格式兼容两种惯例：
+    - 脚本生成格式：'F6'（DXF 层名解析，前缀 F + 数字）
+    - seed SQL 格式：'6F'（数字 + 后缀 F）
+    匹配优先级：① 精确 label ② 互换格式（F6↔6F） ③ 楼层号（floor_number）
+    """
+    import re  # noqa: PLC0415
+
     try:
         import psycopg  # type: ignore
     except ImportError:
         print(f"  [{label}] Stage 7 DB 同步跳过：未安装 psycopg")
         return
+
+    # 构造备选 floor_name 列表（消除 F6 vs 6F 格式差异）
+    alt_names: list[str] = [label]
+    # F6 → 6F
+    m = re.match(r'^F(\d+)$', label)
+    if m:
+        alt_names.append(m.group(1) + 'F')
+    # 6F → F6
+    m2 = re.match(r'^(\d+)F$', label)
+    if m2:
+        alt_names.append('F' + m2.group(1))
+    # 合并楼层如 F6-F8 → 取首段楼层号也加入备选
+    m3 = re.match(r'^F(\d+)-', label)
+    if m3:
+        alt_names.append(m3.group(1) + 'F')
+    # 去重保序
+    seen: set[str] = set()
+    alt_names = [x for x in alt_names if not (x in seen or seen.add(x))]  # type: ignore[func-returns-value]
+
     try:
         with psycopg.connect(db_url) as conn:
             with conn.cursor() as cur:
+                # ① 按 floor_name 多格式匹配
+                placeholders = ','.join(['%s'] * len(alt_names))
                 cur.execute(
-                    "SELECT id FROM floors WHERE floor_name = %s LIMIT 1",
-                    (label,),
+                    f"SELECT id FROM floors WHERE floor_name = ANY(ARRAY[{placeholders}]) LIMIT 1",  # noqa: S608
+                    alt_names,
                 )
                 row = cur.fetchone()
+
+                # ② 降级：按 floor_number 匹配（取 label 中首个数字）
                 if not row:
-                    print(f"  [{label}] Stage 7 DB: floors.floor_name='{label}' 未找到，跳过")
+                    num_match = re.search(r'(\d+)', label)
+                    if num_match:
+                        cur.execute(
+                            "SELECT id FROM floors WHERE floor_number = %s LIMIT 1",
+                            (int(num_match.group(1)),),
+                        )
+                        row = cur.fetchone()
+
+                if not row:
+                    print(f"  [{label}] Stage 7 DB: floors 中未找到匹配（尝试了 {alt_names}），跳过")
                     return
                 floor_id = row[0]
                 cur.execute(
