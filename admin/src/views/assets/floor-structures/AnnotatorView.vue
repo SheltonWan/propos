@@ -18,9 +18,20 @@
     />
 
     <div v-loading="store.loading" class="body">
-      <CandidatesPanel />
-      <CanvasStage ref="canvasRef" />
-      <InspectorPanel />
+      <!-- 楼层不存在或后端加载失败（错误详情见底部错误栏） -->
+      <div v-if="!store.loading && !store.draft" class="empty-state">
+        <el-empty description="楼层数据不可用">
+          <template #description>
+            <p>无法加载楼层数据。</p>
+            <p>请确认楼层已存在，或返回楼栋详情页重试。</p>
+          </template>
+        </el-empty>
+      </div>
+      <template v-else>
+        <CandidatesPanel />
+        <CanvasStage ref="canvasRef" />
+        <InspectorPanel />
+      </template>
     </div>
 
     <el-alert
@@ -137,6 +148,12 @@ watch(floorId, (id) => {
   flex: 1;
   display: flex;
   overflow: hidden;
+}
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .error-bar {
   position: fixed;

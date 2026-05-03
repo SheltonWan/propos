@@ -1,7 +1,7 @@
 /**
  * 楼层结构标注页 E2E（page.route mock）
  *
- * 覆盖 plan §5-2 8 个核心场景：
+ * 覆盖 plan §5-2 8 个核心场景 + 空状态场景：
  *  1. 进入页面：候选清单 + 画布渲染
  *  2. 点击候选 → 加入 draft，dirty Tag 出现
  *  3. 选中已保存结构 → Inspector 显示属性
@@ -10,6 +10,7 @@
  *  6. 409 冲突 → error 显示，dirty 保留
  *  7. dirty 时切换 RenderMode 被禁用
  *  8. SPA 离开守卫弹窗（取消留在页面）
+ *  9. 候选项未就绪（FLOOR_CANDIDATES_NOT_READY）→ 显示空状态文案
  */
 import { test, expect, type Page, type Route } from '@playwright/test'
 import candidatesMock from './fixtures/candidates.mock.json'
@@ -207,5 +208,49 @@ test.describe('楼层结构标注页', () => {
     await expect(msgbox).toBeVisible()
     await msgbox.getByRole('button', { name: '取消' }).click()
     await expect(page).toHaveURL(new RegExp(URL.replace(/\//g, '\\/')))
+  })
+
+  test('候选项未就绪 → 显示空状态文案', async ({ page }) => {
+    // 两个端点均失败：confirmed 404、candidates 409 FLOOR_CANDIDATES_NOT_READY
+    await page.route('**/api/auth/me', (r: Route) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: MOCK_AUTH_USER }),
+      }),
+    )
+    await page.route(`**/api/buildings/${BUILDING_ID}`, (r: Route) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: MOCK_BUILDING }),
+      }),
+    )
+    await page.route(`**/api/floors/${FLOOR_ID}/structures`, (r: Route) =>
+      r.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { code: 'FLOOR_MAP_NOT_FOUND', message: '楼层结构不存在' },
+        }),
+      }),
+    )
+    await page.route(`**/api/floors/${FLOOR_ID}/structures/candidates`, (r: Route) =>
+      r.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { code: 'FLOOR_CANDIDATES_NOT_READY', message: '候选项尚未就绪' },
+        }),
+      }),
+    )
+
+    await page.goto(URL)
+    // 画布和候选面板不显示
+    await expect(page.locator('svg.stage')).toBeHidden()
+    // 空状态文案可见
+    await expect(page.locator('.empty-state')).toBeVisible()
+    await expect(page.locator('.empty-state')).toContainText('该楼层尚未生成候选结构')
+    await expect(page.locator('.empty-state')).toContainText('请先在楼栋详情页上传整栋 DXF 文件')
   })
 })

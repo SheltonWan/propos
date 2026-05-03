@@ -153,7 +153,10 @@ export const useFloorStructuresStore = defineStore('floorStructures', () => {
   // ── Actions ───────────────────────────────────────
   /**
    * 加载候选 + 已确认结构
-   * draft = confirmed ?? normalizedCandidates；ifMatch 取 confirmed 响应头 ETag
+   * draft = confirmed（非空）?? normalizedCandidates；ifMatch 取 confirmed 响应头 ETag
+   *
+   * 注：后端对尚未保存过的楼层返回 200 + 空壳（viewport/outline 均为 null）。
+   * 此时应回退到 candidates，否则画布会以空数据渲染导致显示空白。
    */
   async function load(floorId: string): Promise<void> {
     loading.value = true
@@ -166,21 +169,40 @@ export const useFloorStructuresStore = defineStore('floorStructures', () => {
 
       candidates.value = cand.status === 'fulfilled' ? cand.value : null
 
-      if (conf.status === 'fulfilled') {
-        confirmed.value = conf.value.data
-        ifMatch.value = conf.value.headers['etag'] ?? null
-        renderMode.value = conf.value.data.render_mode
-        draft.value = deepClone(conf.value.data)
+      // 判断 confirmed 是否为有效数据（非空壳）
+      const confData = conf.status === 'fulfilled' ? conf.value.data : null
+      const hasConfirmed = confData !== null && confData.viewport !== null && confData.outline !== null
+
+      if (hasConfirmed && confData) {
+        confirmed.value = confData
+        ifMatch.value = conf.status === 'fulfilled' ? (conf.value.headers['etag'] ?? null) : null
+        renderMode.value = confData.render_mode ?? 'vector'
+        draft.value = deepClone(confData)
       } else if (candidates.value) {
         confirmed.value = null
         ifMatch.value = null
         // 候选 source=auto，进入草稿前需归一化为 manual（保存契约要求）
         draft.value = normalizeForDraft(candidates.value)
-        renderMode.value = draft.value.render_mode
-      } else {
-        // 两个端点都失败：透传 confirmed 端点错误（candidates 不存在是正常状态）
-        if (conf.status === 'rejected') _setError(conf.reason)
+        // candidates JSON 可能缺少 render_mode，回退默认值
+        renderMode.value = draft.value.render_mode ?? 'vector'
+      } else if (conf.status === 'rejected') {
+        // getConfirmedStructures 失败（楼层不存在或后端错误）：报错并显示空状态
+        _setError(conf.reason)
         draft.value = null
+      } else {
+        // candidates 尚未生成（抽取流水线未运行），且无已保存的 structures。
+        // 以空白画布启动，允许用户从零开始手动标注，无需等待 Python 抽取结果。
+        const DEFAULT_W = 1200
+        const DEFAULT_H = 900
+        draft.value = {
+          schema_version: '2.0',
+          render_mode: 'vector',
+          viewport: { width: DEFAULT_W, height: DEFAULT_H },
+          outline: { type: 'rect', rect: { x: 0, y: 0, w: DEFAULT_W, h: DEFAULT_H } },
+          structures: [],
+          windows: [],
+        }
+        renderMode.value = 'vector'
       }
 
       baselineSnapshot.value = draft.value ? deepClone(draft.value) : null
