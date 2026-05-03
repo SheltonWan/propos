@@ -62,9 +62,10 @@ RUN pip install --no-cache-dir --upgrade \
 # 安装 DXF → SVG 切分所需的 Python 依赖
 # 注：使用清华 PyPI 镜像加速；--no-cache-dir 减小镜像体积
 # Pillow 是 ezdxf drawing 插件的隐式依赖（PIL.Image）
+# psycopg[binary] 是 Stage 7 写入 floor_maps.candidates 的依赖（binary wheel 无需 libpq-dev）
 RUN pip install --no-cache-dir \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    ezdxf lxml Pillow
+    ezdxf lxml Pillow "psycopg[binary]"
 
 # Dart AOT 运行时（python:3.12-slim 基于 Debian Bookworm，usrmerge 导致 /lib 是
 # /usr/lib 的符号链接；Docker BuildKit COPY 不跟随符号链接目录，直接写入实际目录

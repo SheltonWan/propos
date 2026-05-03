@@ -36,6 +36,8 @@ class CadImportService {
   final String _annotateScriptPath;
   /// Python 解释器路径，默认 python3
   final String _pythonExecutable;
+  /// PostgreSQL 连接串，切分脚本写入 floor_maps.candidates 时使用
+  final String _databaseUrl;
 
   CadImportService(
     this._db,
@@ -43,11 +45,13 @@ class CadImportService {
     String? splitScriptPath,
     String? annotateScriptPath,
     String? pythonExecutable,
+    String? databaseUrl,
   })  : _splitScriptPath =
             splitScriptPath ?? '/app/scripts/split_dxf_by_floor.py',
         _annotateScriptPath =
             annotateScriptPath ?? '/app/scripts/annotate_hotzone.py',
-        _pythonExecutable = pythonExecutable ?? 'python3';
+        _pythonExecutable = pythonExecutable ?? 'python3',
+        _databaseUrl = databaseUrl ?? '';
 
   // ─── 公开 API ──────────────────────────────────────────────────────────
 
@@ -194,17 +198,24 @@ class CadImportService {
 
       final dxfAbs = _resolveSafe(job.dxfPath);
 
+      // 构建切分参数：始终附带 --extract-structures，有 DB URL 时写入 floor_maps.candidates
+      final splitArgs = <String>[
+        _splitScriptPath,
+        dxfAbs,
+        outAbs,
+        '--prefix',
+        job.prefix,
+        '--extract-structures',
+      ];
+      if (_databaseUrl.isNotEmpty) {
+        splitArgs.addAll(['--db-url', _databaseUrl]);
+      }
+
       final result = await Process.run(
         _pythonExecutable,
-        [
-          _splitScriptPath,
-          dxfAbs,
-          outAbs,
-          '--prefix',
-          job.prefix,
-        ],
+        splitArgs,
         runInShell: false,
-      ).timeout(const Duration(minutes: 5));
+      ).timeout(const Duration(minutes: 8));
 
       if (result.exitCode != 0) {
         await repo.updateResult(
