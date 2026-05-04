@@ -119,7 +119,12 @@ class _BuildingDetailPageState extends State<BuildingDetailPage> {
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            16 + MediaQuery.paddingOf(context).bottom,
+          ),
           sliver: SliverList.builder(
             itemCount: sorted.length,
             itemBuilder: (context, index) => _FloorRow(
@@ -254,15 +259,15 @@ class _BuildingInfoCard extends StatelessWidget {
                 _SummaryCellDivider(),
                 _SummaryCell(
                   label: '建筑面积',
-                  value: (building.gfa / 1000).toStringAsFixed(1),
-                  unit: 'k㎡',
+                  value: building.gfa.toStringAsFixed(0),
+                  unit: '㎡',
                   valueColor: accentColor,
                 ),
                 _SummaryCellDivider(),
                 _SummaryCell(
                   label: '净使用面积',
-                  value: (building.nla / 1000).toStringAsFixed(1),
-                  unit: 'k㎡',
+                  value: building.nla.toStringAsFixed(0),
+                  unit: '㎡',
                 ),
               ],
             ),

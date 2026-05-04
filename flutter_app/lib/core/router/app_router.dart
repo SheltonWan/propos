@@ -67,6 +67,53 @@ GoRouter buildAppRouter() => GoRouter(
       pageBuilder: (_, state) =>
           CupertinoPage(key: state.pageKey, child: const ForgotPasswordPage()),
     ),
+    // ── Assets 详情路由（Shell 外，无 TabBar / Shell AppBar）──
+    // 详情页跳转后完全脱离 Shell，自带 Scaffold + CupertinoNavigationBar 和返回按钮
+    GoRoute(
+      path: RoutePaths.buildingDetail,
+      pageBuilder: (ctx, state) => CupertinoPage(
+        key: state.pageKey,
+        child: BlocProvider(
+          create: (_) => getIt<BuildingDetailCubit>(),
+          child: BuildingDetailPage(buildingId: state.pathParameters['id']!),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: RoutePaths.floorPlan,
+      pageBuilder: (ctx, state) => CupertinoPage(
+        key: state.pageKey,
+        child: BlocProvider(
+          create: (_) => getIt<FloorMapCubit>(),
+          child: FloorPlanPage(
+            buildingId: state.pathParameters['bid']!,
+            floorId: state.pathParameters['fid']!,
+          ),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: RoutePaths.unitList,
+      pageBuilder: (ctx, state) => CupertinoPage(
+        key: state.pageKey,
+        child: BlocProvider(
+          create: (_) => getIt<UnitListCubit>()..load(),
+          child: UnitListPage(
+            buildingId: state.uri.queryParameters['building_id'],
+          ),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: RoutePaths.unitDetail,
+      pageBuilder: (ctx, state) => CupertinoPage(
+        key: state.pageKey,
+        child: BlocProvider(
+          create: (_) => getIt<UnitDetailCubit>(),
+          child: UnitDetailPage(unitId: state.pathParameters['id']!),
+        ),
+      ),
+    ),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
               MainShell(navigationShell: navigationShell),
@@ -89,60 +136,6 @@ GoRouter buildAppRouter() => GoRouter(
                     create: (_) => getIt<AssetOverviewCubit>(),
                     child: const AssetsPage(),
                   ),
-                  routes: [
-                    GoRoute(
-                      path: 'buildings/:id',
-                      pageBuilder: (ctx, state) => CupertinoPage(
-                        key: state.pageKey,
-                        child: BlocProvider(
-                          create: (_) => getIt<BuildingDetailCubit>(),
-                          child: BuildingDetailPage(
-                            buildingId: state.pathParameters['id']!,
-                          ),
-                        ),
-                      ),
-                      routes: [
-                        GoRoute(
-                          path: 'floors/:fid',
-                          pageBuilder: (ctx, state) => CupertinoPage(
-                            key: state.pageKey,
-                            child: BlocProvider(
-                              create: (_) => getIt<FloorMapCubit>(),
-                              child: FloorPlanPage(
-                                buildingId: state.pathParameters['id']!,
-                                floorId: state.pathParameters['fid']!,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    GoRoute(
-                      path: 'units',
-                      pageBuilder: (ctx, state) => CupertinoPage(
-                        key: state.pageKey,
-                        child: BlocProvider(
-                          create: (_) => getIt<UnitListCubit>()
-                            ..load(),
-                          child: UnitListPage(
-                            buildingId: state.uri.queryParameters['building_id'],
-                          ),
-                        ),
-                  ),
-                    ),
-                    GoRoute(
-                      path: 'units/:uid',
-                      pageBuilder: (ctx, state) => CupertinoPage(
-                        key: state.pageKey,
-                        child: BlocProvider(
-                          create: (_) => getIt<UnitDetailCubit>(),
-                          child: UnitDetailPage(
-                            unitId: state.pathParameters['uid']!,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),

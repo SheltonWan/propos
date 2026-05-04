@@ -48,9 +48,17 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 加载完成后显示 "楼栋名 楼层名 楼层图"，其余状态显示通用标题。
+    final title = context.select<FloorMapCubit, String>((cubit) {
+      final s = cubit.state;
+      return s is FloorMapStateLoaded
+          ? '${s.floor.buildingName} ${s.floor.displayName} 楼层图'
+          : '楼层热区图';
+    });
+
     return Scaffold(
       appBar: CupertinoNavigationBar(
-        middle: const Text('楼层热区图'),
+        middle: Text(title),
         leading: CupertinoNavigationBarBackButton(
           onPressed: () => context.pop(),
         ),

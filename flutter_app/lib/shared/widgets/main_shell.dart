@@ -9,63 +9,138 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/custom_colors.dart';
 import '../../features/auth/presentation/bloc/auth_cubit.dart';
 import '../../features/auth/presentation/bloc/auth_state.dart';
-import 'user_menu_button.dart';
+
+/// Tab 配置项，描述单个 Tab 的分支索引、权限要求与图标。
+///
+/// [branchIndex] 对应 [StatefulShellRoute] 中 branches 列表的位置，固定不变。
+/// [requiredPermission] 为 null 时表示全角色均可见（首页）。
+class _TabConfig {
+  final int branchIndex;
+  final String? requiredPermission;
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+
+  const _TabConfig({
+    required this.branchIndex,
+    this.requiredPermission,
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+  });
+}
+
+/// 全量 Tab 定义（顺序与 [StatefulShellRoute.branches] 一致）。
+const _kAllTabs = [
+  _TabConfig(
+    branchIndex: 0,
+    requiredPermission: null,
+    icon: CupertinoIcons.house,
+    activeIcon: CupertinoIcons.house_fill,
+    label: '首页',
+  ),
+  // cupertino_icons v1.0.9 仅提供 building_2_fill，无 outline 版本；
+  // 通过 activeColor/inactiveColor 提供选中态视觉区分
+  _TabConfig(
+    branchIndex: 1,
+    requiredPermission: 'assets.read',
+    icon: CupertinoIcons.building_2_fill,
+    activeIcon: CupertinoIcons.building_2_fill,
+    label: '资产',
+  ),
+  _TabConfig(
+    branchIndex: 2,
+    requiredPermission: 'contracts.read',
+    icon: CupertinoIcons.doc_text,
+    activeIcon: CupertinoIcons.doc_text_fill,
+    label: '合同',
+  ),
+  _TabConfig(
+    branchIndex: 3,
+    requiredPermission: 'workorders.read',
+    icon: CupertinoIcons.wrench,
+    activeIcon: CupertinoIcons.wrench_fill,
+    label: '工单',
+  ),
+  _TabConfig(
+    branchIndex: 4,
+    requiredPermission: 'finance.read',
+    icon: CupertinoIcons.chart_bar,
+    activeIcon: CupertinoIcons.chart_bar_fill,
+    label: '财务',
+  ),
+];
 
 /// 应用主壳体，提供底部 Tab 导航和顶部导航栏（苹果风格）。
 ///
 /// Tab 级页面不应包含自己的 Scaffold，由此 Shell 统一提供。
 /// 子页面（通过 push 导航的详情页）应包含自己的 Scaffold 和返回按钮。
 /// Dashboard Tab（index 0）使用专属深色 [_DashboardNavBar]；其余 Tab 使用 [CupertinoNavigationBar]。
+/// Tab 可见性根据 [AuthCubit] 中用户的 permissions 列表动态过滤。
 class MainShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
-
-  /// 各 Tab 对应的标题，与 branches 顺序一致。
-  static const _tabTitles = ['首页', '资产', '合同', '工单', '财务'];
 
   const MainShell({super.key, required this.navigationShell});
 
   @override
   Widget build(BuildContext context) {
-    final index = navigationShell.currentIndex;
-    return Scaffold(
-      appBar: index == 0
-          ? const _DashboardNavBar() : _StandardNavBar(title: _tabTitles[index]),
-      body: navigationShell,
-      // 使用 iOS 原生 CupertinoTabBar 替代 Material NavigationBar
-      // iconSize: 24 对齐 Apple HIG 推荐的 TabBar 图标尺寸（约 25pt），
-      // Flutter 默认 30pt 在 50pt 高 TabBar 中视觉偏大
-      bottomNavigationBar: CupertinoTabBar(
-        currentIndex: index,
-        onTap: (i) => navigationShell.goBranch(i, initialLocation: i == index),
-        activeColor: CupertinoTheme.of(context).primaryColor,
-        inactiveColor: CupertinoColors.inactiveGray,
-        iconSize: 24,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.house),
-            activeIcon: Icon(CupertinoIcons.house_fill),
-            label: '首页',
+    return BlocBuilder<AuthCubit, AuthState>(
+      builder: (context, authState) {
+        // 从认证状态取出权限列表；未认证时路由守卫已拦截，此处做安全兜底
+        final permissions = switch (authState) {
+          AuthStateAuthenticated(:final user) => user.permissions,
+          _ => const <String>[],
+        };
+
+        // 根据权限过滤出可见 Tab（首页无权限限制，始终保留）
+        final visibleTabs = _kAllTabs
+            .where((t) =>
+                t.requiredPermission == null ||
+                permissions.contains(t.requiredPermission))
+            .toList();
+
+        final branchIndex = navigationShell.currentIndex;
+
+        // 将 branchIndex 映射为可见 Tab 列表中的显示索引
+        final displayIndex = visibleTabs.indexWhere((t) => t.branchIndex == branchIndex);
+        final effectiveDisplayIndex = displayIndex < 0 ? 0 : displayIndex;
+
+        // 当前分支对应的 Tab 配置（用于 AppBar 标题）
+        final currentTab = _kAllTabs.firstWhere(
+          (t) => t.branchIndex == branchIndex,
+          orElse: () => _kAllTabs.first,
+        );
+
+        return Scaffold(
+          appBar: branchIndex == 0
+              ? const _DashboardNavBar()
+              : _StandardNavBar(title: currentTab.label),
+          body: navigationShell,
+          // 使用 iOS 原生 CupertinoTabBar 替代 Material NavigationBar
+          // iconSize: 24 对齐 Apple HIG 推荐的 TabBar 图标尺寸（约 25pt），
+          // Flutter 默认 30pt 在 50pt 高 TabBar 中视觉偏大
+          bottomNavigationBar: CupertinoTabBar(
+            currentIndex: effectiveDisplayIndex,
+            onTap: (i) {
+              final tab = visibleTabs[i];
+              navigationShell.goBranch(
+                tab.branchIndex,
+                initialLocation: tab.branchIndex == branchIndex,
+              );
+            },
+            activeColor: CupertinoTheme.of(context).primaryColor,
+            inactiveColor: CupertinoColors.inactiveGray,
+            iconSize: 24,
+            items: visibleTabs
+                .map((t) => BottomNavigationBarItem(
+                      icon: Icon(t.icon),
+                      activeIcon: Icon(t.activeIcon),
+                      label: t.label,
+                    ))
+                .toList(),
           ),
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.building_2_fill),
-            label: '资产',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.doc_text),
-            activeIcon: Icon(CupertinoIcons.doc_text_fill),
-            label: '合同',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.wrench),
-            activeIcon: Icon(CupertinoIcons.wrench_fill),
-            label: '工单',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.chart_bar),
-            activeIcon: Icon(CupertinoIcons.chart_bar_fill),
-            label: '财务',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -81,7 +156,7 @@ class _StandardNavBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoNavigationBar(middle: Text(title), trailing: const UserMenuButton());
+    return CupertinoNavigationBar(middle: Text(title));
   }
 }
 

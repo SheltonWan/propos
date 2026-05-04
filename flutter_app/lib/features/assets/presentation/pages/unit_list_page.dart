@@ -148,7 +148,10 @@ class _UnitListBody extends StatelessWidget {
                       return false;
                     },
                     child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: EdgeInsets.only(
+                        top: 8,
+                        bottom: 8 + MediaQuery.paddingOf(context).bottom,
+                      ),
                       itemCount: items.length + (meta.hasMore ? 1 : 0),
                       separatorBuilder: (_, _) =>
                           const Divider(height: 1, indent: 16),
