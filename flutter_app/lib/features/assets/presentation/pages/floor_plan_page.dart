@@ -21,10 +21,8 @@ import '../bloc/floor_map_state.dart';
 
 /// 楼层平面图页（子页面，含独立 Scaffold）。
 ///
-/// 当楼层有 SVG/PNG 时用 InteractiveViewer + Image.network 展示；
+/// 当楼层有 SVG 时用 webview_flutter 渲染热区（支持 CSS class 状态色 + JS 点击回传）；
 /// 否则展示房源状态网格列表（备用方案）。
-///
-/// TODO(dev): 当 CAD 转换流水线就绪后，升级为 webview_flutter 渲染 SVG 热区。
 class FloorPlanPage extends StatefulWidget {
   final String buildingId;
   final String floorId;
@@ -233,10 +231,10 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
   }
 }
 
-/// 图片平面图（有 SVG/PNG 路径时使用）。
+/// 楼层 SVG 平面图（WebView 渲染）。
 ///
-/// 在图片上叠加透明可点击热区（mock Rect 坐标），
-/// 实际生产中坐标来自 SVG `<rect data-unit-id="...">` 属性解析。
+/// 加载完成后注入 JS，根据 API 返回的状态给 [data-unit-id] 元素追加 CSS class，
+/// 并绑定点击事件通过 FlutterChannel 回传 DB UUID。
 class _FloorImageViewer extends StatefulWidget {
   final String imagePath;
 
@@ -268,6 +266,10 @@ class _FloorImageViewerState extends State<_FloorImageViewer> {
   }
 
   /// 异步初始化 WebViewController：读取 token → 带 Authorization 头加载 SVG URL。
+  ///
+  /// 页面加载完成后注入 JS，完成两件事：
+  ///   1. 根据 API 返回的单元状态给 SVG [data-unit-id] 元素追加对应 CSS class；
+  ///   2. 给每个 [data-unit-id] 元素绑定点击事件，通过 FlutterChannel 回传 unitId（DB UUID）。
   Future<void> _initWebView() async {
     final storage = GetIt.instance<FlutterSecureStorage>();
     final token = await storage.read(key: 'access_token');
@@ -276,12 +278,33 @@ class _FloorImageViewerState extends State<_FloorImageViewer> {
       widget.imagePath,
     );
 
+    // 将所有单元序列化为 JS 可用的 JSON 数组。
+    // SVG data-unit-id 格式为 "11-01"（floor-room），DB unit_number 格式为 "1101"；
+    // JS 侧用去除连字符的规范化字符串进行模糊匹配。
+    final unitsJson = widget.units
+        .map(
+          (u) =>
+              '{"id":"${u.unitId}","num":"${u.unitNumber}","cls":"${_statusToCssClass(u.currentStatus)}"}',
+        )
+        .join(',');
+
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.white)
+      ..addJavaScriptChannel(
+        'FlutterChannel',
+        onMessageReceived: (msg) {
+          // 收到 SVG 元素点击回传的 DB UUID，精确匹配后回调。
+          final unitId = msg.message;
+          final matched = widget.units.where((u) => u.unitId == unitId);
+          if (matched.isNotEmpty) widget.onUnitTap(matched.first);
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageFinished: (_) {
+          onPageFinished: (_) async {
+            // _controller 在 loadRequest 之后、页面实际完成之前已赋值，此处安全调用。
+            await _controller?.runJavaScript(_buildInjectJs(unitsJson));
             if (mounted) {
               setState(() => _isLoading = false);
             }
@@ -307,6 +330,61 @@ class _FloorImageViewerState extends State<_FloorImageViewer> {
     if (mounted) setState(() => _controller = controller);
   }
 
+  /// 将 [UnitStatus] 枚举映射为 postprocess_svg.py 注入的 CSS class 名。
+  String _statusToCssClass(UnitStatus status) => switch (status) {
+    UnitStatus.leased => 'unit-leased',
+    UnitStatus.vacant => 'unit-vacant',
+    UnitStatus.expiringSoon => 'unit-expiring-soon',
+    UnitStatus.nonLeasable => 'unit-non-leasable',
+  };
+
+  /// 生成注入 WebView 的 JavaScript 片段。
+  ///
+  /// SVG `data-unit-id` 与 DB `unit_number` 存在格式差异（如 "11-01" vs "1101"），
+  /// 采用三级匹配策略（优先级递减）：
+  ///   1. 精确匹配 `data-unit-id` 与 unitNumber；
+  ///   2. 规范化匹配（去掉连字符/空格后比较）；
+  ///   3. 匹配 `data-unit-number`（纯房号，如 "01"）与 unitNumber 末尾。
+  String _buildInjectJs(String unitsJson) => '''
+(function() {
+  var units = [$unitsJson];
+
+  // 按 unitNumber 和规范化后的 unitNumber（去连字符/空格）建立双索引。
+  var byNum = {};
+  var byNorm = {};
+  units.forEach(function(u) {
+    byNum[u.num] = u;
+    byNorm[u.num.replace(/[-\\s]/g, '')] = u;
+  });
+
+  var allClasses = ['unit-leased','unit-vacant','unit-expiring-soon','unit-renovating','unit-non-leasable'];
+
+  document.querySelectorAll('[data-unit-id]').forEach(function(el) {
+    var svgId  = el.getAttribute('data-unit-id')     || '';
+    var svgNum = el.getAttribute('data-unit-number') || '';
+    var normId = svgId.replace(/[-\\s]/g, '');
+
+    // 三级匹配：精确 → 规范化 → 纯房号后缀
+    var unit = byNum[svgId]
+      || byNorm[normId]
+      || (svgNum ? units.find(function(u) {
+           return u.num.endsWith(svgNum) || u.num === svgNum;
+         }) : null);
+
+    if (!unit) return;
+
+    allClasses.forEach(function(c) { el.classList.remove(c); });
+    el.classList.add(unit.cls);
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', function(e) {
+      e.stopPropagation();
+      // 回传 DB UUID，Flutter 侧精确查找。
+      FlutterChannel.postMessage(unit.id);
+    });
+  });
+})();
+''';
+
   @override
   Widget build(BuildContext context) {
     if (_controller == null || _isLoading) {
@@ -322,59 +400,13 @@ class _FloorImageViewerState extends State<_FloorImageViewer> {
         ),
       );
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Stack(
-          children: [
-            WebViewWidget(
-              controller: _controller!,
-              // 仅将捏合缩放手势交给 WebView，点击手势保留给 Flutter 热区层。
-              gestureRecognizers: {
-                Factory<ScaleGestureRecognizer>(() => ScaleGestureRecognizer()),
-              },
-            ),
-            // 热区覆盖层（mock 矩形坐标均匀分布）
-            ..._buildHotspots(constraints.maxWidth, constraints.maxHeight),
-          ],
-        );
+    // 热区点击已通过 JS FlutterChannel 处理，无需 Flutter 层叠加覆盖。
+    return WebViewWidget(
+      controller: _controller!,
+      gestureRecognizers: {
+        Factory<ScaleGestureRecognizer>(() => ScaleGestureRecognizer()),
       },
     );
-  }
-
-  /// 生成 mock 矩形热区列表。
-  ///
-  /// 按网格均匀排布，每行最多 4 列。实际生产应从 SVG 解析坐标。
-  List<Widget> _buildHotspots(double w, double h) {
-    const cols = 4;
-    const cellW = 0.22;
-    const cellH = 0.15;
-    const colGap = 0.02;
-    const rowGap = 0.02;
-    const startX = 0.03;
-    const startY = 0.05;
-
-    return List.generate(widget.units.length, (i) {
-      final col = i % cols;
-      final row = i ~/ cols;
-      final left = (startX + col * (cellW + colGap)) * w;
-      final top = (startY + row * (cellH + rowGap)) * h;
-      final width = cellW * w;
-      final height = cellH * h;
-
-      return Positioned(
-        left: left,
-        top: top,
-        width: width,
-        height: height,
-        child: GestureDetector(
-          onTap: () => widget.onUnitTap(widget.units[i]),
-          // 透明热区，不遮挡图片视觉内容
-          child: Container(
-            color: Colors.transparent,
-          ),
-        ),
-      );
-    });
   }
 }
 

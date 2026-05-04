@@ -14,13 +14,15 @@ from pathlib import Path
 SVG_NS = "http://www.w3.org/2000/svg"
 
 # 符合 SVG_HOTZONE_SPEC 的标准状态色样式
+# 色值与 Flutter custom_colors.dart lightCustomColors 保持一致：
+#   success=#52C41A  warning=#FAAD14  danger=#FF4D4F  neutral=#8C8C8C
 STANDARD_STYLES = """
       /* 状态色块 — 运行时由前端根据 unit.current_status 动态切换 class */
-      .unit-leased        { fill: #4CAF50; fill-opacity: 0.35; stroke: #388E3C; stroke-width: 1; }
-      .unit-vacant        { fill: #F44336; fill-opacity: 0.35; stroke: #D32F2F; stroke-width: 1; }
-      .unit-expiring-soon { fill: #FF9800; fill-opacity: 0.35; stroke: #F57C00; stroke-width: 1; }
-      .unit-renovating    { fill: #2196F3; fill-opacity: 0.35; stroke: #1976D2; stroke-width: 1; }
-      .unit-non-leasable  { fill: #9E9E9E; fill-opacity: 0.20; stroke: #757575; stroke-width: 1; }
+      .unit-leased        { fill: #52C41A; fill-opacity: 0.35; stroke: #389E0D; stroke-width: 1; }
+      .unit-vacant        { fill: #FF4D4F; fill-opacity: 0.35; stroke: #CF1322; stroke-width: 1; }
+      .unit-expiring-soon { fill: #FAAD14; fill-opacity: 0.35; stroke: #D48806; stroke-width: 1; }
+      .unit-renovating    { fill: #4096FF; fill-opacity: 0.35; stroke: #1677FF; stroke-width: 1; }
+      .unit-non-leasable  { fill: #8C8C8C; fill-opacity: 0.20; stroke: #595959; stroke-width: 1; }
       /* hover 效果 */
       [data-unit-id]:hover { fill-opacity: 0.55; cursor: pointer; }
 """
