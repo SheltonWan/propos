@@ -9,7 +9,7 @@
   />
   <AppShell content-inset="none" :scroll="false">
     <template #header>
-      <PageHeader :title="headerTitle" :subtitle="headerSubtitle" :back="true" :animated="false" />
+      <PageHeader :title="headerTitle" :back="true" :animated="false" />
     </template>
 
     <view class="floor-plan">
@@ -243,8 +243,11 @@ const occupancyRate = computed(() => {
 
 // ── 头部标题 ─────────────────────────────────────────────────────────────────
 
-const headerTitle = computed(() => store.item?.building_name ?? '楼层平面图')
-const headerSubtitle = computed(() => store.item?.floor_name ?? '')
+const headerTitle = computed(() => {
+  const item = store.item
+  if (!item) return '楼层平面图'
+  return `${item.building_name} ${item.floor_name} 楼层图`
+})
 
 // ── 事件 ─────────────────────────────────────────────────────────────────────
 
