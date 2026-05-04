@@ -726,7 +726,7 @@ void main() {
       );
     });
 
-    test('hotspot JSON → 写入 floor_plan_coords 参数，不污染 ext_fields', () async {
+    test('hotspot JSON → 写入 extFields[hotspot]，不单独传 floorPlanCoords 参数', () async {
       // ── 准备文件 ──
       final svgRel = 'cad/b-1/jobs/job-1/plan_F14.svg';
       final svgAbs = File('${tmpDir.path}/$svgRel');
@@ -753,7 +753,7 @@ void main() {
       }));
 
       // SQL 序列：共 13 步（与 plan_F11 用例相同结构）
-      // 11 步对应 UnitRepository.create → 捕获 floorPlanCoords + extFields 参数
+      // 11 步对应 UnitRepository.create → 捕获 extFields 参数（含 hotspot）
       Map<String, dynamic>? capturedCreateParams;
       var idx = 0;
       pool.executeHandler = (q, p) {
@@ -804,24 +804,19 @@ void main() {
       expect(capturedCreateParams, isNotNull,
           reason: 'step 11 应触发 UnitRepository.create，捕获到参数');
 
-      // hotspot 必须写入 floorPlanCoords 参数（正式列）
-      final rawCoords = capturedCreateParams!['floorPlanCoords'];
-      expect(rawCoords, isNotNull,
-          reason: 'hotspot 数据应通过 floorPlanCoords 参数传入，不得为 null');
-      final coords = jsonDecode(rawCoords as String) as Map<String, dynamic>;
+      // hotspot 圆心坐标必须写入 extFields['hotspot']（ext_fields 列）
+      final rawExtFields = capturedCreateParams!['extFields'];
+      expect(rawExtFields, isNotNull,
+          reason: 'extFields 不得为 null（至少含 hotspot 键）');
+      final extFields =
+          jsonDecode(rawExtFields as String) as Map<String, dynamic>;
+      expect(extFields.containsKey('hotspot'), isTrue,
+          reason: 'hotspot 数据应写入 extFields，不得直接传 floorPlanCoords');
+      final coords = extFields['hotspot'] as Map<String, dynamic>;
       expect(coords['cx'], 150.0,
           reason: 'cx 应与 JSON 中 hotspot.cx 一致');
       expect(coords['cy'], 250.0,
           reason: 'cy 应与 JSON 中 hotspot.cy 一致');
-
-      // extFields 参数不得含 hotspot 键（已废弃的旧写法回归检测）
-      final rawExtFields = capturedCreateParams!['extFields'];
-      if (rawExtFields != null) {
-        final extFields =
-            jsonDecode(rawExtFields as String) as Map<String, dynamic>;
-        expect(extFields.containsKey('hotspot'), isFalse,
-            reason: 'hotspot 不应写入 ext_fields，应写入 floor_plan_coords 正式列');
-      }
     });
   });
 

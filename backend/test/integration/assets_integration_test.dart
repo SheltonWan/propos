@@ -620,32 +620,32 @@ void main() {
   });
 
   // =========================================================================
-  // Group 5: CAD 导入 → floor_plan_coords 落库验证
+  // Group 5: CAD 导入 → ext_fields.hotspot 落库验证
   //
   // 目的：确保 CadImportService._createUnitsFromJsonData 经 UnitRepository.create()
-  //       将 hotspot 坐标写入 units.floor_plan_coords 正式列（而非 ext_fields.hotspot）。
+  //       将 hotspot 坐标写入 units.ext_fields['hotspot']（ext_fields JSONB 列）。
   //
   // 策略：绕过不可在 CI 中运行的 Python 流水线，直接通过 SQL INSERT 模拟落库结果，
   //       再通过 HTTP + DB 分别验证读取路径的完整性。
   // =========================================================================
 
-  group('CAD 导入 → floor_plan_coords 落库验证', () {
+  group('CAD 导入 → ext_fields.hotspot 落库验证', () {
     // 模拟 annotate_hotzone.py 输出的圆心坐标（SVG 坐标系）
     final testCoords = <String, dynamic>{'x': 1234.56, 'y': 789.01};
 
     setUpAll(() async {
       // 直接通过 SQL INSERT 模拟 CadImportService._createUnitsFromJsonData
-      // → UnitRepository.create(floorPlanCoords: hotspot) 的落库效果
+      // → UnitRepository.create(extFields: {'hotspot': ...}) 的落库效果
       final result = await db.execute(
         Sql.named('''
           INSERT INTO units (
             floor_id, building_id, unit_number, property_type,
-            floor_plan_coords
+            ext_fields
           )
           VALUES (
             @floorId::UUID, @buildingId::UUID, @unitNumber,
             @propertyType::property_type,
-            @coords::JSONB
+            @extFields::JSONB
           )
           RETURNING id::TEXT
         '''),
@@ -654,7 +654,7 @@ void main() {
           'buildingId': buildingId,
           'unitNumber': 'INT_CAD_001',
           'propertyType': 'office',
-          'coords': jsonEncode(testCoords),
+          'extFields': jsonEncode({'hotspot': testCoords}),
         },
       );
       cadUnitId = result.first.toColumnMap()['id'] as String;
@@ -669,44 +669,35 @@ void main() {
       }
     });
 
-    test('GET /api/units/:id → floor_plan_coords 含正确的 x/y 坐标', () async {
+    test('GET /api/units/:id → ext_fields.hotspot 含正确的 x/y 坐标', () async {
       final resp = await getReq('/api/units/$cadUnitId');
       expect(resp.statusCode, 200);
       final data = jsonBody(resp)['data'] as Map;
-      final coords = data['floor_plan_coords'] as Map?;
+      final extFields = (data['ext_fields'] as Map?) ?? {};
+      final coords = extFields['hotspot'] as Map?;
       expect(
         coords,
         isNotNull,
-        reason: 'floor_plan_coords 应被 unit_repository SELECT 并通过 HTTP API 返回',
+        reason: 'ext_fields.hotspot 应被 unit_repository SELECT 并通过 HTTP API 返回',
       );
       expect((coords!['x'] as num).toDouble(), closeTo(1234.56, 0.01));
       expect((coords['y'] as num).toDouble(), closeTo(789.01, 0.01));
     });
 
-    test('ext_fields 不含 hotspot 键（旧写法回归检查）', () async {
-      final resp = await getReq('/api/units/$cadUnitId');
-      expect(resp.statusCode, 200);
-      final data = jsonBody(resp)['data'] as Map;
-      final extFields = (data['ext_fields'] as Map?) ?? {};
-      expect(
-        extFields.containsKey('hotspot'),
-        isFalse,
-        reason: 'hotspot 坐标应写入 floor_plan_coords 正式列，不得再写入 ext_fields',
-      );
-    });
-
-    test('DB 直接 SELECT → floor_plan_coords 列已正确写入 JSONB', () async {
+    test('DB 直接 SELECT → ext_fields 列已正确写入 hotspot JSONB', () async {
       final rows = await db.execute(
         Sql.named(
-            'SELECT floor_plan_coords FROM units WHERE id = @id'),
+            'SELECT ext_fields FROM units WHERE id = @id'),
         parameters: {'id': cadUnitId},
       );
       expect(rows, isNotEmpty);
-      final coords =
-          rows.first.toColumnMap()['floor_plan_coords'] as Map?;
-      expect(coords, isNotNull);
+      final extFields =
+          rows.first.toColumnMap()['ext_fields'] as Map?;
+      expect(extFields, isNotNull);
+      expect(extFields!.containsKey('hotspot'), isTrue);
+      final coords = extFields['hotspot'] as Map;
       expect(
-          (coords!['x'] as num).toDouble(), closeTo(1234.56, 0.01));
+          (coords['x'] as num).toDouble(), closeTo(1234.56, 0.01));
     });
   });
 }

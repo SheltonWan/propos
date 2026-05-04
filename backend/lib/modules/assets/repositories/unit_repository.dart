@@ -137,7 +137,6 @@ class UnitRepository {
     String decorationStatus = 'blank',
     bool isLeasable = true,
     Map<String, dynamic>? extFields,
-    Map<String, dynamic>? floorPlanCoords,
     double? marketRentReference,
     String? qrCode,
   }) async {
@@ -148,7 +147,7 @@ class UnitRepository {
             floor_id, building_id, unit_number, property_type,
             gross_area, net_area, orientation, ceiling_height,
             decoration_status, is_leasable, ext_fields,
-            market_rent_reference, qr_code, floor_plan_coords
+            market_rent_reference, qr_code
           )
           VALUES (
             @floorId::UUID, @buildingId::UUID, @unitNumber,
@@ -156,7 +155,7 @@ class UnitRepository {
             @grossArea, @netArea, @orientation, @ceilingHeight,
             @decorationStatus::unit_decoration, @isLeasable,
             @extFields::JSONB,
-            @marketRentReference, @qrCode, @floorPlanCoords::JSONB
+            @marketRentReference, @qrCode
           )
           RETURNING *
         )
@@ -167,7 +166,6 @@ class UnitRepository {
                i.gross_area, i.net_area, i.orientation, i.ceiling_height,
                i.decoration_status::TEXT, i.current_status::TEXT,
                i.is_leasable, i.ext_fields,
-               i.floor_plan_coords,
                i.current_contract_id::TEXT, i.qr_code,
                i.market_rent_reference,
                i.predecessor_unit_ids::TEXT[],
@@ -189,8 +187,6 @@ class UnitRepository {
         'decorationStatus': decorationStatus,
         'isLeasable': isLeasable,
         'extFields': jsonEncode(extFields ?? {}),
-        'floorPlanCoords':
-            floorPlanCoords != null ? jsonEncode(floorPlanCoords) : null,
         'marketRentReference': marketRentReference,
         'qrCode': qrCode,
       },
