@@ -111,6 +111,13 @@ abstract final class ApiPaths {
   // ── Files ──
   static const files = '/api/files';
 
+  /// 通过后端文件代理构造完整 URL。
+  ///
+  /// [baseUrl] 为 [AppConfig.apiBaseUrl]，[storagePath] 为后端返回的相对路径
+  /// （如 `floors/{buildingId}/{floorId}.svg`）。
+  static String fileProxyUrl(String baseUrl, String storagePath) =>
+      '$baseUrl$files/$storagePath';
+
   // ── Audit Logs ──
   static const auditLogs = '/api/audit-logs';
 

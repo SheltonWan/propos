@@ -1,9 +1,16 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/foundation.dart' show Factory;
+import 'package:flutter/gestures.dart' show ScaleGestureRecognizer;
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/api/api_paths.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/custom_colors.dart';
 import '../../../../shared/widgets/status_tag.dart';
@@ -230,7 +237,7 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
 ///
 /// 在图片上叠加透明可点击热区（mock Rect 坐标），
 /// 实际生产中坐标来自 SVG `<rect data-unit-id="...">` 属性解析。
-class _FloorImageViewer extends StatelessWidget {
+class _FloorImageViewer extends StatefulWidget {
   final String imagePath;
 
   /// 热区单元列表（用于叠加点击层）。
@@ -246,31 +253,93 @@ class _FloorImageViewer extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => InteractiveViewer(
-        minScale: 0.5,
-        maxScale: 4.0,
-        child: Center(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return Stack(
-                children: [
-                  Image.network(
-                    imagePath,
-                    width: constraints.maxWidth,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Text('平面图加载失败，请检查网络连接'),
-                    ),
-                  ),
-                  // 热区覆盖层（mock 矩形坐标均匀分布）
-                  ..._buildHotspots(constraints.maxWidth, constraints.maxHeight),
-                ],
-              );
-            },
+  State<_FloorImageViewer> createState() => _FloorImageViewerState();
+}
+
+class _FloorImageViewerState extends State<_FloorImageViewer> {
+  WebViewController? _controller;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initWebView();
+  }
+
+  /// 异步初始化 WebViewController：读取 token → 带 Authorization 头加载 SVG URL。
+  Future<void> _initWebView() async {
+    final storage = GetIt.instance<FlutterSecureStorage>();
+    final token = await storage.read(key: 'access_token');
+    final fullUrl = ApiPaths.fileProxyUrl(
+      AppConfig.apiBaseUrl,
+      widget.imagePath,
+    );
+
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.white)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (_) {
+            if (mounted) {
+              setState(() => _isLoading = false);
+            }
+          },
+          onWebResourceError: (WebResourceError error) {
+            // 只有主帧（Main Frame）失败才视为致命错误；
+            // 子资源（CSS/字体等）报错忽略，避免误报。
+            if (error.isForMainFrame != true) return;
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+                _hasError = true;
+              });
+            }
+          },
+        ),
+      )
+      ..loadRequest(
+        Uri.parse(fullUrl),
+        headers: {if (token != null) 'Authorization': 'Bearer $token'},
+      );
+
+    if (mounted) setState(() => _controller = controller);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller == null || _isLoading) {
+      return const Center(child: CupertinoActivityIndicator());
+    }
+    if (_hasError) {
+      return Center(
+        child: Text(
+          '平面图加载失败，请检查网络连接',
+          style: TextStyle(
+            color: Theme.of(context).extension<CustomColors>()!.danger,
           ),
         ),
       );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            WebViewWidget(
+              controller: _controller!,
+              // 仅将捏合缩放手势交给 WebView，点击手势保留给 Flutter 热区层。
+              gestureRecognizers: {
+                Factory<ScaleGestureRecognizer>(() => ScaleGestureRecognizer()),
+              },
+            ),
+            // 热区覆盖层（mock 矩形坐标均匀分布）
+            ..._buildHotspots(constraints.maxWidth, constraints.maxHeight),
+          ],
+        );
+      },
+    );
+  }
 
   /// 生成 mock 矩形热区列表。
   ///
@@ -284,7 +353,7 @@ class _FloorImageViewer extends StatelessWidget {
     const startX = 0.03;
     const startY = 0.05;
 
-    return List.generate(units.length, (i) {
+    return List.generate(widget.units.length, (i) {
       final col = i % cols;
       final row = i ~/ cols;
       final left = (startX + col * (cellW + colGap)) * w;
@@ -298,7 +367,7 @@ class _FloorImageViewer extends StatelessWidget {
         width: width,
         height: height,
         child: GestureDetector(
-          onTap: () => onUnitTap(units[i]),
+          onTap: () => widget.onUnitTap(widget.units[i]),
           // 透明热区，不遮挡图片视觉内容
           child: Container(
             color: Colors.transparent,

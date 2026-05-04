@@ -49,6 +49,9 @@ dependencies:
   # File picking (Excel 导入)
   file_picker: ^8.1.1
 
+  # WebView（楼层平面图 SVG 渲染，完整 CSS 支持）
+  webview_flutter: ^4.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
