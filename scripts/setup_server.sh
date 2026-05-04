@@ -7,6 +7,17 @@
 set -euo pipefail
 
 # ============================================================
+# 0. 命令行参数解析
+# ============================================================
+RESET_DB=false
+for arg in "$@"; do
+    case "${arg}" in
+        --reset-db) RESET_DB=true ;;
+    esac
+done
+readonly RESET_DB
+
+# ============================================================
 # 配置区（从 .deploy.env 读取，仅 SSH_KEY_PATH 为本地固定路径）
 # ============================================================
 DEPLOY_ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)/.deploy.env"
@@ -119,6 +130,37 @@ if ssh -o BatchMode=yes "${SSH_ALIAS}" "echo ok" &>/dev/null; then
     success "免密 SSH 验证成功 ✓"
 else
     error "免密 SSH 验证失败，请检查服务器安全组是否放行 22 端口，以及公钥是否正确写入"
+fi
+
+# ============================================================
+# A5. （仅 --reset-db）确认危险操作
+# ============================================================
+if [[ "${RESET_DB}" == "true" ]]; then
+    echo ""
+    echo -e "${RED}==========================================${NC}"
+    echo -e "${RED}  ⚠  --reset-db 将销毁服务器全部数据！  ${NC}"
+    echo -e "${RED}  ⚠  此操作不可撤销，数据将永久丢失。  ${NC}"
+    echo -e "${RED}==========================================${NC}"
+    echo ""
+    # 检测是否生产环境（服务器 .env 中 ALLOW_TEST_ENDPOINTS=false 视为生产）
+    _is_prod=false
+    if ssh -o BatchMode=yes "${SSH_ALIAS}" \
+            "grep -q 'ALLOW_TEST_ENDPOINTS=false' ${REMOTE_BASE}/.env 2>/dev/null"; then
+        _is_prod=true
+    fi
+    if [[ "${_is_prod}" == "true" ]]; then
+        warn "检测到生产环境标志（ALLOW_TEST_ENDPOINTS=false）"
+        read -r -p "  输入 CONFIRM_RESET 以继续（其他任何输入将取消）: " _reset_confirm
+        if [[ "${_reset_confirm}" != "CONFIRM_RESET" ]]; then
+            error "操作已取消"
+        fi
+    else
+        read -r -p "  输入 RESET 以继续（其他任何输入将取消）: " _reset_confirm
+        if [[ "${_reset_confirm}" != "RESET" ]]; then
+            error "操作已取消"
+        fi
+    fi
+    success "确认通过，将在数据库迁移阶段执行重置"
 fi
 
 # ============================================================
@@ -274,12 +316,24 @@ info "执行数据库迁移..."
 _ADMIN_PASSWORD_HASH_B64=$(printf '%s' "${_ADMIN_PASSWORD_HASH}" | base64 | tr -d '\n')
 _COMPANY_NAME_B64=$(printf '%s' "${_COMPANY_NAME}" | base64 | tr -d '\n')
 
-ssh "${SSH_ALIAS}" bash -s -- "${PG_USER}" "${PG_DB}" "${REMOTE_MIGRATIONS}" "${_ADMIN_EMAIL}" "${_ADMIN_PASSWORD_HASH_B64}" "${_COMPANY_NAME_B64}" << 'RUN_MIGRATIONS'
+ssh "${SSH_ALIAS}" bash -s -- "${PG_USER}" "${PG_DB}" "${REMOTE_MIGRATIONS}" "${_ADMIN_EMAIL}" "${_ADMIN_PASSWORD_HASH_B64}" "${_COMPANY_NAME_B64}" "${RESET_DB}" << 'RUN_MIGRATIONS'
 set -euo pipefail
-PG_USER="$1"; PG_DB="$2"; MIGRATIONS_DIR="$3"; ADMIN_EMAIL="$4"; ADMIN_PASSWORD_HASH_B64="$5"; COMPANY_NAME_B64="$6"
+PG_USER="$1"; PG_DB="$2"; MIGRATIONS_DIR="$3"; ADMIN_EMAIL="$4"; ADMIN_PASSWORD_HASH_B64="$5"; COMPANY_NAME_B64="$6"; RESET_DB="$7"
 # base64 解码还原原始值（含 $ 字符、空格等），避免 SSH 参数传递时被 shell 展开或 word-split
 ADMIN_PASSWORD_HASH=$(printf '%s' "${ADMIN_PASSWORD_HASH_B64}" | base64 -d)
 COMPANY_NAME=$(printf '%s' "${COMPANY_NAME_B64}" | base64 -d)
+
+# ─── --reset-db 路径：清空数据库，重新从头执行所有迁移 ────────────────────
+if [[ "${RESET_DB}" == "true" ]]; then
+    echo "[重置] DROP SCHEMA public 并重建..."
+    docker exec propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" -c "
+        DROP SCHEMA public CASCADE;
+        CREATE SCHEMA public;
+        GRANT ALL ON SCHEMA public TO ${PG_USER};
+        GRANT ALL ON SCHEMA public TO public;
+    "
+    echo "[重置] ✓ 数据库已清空，将从头执行所有迁移"
+fi
 
 # 创建迁移记录表（若不存在），含 file_hash 列用于检测已应用迁移被篡改
 docker exec propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" -c "
@@ -316,24 +370,20 @@ for f in $(ls "${MIGRATIONS_DIR}"/*.sql 2>/dev/null | sort); do
     fi
 
     echo "[迁移] → 执行：${filename}"
-    # migration 020 需要注入超管账号变量，使用 psql -v 传参
-    if [[ "${filename}" == "020_seed_reference_data.sql" ]]; then
+    # 000_consolidated_schema.sql 需要同时注入超管账号、企业名称三个变量
+    if [[ "${filename}" == "000_consolidated_schema.sql" ]]; then
         docker exec -i propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" \
             -v "admin_email=${ADMIN_EMAIL}" \
             -v "admin_password_hash=${ADMIN_PASSWORD_HASH}" \
+            -v "company_name=${COMPANY_NAME}" \
             -v ON_ERROR_STOP=1 < "$f"
-        # 020 执行后验证超管账号确实已入库，防止变量注入失败被静默记录
+        # 执行后验证超管账号确实已入库，防止变量注入失败被静默记录
         admin_count=$(docker exec propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" -tAc \
             "SELECT COUNT(*) FROM users WHERE role='super_admin';")
         if [[ "${admin_count}" -lt 1 ]]; then
-            echo "[迁移] ✗ 020 执行后超管账号未入库，可能是变量注入失败，终止并回滚记录。"
+            echo "[迁移] ✗ 000 执行后超管账号未入库，可能是变量注入失败，终止。"
             exit 1
         fi
-    # migration 023 需要注入顶级企业名称
-    elif [[ "${filename}" == "023_seed_company_node.sql" ]]; then
-        docker exec -i propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" \
-            -v "company_name=${COMPANY_NAME}" \
-            -v ON_ERROR_STOP=1 < "$f"
     else
         docker exec -i propos-postgres psql -U "${PG_USER}" -d "${PG_DB}" \
             -v ON_ERROR_STOP=1 < "$f"
