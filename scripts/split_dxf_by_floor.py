@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 scripts/split_dxf_by_floor.py
 按楼层切分 DXF Model Space，每张平面图输出一个独立 SVG。
@@ -1006,7 +1007,7 @@ def main():
     print(f"输出目录: {out_dir}")
 
 
-def _entity_anchor(entity) -> tuple[float, float] | None:
+def _entity_anchor(entity) -> tuple[float, float] | None:  # noqa: PYI016
     """估算实体锚点（用于区域归属判定）。
 
     展开 INSERT 后的虚拟实体未在 ``entity_centers`` 缓存中，
