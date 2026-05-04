@@ -7,7 +7,7 @@
     :root-background-color="pageMetaRootBackgroundColor"
     :page-style="pageMetaPageStyle"
   />
-  <AppShell content-inset="none">
+  <AppShell content-inset="none" :scroll="false">
     <template #header>
       <PageHeader :title="headerTitle" :subtitle="headerSubtitle" :back="true" :animated="false" />
     </template>
@@ -61,17 +61,27 @@
           <text class="heatmap-area__status-text">该楼层暂无单元数据</text>
         </view>
 
-        <!-- SVG 热区图（H5 / App） -->
+        <!-- SVG 热区图（H5 / App）：横向可滚动，支持放大/缩小/适配 -->
         <!-- #ifdef H5 || APP-PLUS -->
-        <FloorSvgHeatmap
+        <scroll-view
           v-else
-          :units="heatmapUnits"
-          :property-type="floorPropertyType"
-          :layer="currentLayer"
-          :selected-id="selectedUnitId"
-          :svg-path="floorSvgPath"
-          @unit-tap="onSvgUnitTap"
-        />
+          scroll-x
+          scroll-y
+          class="heatmap-scroll"
+        >
+          <!-- wrap-view：确保 scroll-view 内部内容在 App-Plus 中靠左对齐 -->
+          <view class="heatmap-canvas-wrap">
+            <FloorSvgHeatmap
+              :units="heatmapUnits"
+              :property-type="floorPropertyType"
+              :layer="currentLayer"
+              :selected-id="selectedUnitId"
+              :svg-path="floorSvgPath"
+              :scale="zoom"
+              @unit-tap="onSvgUnitTap"
+            />
+          </view>
+        </scroll-view>
         <!-- #endif -->
 
         <!-- 小程序降级：SVG 不支持，回退到房间网格卡片 -->
@@ -83,6 +93,24 @@
             :unit="unit"
             @tap="onUnitGridTap"
           />
+        </view>
+        <!-- #endif -->
+
+        <!-- 缩放控制按钮（H5 / App，仅在有数据时显示，对齐 frontend FloorPlan.tsx） -->
+        <!-- #ifdef H5 || APP-PLUS -->
+        <view
+          v-if="heatmapUnits.length > 0 && !store.loading && !store.error"
+          class="zoom-controls"
+        >
+          <view class="zoom-controls__btn" @tap="zoomIn">
+            <text class="zoom-controls__icon">+</text>
+          </view>
+          <view class="zoom-controls__btn zoom-controls__btn--fit" @tap="zoomFit">
+            <text class="zoom-controls__icon zoom-controls__icon--fit">适</text>
+          </view>
+          <view class="zoom-controls__btn" @tap="zoomOut">
+            <text class="zoom-controls__icon">−</text>
+          </view>
         </view>
         <!-- #endif -->
       </view>
@@ -223,6 +251,7 @@ const headerSubtitle = computed(() => store.item?.floor_name ?? '')
 async function onFloorSelect(floorId: string) {
   if (floorId === store.item?.id) return
   selectedUnitId.value = null
+  zoom.value = 1.0 // 切换楼层时重置缩放
   await store.selectFloor(floorId)
 }
 
@@ -232,6 +261,29 @@ async function reload() {
   } else if (store.buildingId) {
     await store.loadByBuilding(store.buildingId)
   }
+}
+
+// ── 缩放控制（H5 / App，对齐 frontend FloorPlan.tsx 放大、缩小、适配功能） ────────────────────────────
+
+const { windowWidth: _screenPx } = uni.getSystemInfoSync()
+
+/** 当前缩放比例（1.0 = 适配屏幕宽度） */
+const zoom = ref(1.0)
+const ZOOM_MIN = 0.6
+const ZOOM_MAX = 2.8
+const ZOOM_STEP = 0.3
+
+/** 放大一步 */
+function zoomIn() {
+  zoom.value = parseFloat(Math.min(zoom.value + ZOOM_STEP, ZOOM_MAX).toFixed(1))
+}
+/** 缩小一步 */
+function zoomOut() {
+  zoom.value = parseFloat(Math.max(zoom.value - ZOOM_STEP, ZOOM_MIN).toFixed(1))
+}
+/** 适配屏幕宽度（重置缩放） */
+function zoomFit() {
+  zoom.value = 1.0
 }
 
 onLoad((options) => {
@@ -247,6 +299,9 @@ onLoad((options) => {
 
 <style lang="scss" scoped>
 .floor-plan {
+  /* 填满 AppShell static body 分配的全部剩余高度 */
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -293,7 +348,27 @@ onLoad((options) => {
 // ── 热区图区域 ────────────────────────────────────────────────────────────────
 
 .heatmap-area {
-  min-height: 240rpx;
+  /* 伸缩填满楼层标签栏与图例/统计栏之间剩余空间（对齐 frontend flex-1 overflow-auto） */
+  flex: 1;
+  min-height: 0;
+  position: relative; // 供缩放按钮绝对定位
+  align-items: flex-start; // 确保 scroll-view 及内容靠左，不被 flex 默认 stretch 居中
+}
+
+// 可滚动区域（H5 / App 有效）
+.heatmap-scroll {
+  width: 100%;
+  height: 100%; // 填满 heatmap-area 所有高度
+  -webkit-overflow-scrolling: touch; // iOS 惯性滚动
+}
+
+// scroll-view 内直接子容器，强制左对齐（App-Plus scroll-view 内容对齐保障）
+.heatmap-canvas-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 100%;
+  min-height: 100%;
 }
 
 .heatmap-area__skeleton {
@@ -372,6 +447,52 @@ onLoad((options) => {
   width: 1rpx;
   height: 48rpx;
   background: var(--color-border);
+}
+
+// ── 缩放控制按钮（H5 / App，对齐 frontend 右下角三连按钮布局） ─────────────────
+
+.zoom-controls {
+  position: absolute;
+  bottom: 24rpx;
+  right: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  z-index: 10;
+}
+
+.zoom-controls__btn {
+  width: 72rpx;
+  height: 72rpx;
+  background: var(--color-background);
+  border: 1rpx solid var(--color-border);
+  border-radius: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.10);
+  // 按压态
+  &:active {
+    background: var(--color-muted);
+  }
+}
+
+.zoom-controls__btn--fit {
+  border-color: var(--color-primary);
+  border-opacity: 0.4;
+}
+
+.zoom-controls__icon {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  line-height: 1;
+}
+
+.zoom-controls__icon--fit {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: var(--color-primary);
 }
 
 // ── 小程序降级：房间网格 ────────────────────────────────────────────────────────

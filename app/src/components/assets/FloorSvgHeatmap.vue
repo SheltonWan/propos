@@ -49,7 +49,7 @@ const props = defineProps<{
    * 为空时回退到手绘示意图。
    */
   svgPath?: string | null
-  /** 基础缩放比例（默认 1.0，仅保留兼容，新实现忽略此参数） */
+  /** 缩放比例（默认 1.0 = 适配屏幕宽度；> 1 放大，< 1 缩小；由父组件 zoom 控制传入） */
   scale?: number
 }>()
 
@@ -101,22 +101,34 @@ const vbH = computed(() => (props.propertyType === 'retail' ? RETAIL_VH : VH))
 
 // ── 渲染容器尺寸 ─────────────────────────────────────────────────────────────
 
-/** 屏幕可用宽度（自适应手机屏幕） */
+/** 屏幕可用宽度（自适应手机屏幕，作为 scale=1 时的基准宽度） */
 const containerWidth = ref(uni.getSystemInfoSync().windowWidth)
 
+/** 实际渲染宽度 = 屏幕基准宽度 × 缩放比例 */
+const renderWidth = computed(() => Math.round(containerWidth.value * (props.scale ?? 1.0)))
+
 const containerStyle = computed(() => {
-  const h = Math.round((containerWidth.value * vbH.value) / vbW.value)
+  const w = renderWidth.value
+  // 真实 SVG 已解析到 viewBox 时使用真实比例，否则回退手绘常量（加载期间的过渡状态）
+  const effVbW = (useRealSvg.value && realSvgVbW.value !== null) ? realSvgVbW.value : vbW.value
+  const effVbH = (useRealSvg.value && realSvgVbH.value !== null) ? realSvgVbH.value : vbH.value
+  const h = Math.round((w * effVbH) / effVbW)
   return {
     position: 'relative' as const,
-    width: `${containerWidth.value}px`,
+    alignSelf: 'flex-start' as const, // 内联样式强制靠左，避免 App-Plus scoped CSS 失效
+    marginLeft: '0',
+    width: `${w}px`,
     height: `${h}px`,
   }
 })
 
 const canvasStyle = computed(() => {
-  const h = Math.round((containerWidth.value * vbH.value) / vbW.value)
+  const w = renderWidth.value
+  const effVbW = (useRealSvg.value && realSvgVbW.value !== null) ? realSvgVbW.value : vbW.value
+  const effVbH = (useRealSvg.value && realSvgVbH.value !== null) ? realSvgVbH.value : vbH.value
+  const h = Math.round((w * effVbH) / effVbW)
   return {
-    width: `${containerWidth.value}px`,
+    width: `${w}px`,
     height: `${h}px`,
   }
 })
@@ -514,14 +526,19 @@ function genRoomRects(rects: RoomRect[], selectedId: string | null): string {
 const useRealSvg = computed(() => !!props.svgPath && !realSvgError.value)
 
 const svgHtml = computed(() => {
-  // 真实 SVG 模式：fetch 完成后返回原始 SVG 文本，加载中返回空字符串占位
+  // 真实 SVG 模式：注入 preserveAspectRatio="xMinYMin meet" 防止默认 xMidYMid 居中
   if (useRealSvg.value) {
-    return realSvgText.value ?? ''
+    let svg = realSvgText.value ?? ''
+    if (!svg) return svg
+    svg = svg.includes('preserveAspectRatio=')
+      ? svg.replace(/preserveAspectRatio="[^"]*"/, 'preserveAspectRatio="xMinYMin meet"')
+      : svg.replace(/<svg\b/, '<svg preserveAspectRatio="xMinYMin meet"')
+    return svg
   }
   // 手绘示意模式：按业态规则机械生成 SVG 字符串
   const w = vbW.value
   const h = vbH.value
-  const svgW = containerWidth.value
+  const svgW = renderWidth.value
   const svgH = Math.round((svgW * h) / w)
   const body = props.propertyType === 'retail'
     ? genRetailSvgBody()
@@ -547,6 +564,12 @@ const svgHtml = computed(() => {
 const realSvgText = ref<string | null>(null)
 /** 真实 SVG 加载失败标记，置位后自动回退手绘 */
 const realSvgError = ref(false)
+/**
+ * 真实 CAD-SVG 的 viewBox 宽高（从 SVG 文件解析）。
+ * 用于按真实图纸比例计算画布高度，防止 xMidYMid meet 居中裁剪。
+ */
+const realSvgVbW = ref<number | null>(null)
+const realSvgVbH = ref<number | null>(null)
 
 /** UnitStatus → CSS class（与 scripts/postprocess_svg.py 注入的样式对齐） */
 const STATUS_CSS_CLASS: Record<UnitStatus, string> = {
@@ -580,6 +603,8 @@ let unbindHandlers: Array<() => void> = []
 async function loadRealSvg(svgPath: string): Promise<void> {
   // #ifdef H5 || APP-PLUS
   realSvgText.value = null
+  realSvgVbW.value = null
+  realSvgVbH.value = null
   realSvgError.value = false
   const url = buildFileProxyUrl(svgPath)
   const token = uni.getStorageSync('access_token') || ''
@@ -607,13 +632,24 @@ async function loadRealSvg(svgPath: string): Promise<void> {
       })
     })
     if (!result || result.length === 0) throw new Error('empty svg')
+    // 解析 viewBox 宽高，用于画布按真实图纸比例渲染，修复 xMidYMid 居中问题
+    const vbMatch = result.match(/viewBox="([^"]*)"/)
+    if (vbMatch) {
+      const parts = vbMatch[1].trim().split(/[\s,]+/)
+      if (parts.length >= 4) {
+        realSvgVbW.value = parseFloat(parts[2])
+        realSvgVbH.value = parseFloat(parts[3])
+      }
+    }
     realSvgText.value = result
-    console.info('[FloorSvgHeatmap] 真实 SVG 加载成功，长度:', result.length)
+    console.info('[FloorSvgHeatmap] 真实 SVG 加载成功，长度:', result.length, '| viewBox:', realSvgVbW.value, 'x', realSvgVbH.value)
     await nextTick()
     applyUnitStatesAndClicks()
   } catch (e) {
     console.warn('[FloorSvgHeatmap] 真实 SVG 加载失败，回退手绘示意:', e)
     realSvgText.value = null
+    realSvgVbW.value = null
+    realSvgVbH.value = null
     realSvgError.value = true
   }
   // #endif
@@ -723,6 +759,8 @@ watch(
       loadRealSvg(path)
     } else {
       realSvgText.value = null
+      realSvgVbW.value = null
+      realSvgVbH.value = null
       realSvgError.value = false
       unbindHandlers.forEach((fn) => fn())
       unbindHandlers = []
@@ -762,6 +800,7 @@ onBeforeUnmount(() => {
   // 宽度与高度均通过 :style 动态绑定
   display: block;
   position: relative;
+  align-self: flex-start; // 防止在 flex 父容器（scroll-view wrapper / heatmap-area）中被居中
 }
 
 .svg-heatmap__canvas {
