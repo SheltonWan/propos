@@ -1047,28 +1047,23 @@ class _FloorTabBarState extends State<_FloorTabBar> {
   final ScrollController _scroll = ScrollController();
 
   @override
-  void didUpdateWidget(_FloorTabBar old) {
-    super.didUpdateWidget(old);
-    // 切换楼层后自动将选中标签滚动到可见区域。
-    if (old.activeFloorId != widget.activeFloorId) {
-      _scrollToActive();
-    }
+  void initState() {
+    super.initState();
+    // 首次渲染完成后立即（无动画）跳到活跃楼层，确保首次进入及切换楼层后
+    // 重建时都能将活跃胶囊置于可见区域，不触发用户可感知的滑动动画。
+    WidgetsBinding.instance.addPostFrameCallback((_) => _jumpToActive());
   }
 
-  void _scrollToActive() {
+  void _jumpToActive() {
     final idx = widget.floors.indexWhere((f) => f.id == widget.activeFloorId);
     if (idx < 0 || !_scroll.hasClients) return;
-    // 每个 tab 宽度约 56px + 8px 间距，粗略定位。
+    // 每个 tab 宽度约 56px + 8px 间距，粗略估算偏移使活跃按钮居于可见区域中央。
     const tabWidth = 64.0;
     final offset = (idx * tabWidth - 80).clamp(
       0.0,
       _scroll.position.maxScrollExtent,
     );
-    _scroll.animateTo(
-      offset,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
-    );
+    _scroll.jumpTo(offset);
   }
 
   @override
