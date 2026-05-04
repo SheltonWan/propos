@@ -109,6 +109,10 @@ class HeatmapUnit {
   final String propertyType;
   final String? tenantName;
   final String? contractEndDate;
+  /// 建筑面积（m²），来自 units.gross_area
+  final double? areaSqm;
+  /// 当前生效合同 ID，已租/即将到期时返回，否则为 null
+  final String? contractId;
 
   const HeatmapUnit({
     required this.unitId,
@@ -117,6 +121,8 @@ class HeatmapUnit {
     required this.propertyType,
     this.tenantName,
     this.contractEndDate,
+    this.areaSqm,
+    this.contractId,
   });
 
   factory HeatmapUnit.fromColumnMap(Map<String, dynamic> map) {
@@ -129,6 +135,10 @@ class HeatmapUnit {
     } else if (endDate is String) {
       endDateStr = endDate;
     }
+    final rawArea = map['area_sqm'];
+    final double? areaSqm = rawArea == null
+        ? null
+        : (rawArea as num).toDouble();
     return HeatmapUnit(
       unitId: map['unit_id'] as String,
       unitNumber: map['unit_number'] as String,
@@ -136,6 +146,8 @@ class HeatmapUnit {
       propertyType: map['property_type'] as String,
       tenantName: map['tenant_name'] as String?,
       contractEndDate: endDateStr,
+      areaSqm: areaSqm,
+      contractId: map['contract_id'] as String?,
     );
   }
 
@@ -146,5 +158,7 @@ class HeatmapUnit {
         'property_type': propertyType,
         'tenant_name': tenantName,
         'contract_end_date': contractEndDate,
+        'area_sqm': areaSqm,
+        'contract_id': contractId,
       };
 }

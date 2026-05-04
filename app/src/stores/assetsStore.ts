@@ -31,6 +31,7 @@ import {
   fetchUnits,
 } from '@/api/modules/assets'
 import { ApiError } from '@/types/api'
+import { fetchSvgWithCache } from '@/composables/useFloorSvgCache'
 
 // ── 错误兜底文案统一管理 ────────────────────────────────────────────────────
 function pickErrorMessage(e: unknown, fallback: string): string {
@@ -174,6 +175,8 @@ export const useFloorMapStore = defineStore('floorMap', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const buildingId = ref<string | null>(null)
+  /** 请求序列号：每次 selectFloor 自增，提交结果前校验是否为最新请求，丢弃过期响应 */
+  let selectSeq = 0
 
   /** 加载楼栋下的全部楼层（用于楼层切换标签），并默认选中首个 */
   async function loadByBuilding(bid: string): Promise<void> {
@@ -189,6 +192,18 @@ export const useFloorMapStore = defineStore('floorMap', () => {
     try {
       const fls = await fetchFloors(bid)
       list.value = [...fls].sort((a, b) => b.floor_number - a.floor_number)
+
+      // #ifdef H5 || APP-PLUS
+      // 后台预加载各楼层 SVG（floor list 已携带 svg_path，无需额外 API 调用）
+      // 静默失败：不影响主流程；fetchSvgWithCache 内置并发去重，首楼层与 demand-load 自动合并 Promise
+      const token = uni.getStorageSync('access_token') || ''
+      for (const fl of fls) {
+        if (fl.svg_path) {
+          fetchSvgWithCache(fl.svg_path, token).catch(() => { /* 预加载失败静默忽略，demand-load 时还会重试 */ })
+        }
+      }
+      // #endif
+
       if (list.value.length > 0) {
         await selectFloor(list.value[0].id)
       }
@@ -201,6 +216,8 @@ export const useFloorMapStore = defineStore('floorMap', () => {
 
   /** 切换到指定楼层（拉取楼层详情 + 热区） */
   async function selectFloor(floorId: string): Promise<void> {
+    // 每次调用递增序列号，捕获当前值；异步结果提交前校验，丢弃过期响应
+    const seq = ++selectSeq
     loading.value = true
     error.value = null
     try {
@@ -208,18 +225,24 @@ export const useFloorMapStore = defineStore('floorMap', () => {
         fetchFloor(floorId),
         fetchFloorHeatmap(floorId),
       ])
+      // 若在等待期间又触发了新的 selectFloor，丢弃本次结果，避免旧数据覆盖新状态
+      if (seq !== selectSeq) return
       item.value = floor
       heatmap.value = heatmapData
       // 若标签栏未加载（直链进入），同步拉取所属楼栋的楼层列表
       if (list.value.length === 0 && floor.building_id) {
         buildingId.value = floor.building_id
         const fls = await fetchFloors(floor.building_id)
+        // 二次校验：fetchFloors 本身也是异步，防止更晚的 selectFloor 发生在其之后
+        if (seq !== selectSeq) return
         list.value = [...fls].sort((a, b) => b.floor_number - a.floor_number)
       }
     } catch (e) {
+      if (seq !== selectSeq) return
       error.value = pickErrorMessage(e, '楼层数据加载失败')
     } finally {
-      loading.value = false
+      // 仅最新请求负责关闭 loading，避免过期请求提前关闭旋转指示器
+      if (seq === selectSeq) loading.value = false
     }
   }
 
