@@ -17,6 +17,7 @@ import '../../../../core/config/app_config.dart';
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/custom_colors.dart';
 import '../../../../shared/widgets/status_tag.dart';
+import '../../domain/entities/floor.dart';
 import '../../domain/entities/heatmap.dart';
 import '../../domain/entities/unit_status.dart';
 import '../bloc/floor_map_cubit.dart';
@@ -47,7 +48,11 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
   @override
   void initState() {
     super.initState();
-    context.read<FloorMapCubit>().fetch(widget.floorId);
+    // 优先通过 buildingId 加载楼层列表（以便显示标签栏），再加载指定楼层热区。
+    context.read<FloorMapCubit>().loadByBuilding(
+      widget.buildingId,
+      initialFloorId: widget.floorId,
+    );
   }
 
   @override
@@ -83,8 +88,10 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
                               .danger)),
                   const SizedBox(height: 12),
                   CupertinoButton(
-                    onPressed: () =>
-                        context.read<FloorMapCubit>().fetch(widget.floorId),
+                  onPressed: () => context.read<FloorMapCubit>().loadByBuilding(
+                    widget.buildingId,
+                    initialFloorId: widget.floorId,
+                  ),
                     child: const Text('重试'),
                   ),
                 ],
@@ -98,9 +105,28 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
   }
 
   Widget _buildContent(BuildContext context, FloorHeatmap heatmap) {
+    // 获取楼层列表（用于标签栏）和当前楼层 ID。
+    final (floors, currentFloorId) = context
+        .select<FloorMapCubit, (List<Floor>, String)>((cubit) {
+          final s = cubit.state;
+          return s is FloorMapStateLoaded
+              ? (s.floors, s.floor.id)
+              : (<Floor>[], '');
+        });
+
     return Column(
       children: [
-        // 图层切换（出租状态 / 到期预警）
+        // ① 楼层切换标签栏（仅在有多个楼层时显示，对齐 uni-app FloorTabBar）
+        if (floors.length > 1)
+          _FloorTabBar(
+            floors: floors,
+            activeFloorId: currentFloorId,
+            onFloorSelected: (floorId) {
+              setState(() => _selectedUnit = null);
+              context.read<FloorMapCubit>().selectFloor(floorId);
+            },
+          ),
+        // ② 图层切换（出租状态 / 到期预警）
         _LayerToggle(
           currentLayer: _currentLayer,
           onLayerChanged: (layer) => setState(() => _currentLayer = layer),
@@ -990,6 +1016,112 @@ class _ZoomButtonState extends State<_ZoomButton> {
                   ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 楼层切换标签栏
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 横向可滚动的楼层切换标签栏，对齐 uni-app FloorTabBar 组件。
+///
+/// 当楼栋有多个楼层时，在图层切换按钮上方显示；点击某一楼层触发 [onFloorSelected]。
+class _FloorTabBar extends StatefulWidget {
+  final List<Floor> floors;
+  final String activeFloorId;
+  final void Function(String floorId) onFloorSelected;
+
+  const _FloorTabBar({
+    required this.floors,
+    required this.activeFloorId,
+    required this.onFloorSelected,
+  });
+
+  @override
+  State<_FloorTabBar> createState() => _FloorTabBarState();
+}
+
+class _FloorTabBarState extends State<_FloorTabBar> {
+  final ScrollController _scroll = ScrollController();
+
+  @override
+  void didUpdateWidget(_FloorTabBar old) {
+    super.didUpdateWidget(old);
+    // 切换楼层后自动将选中标签滚动到可见区域。
+    if (old.activeFloorId != widget.activeFloorId) {
+      _scrollToActive();
+    }
+  }
+
+  void _scrollToActive() {
+    final idx = widget.floors.indexWhere((f) => f.id == widget.activeFloorId);
+    if (idx < 0 || !_scroll.hasClients) return;
+    // 每个 tab 宽度约 56px + 8px 间距，粗略定位。
+    const tabWidth = 64.0;
+    final offset = (idx * tabWidth - 80).clamp(
+      0.0,
+      _scroll.position.maxScrollExtent,
+    );
+    _scroll.animateTo(
+      offset,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = CupertinoTheme.of(context).primaryColor;
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        controller: _scroll,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: widget.floors.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final floor = widget.floors[index];
+          final isActive = floor.id == widget.activeFloorId;
+          return GestureDetector(
+            onTap: () => widget.onFloorSelected(floor.id),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: isActive
+                    ? primary
+                    : CupertinoColors.systemBackground.resolveFrom(context),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: isActive
+                      ? primary
+                      : CupertinoColors.systemGrey4.resolveFrom(context),
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  floor.displayName,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: isActive
+                        ? CupertinoColors.white
+                        : CupertinoColors.label.resolveFrom(context),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

@@ -13,6 +13,8 @@ sealed class FloorMapState with _$FloorMapState {
   const factory FloorMapState.loaded({
     required Floor floor,
     required FloorHeatmap heatmap,
+    /// 同楼栋下所有楼层列表，用于楼层切换标签栏。
+    @Default([]) List<Floor> floors,
   }) = FloorMapStateLoaded;
   const factory FloorMapState.error(String message) = FloorMapStateError;
 }

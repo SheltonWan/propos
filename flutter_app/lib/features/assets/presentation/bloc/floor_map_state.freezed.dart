@@ -125,12 +125,12 @@ return error(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  initial,TResult Function()?  loading,TResult Function( Floor floor,  FloorHeatmap heatmap)?  loaded,TResult Function( String message)?  error,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  initial,TResult Function()?  loading,TResult Function( Floor floor,  FloorHeatmap heatmap,  List<Floor> floors)?  loaded,TResult Function( String message)?  error,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case FloorMapStateInitial() when initial != null:
 return initial();case FloorMapStateLoading() when loading != null:
 return loading();case FloorMapStateLoaded() when loaded != null:
-return loaded(_that.floor,_that.heatmap);case FloorMapStateError() when error != null:
+return loaded(_that.floor,_that.heatmap,_that.floors);case FloorMapStateError() when error != null:
 return error(_that.message);case _:
   return orElse();
 
@@ -149,12 +149,12 @@ return error(_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  initial,required TResult Function()  loading,required TResult Function( Floor floor,  FloorHeatmap heatmap)  loaded,required TResult Function( String message)  error,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  initial,required TResult Function()  loading,required TResult Function( Floor floor,  FloorHeatmap heatmap,  List<Floor> floors)  loaded,required TResult Function( String message)  error,}) {final _that = this;
 switch (_that) {
 case FloorMapStateInitial():
 return initial();case FloorMapStateLoading():
 return loading();case FloorMapStateLoaded():
-return loaded(_that.floor,_that.heatmap);case FloorMapStateError():
+return loaded(_that.floor,_that.heatmap,_that.floors);case FloorMapStateError():
 return error(_that.message);}
 }
 /// A variant of `when` that fallback to returning `null`
@@ -169,12 +169,12 @@ return error(_that.message);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  initial,TResult? Function()?  loading,TResult? Function( Floor floor,  FloorHeatmap heatmap)?  loaded,TResult? Function( String message)?  error,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  initial,TResult? Function()?  loading,TResult? Function( Floor floor,  FloorHeatmap heatmap,  List<Floor> floors)?  loaded,TResult? Function( String message)?  error,}) {final _that = this;
 switch (_that) {
 case FloorMapStateInitial() when initial != null:
 return initial();case FloorMapStateLoading() when loading != null:
 return loading();case FloorMapStateLoaded() when loaded != null:
-return loaded(_that.floor,_that.heatmap);case FloorMapStateError() when error != null:
+return loaded(_that.floor,_that.heatmap,_that.floors);case FloorMapStateError() when error != null:
 return error(_that.message);case _:
   return null;
 
@@ -251,11 +251,20 @@ String toString() {
 
 
 class FloorMapStateLoaded implements FloorMapState {
-  const FloorMapStateLoaded({required this.floor, required this.heatmap});
+  const FloorMapStateLoaded({required this.floor, required this.heatmap, final  List<Floor> floors = const []}): _floors = floors;
   
 
  final  Floor floor;
  final  FloorHeatmap heatmap;
+/// 同楼栋下所有楼层列表，用于楼层切换标签栏。
+ final  List<Floor> _floors;
+/// 同楼栋下所有楼层列表，用于楼层切换标签栏。
+@JsonKey() List<Floor> get floors {
+  if (_floors is EqualUnmodifiableListView) return _floors;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_floors);
+}
+
 
 /// Create a copy of FloorMapState
 /// with the given fields replaced by the non-null parameter values.
@@ -267,16 +276,16 @@ $FloorMapStateLoadedCopyWith<FloorMapStateLoaded> get copyWith => _$FloorMapStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is FloorMapStateLoaded&&(identical(other.floor, floor) || other.floor == floor)&&(identical(other.heatmap, heatmap) || other.heatmap == heatmap));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FloorMapStateLoaded&&(identical(other.floor, floor) || other.floor == floor)&&(identical(other.heatmap, heatmap) || other.heatmap == heatmap)&&const DeepCollectionEquality().equals(other._floors, _floors));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,floor,heatmap);
+int get hashCode => Object.hash(runtimeType,floor,heatmap,const DeepCollectionEquality().hash(_floors));
 
 @override
 String toString() {
-  return 'FloorMapState.loaded(floor: $floor, heatmap: $heatmap)';
+  return 'FloorMapState.loaded(floor: $floor, heatmap: $heatmap, floors: $floors)';
 }
 
 
@@ -287,7 +296,7 @@ abstract mixin class $FloorMapStateLoadedCopyWith<$Res> implements $FloorMapStat
   factory $FloorMapStateLoadedCopyWith(FloorMapStateLoaded value, $Res Function(FloorMapStateLoaded) _then) = _$FloorMapStateLoadedCopyWithImpl;
 @useResult
 $Res call({
- Floor floor, FloorHeatmap heatmap
+ Floor floor, FloorHeatmap heatmap, List<Floor> floors
 });
 
 
@@ -304,11 +313,12 @@ class _$FloorMapStateLoadedCopyWithImpl<$Res>
 
 /// Create a copy of FloorMapState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? floor = null,Object? heatmap = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? floor = null,Object? heatmap = null,Object? floors = null,}) {
   return _then(FloorMapStateLoaded(
 floor: null == floor ? _self.floor : floor // ignore: cast_nullable_to_non_nullable
 as Floor,heatmap: null == heatmap ? _self.heatmap : heatmap // ignore: cast_nullable_to_non_nullable
-as FloorHeatmap,
+as FloorHeatmap,floors: null == floors ? _self._floors : floors // ignore: cast_nullable_to_non_nullable
+as List<Floor>,
   ));
 }
 
