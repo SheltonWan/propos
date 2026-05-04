@@ -207,7 +207,7 @@ const kUnitCols = [
   'id', 'building_id', 'building_name', 'floor_id', 'floor_name',
   'unit_number', 'property_type', 'gross_area', 'net_area',
   'orientation', 'ceiling_height', 'decoration_status', 'current_status',
-  'is_leasable', 'ext_fields', 'current_contract_id', 'qr_code',
+  'is_leasable', 'ext_fields', 'floor_plan_coords', 'current_contract_id', 'qr_code',
   'market_rent_reference', 'predecessor_unit_ids', 'archived_at',
   'created_at', 'updated_at'
 ];
@@ -231,6 +231,7 @@ List<Object?> unitRow({
       decorationStatus, currentStatus,
       isLeasable,
       <String, dynamic>{}, // ext_fields
+      null, // floor_plan_coords
       null, null, null, // current_contract_id, qr_code, market_rent_reference
       <dynamic>[], // predecessor_unit_ids
       null, // archived_at

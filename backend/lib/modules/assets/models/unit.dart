@@ -31,8 +31,11 @@ class Unit {
   /// 出租状态：'leased' | 'vacant' | 'expiring_soon' | 'non_leasable' | 'renovating' | 'pre_lease'
   final String currentStatus;
   final bool isLeasable;
-  /// 业态扩展字段（JSONB），含 svg 热区坐标 + 业态专属属性
+  /// 业态扩展字段（JSONB），含业态专属属性
   final Map<String, dynamic> extFields;
+  /// 楼层热区坐标（来自 annotate_hotzone.py 提取的圆心坐标），供楼层地图交互使用
+  /// 格式：{"x": double, "y": double}（SVG 坐标系）
+  final Map<String, dynamic>? floorPlanCoords;
   final String? currentContractId;
   final String? qrCode;
   /// 参考市场租金（元/m²/月）
@@ -60,6 +63,7 @@ class Unit {
     required this.currentStatus,
     required this.isLeasable,
     required this.extFields,
+    this.floorPlanCoords,
     this.currentContractId,
     this.qrCode,
     this.marketRentReference,
@@ -86,6 +90,7 @@ class Unit {
       currentStatus: map['current_status'] as String,
       isLeasable: map['is_leasable'] as bool,
       extFields: (map['ext_fields'] as Map<String, dynamic>?) ?? {},
+      floorPlanCoords: map['floor_plan_coords'] as Map<String, dynamic>?,
       currentContractId: map['current_contract_id'] as String?,
       qrCode: map['qr_code'] as String?,
       marketRentReference: _pd(map['market_rent_reference']),
@@ -115,6 +120,7 @@ class Unit {
         'current_status': currentStatus,
         'is_leasable': isLeasable,
         'ext_fields': extFields,
+        'floor_plan_coords': floorPlanCoords,
         'current_contract_id': currentContractId,
         'qr_code': qrCode,
         'market_rent_reference': marketRentReference,

@@ -634,12 +634,12 @@ class CadImportService {
       }
 
       try {
-        // 构建 ext_fields：保存房间名称与 SVG 热区坐标，供楼层地图交互使用
+        // 构建 ext_fields：仅保存房间名称等扩展属性
         final extFields = <String, dynamic>{};
         final roomName = u['room_name'] as String? ?? '';
         if (roomName.isNotEmpty) extFields['room_name'] = roomName;
-        final hotspot = u['hotspot'];
-        if (hotspot != null) extFields['hotspot'] = hotspot;
+        // hotspot 圆心坐标写入正式列 floor_plan_coords，而非 ext_fields
+        final hotspot = u['hotspot'] as Map<String, dynamic>?;
 
         await unitRepo.create(
           floorId: floor.id,
@@ -648,6 +648,7 @@ class CadImportService {
           propertyType: propertyType,
           grossArea: grossArea,
           extFields: extFields.isEmpty ? null : extFields,
+          floorPlanCoords: hotspot,
         );
         created++;
       } catch (e) {
