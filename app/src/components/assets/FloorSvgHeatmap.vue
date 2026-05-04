@@ -33,7 +33,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { buildFileProxyUrl } from '@/constants/api_paths'
+import { fetchSvgWithCache } from '@/composables/useFloorSvgCache'
 import type { FloorHeatmapUnit, LayerMode, PropertyType, UnitStatus } from '@/types/assets'
 
 // ── Props & Emits ───────────────────────────────────────────────────────────
@@ -598,12 +598,12 @@ const ALL_UNIT_CLASSES = [
 let unbindHandlers: Array<() => void> = []
 
 /**
- * 拉取真实 SVG 文本（携带 Bearer token 走 /api/files 代理）。
+ * 加载真实 SVG 文本（优先命中 session 内存缓存，未命中时发起网络请求）。
  *
- * 使用 `uni.request` 而非 `fetch`：
- *   • H5 端 uni.request 底层走 XHR/fetch，与业务 API 同通道（CORS 已通）
- *   • App-plus 端走原生网络栈，无 CORS 限制
- *   • 小程序通过 dataType:'其他值' 拿到字符串响应
+ * 缓存层由 composables/useFloorSvgCache.ts 统一管理：
+ *   • 命中缓存 — 直接同步赋值，无网络往返，切换楼层体验接近即时
+ *   • 并发去重 — 同一 svgPath 同时触发多次加载只发起一次请求
+ *   • 失败时自动回退手绘示意图（realSvgError = true）
  */
 async function loadRealSvg(svgPath: string): Promise<void> {
   // #ifdef H5 || APP-PLUS
@@ -612,32 +612,10 @@ async function loadRealSvg(svgPath: string): Promise<void> {
   realSvgVbH.value = null
   realSvgError.value = false
   realSvgLoading.value = true
-  const url = buildFileProxyUrl(svgPath)
   const token = uni.getStorageSync('access_token') || ''
-  console.info('[FloorSvgHeatmap] 开始加载真实 SVG:', url)
+  console.info('[FloorSvgHeatmap] 请求 SVG（缓存优先）:', svgPath)
   try {
-    const result = await new Promise<string>((resolve, reject) => {
-      uni.request({
-        url,
-        method: 'GET',
-        header: {
-          Accept: 'image/svg+xml,*/*',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        // 让响应保持为字符串而非 JSON 解析
-        dataType: '其他' as unknown as 'json',
-        responseType: 'text',
-        success: (res) => {
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            resolve(typeof res.data === 'string' ? res.data : String(res.data))
-          } else {
-            reject(new Error(`HTTP ${res.statusCode}`))
-          }
-        },
-        fail: (err) => reject(new Error(err.errMsg || 'request failed')),
-      })
-    })
-    if (!result || result.length === 0) throw new Error('empty svg')
+    const result = await fetchSvgWithCache(svgPath, token)
     // 解析 viewBox 宽高，用于画布按真实图纸比例渲染，修复 xMidYMid 居中问题
     const vbMatch = result.match(/viewBox="([^"]*)"/)
     if (vbMatch) {
@@ -649,11 +627,11 @@ async function loadRealSvg(svgPath: string): Promise<void> {
     }
     realSvgText.value = result
     realSvgLoading.value = false
-    console.info('[FloorSvgHeatmap] 真实 SVG 加载成功，长度:', result.length, '| viewBox:', realSvgVbW.value, 'x', realSvgVbH.value)
+    console.info('[FloorSvgHeatmap] SVG 就绪，长度:', result.length, '| viewBox:', realSvgVbW.value, 'x', realSvgVbH.value)
     await nextTick()
     applyUnitStatesAndClicks()
   } catch (e) {
-    console.warn('[FloorSvgHeatmap] 真实 SVG 加载失败，回退手绘示意:', e)
+    console.warn('[FloorSvgHeatmap] SVG 加载失败，回退手绘示意:', e)
     realSvgText.value = null
     realSvgVbW.value = null
     realSvgVbH.value = null
