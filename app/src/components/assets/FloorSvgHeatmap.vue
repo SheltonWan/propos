@@ -604,6 +604,9 @@ let unbindHandlers: Array<() => void> = []
  *   • 命中缓存 — 直接同步赋值，无网络往返，切换楼层体验接近即时
  *   • 并发去重 — 同一 svgPath 同时触发多次加载只发起一次请求
  *   • 失败时自动回退手绘示意图（realSvgError = true）
+ *
+ * 竞态防护：捕获调用时的 svgPath，Promise 就绪后校验是否仍为当前 prop，
+ * 丢弃已过期的结果，防止快速切换楼层时旧 SVG 覆盖新状态。
  */
 async function loadRealSvg(svgPath: string): Promise<void> {
   // #ifdef H5 || APP-PLUS
@@ -616,6 +619,11 @@ async function loadRealSvg(svgPath: string): Promise<void> {
   console.info('[FloorSvgHeatmap] 请求 SVG（缓存优先）:', svgPath)
   try {
     const result = await fetchSvgWithCache(svgPath, token)
+    // 竞态检测：若在等待期间 svgPath prop 已变更，丢弃本次结果
+    if (props.svgPath !== svgPath) {
+      console.info('[FloorSvgHeatmap] SVG 已过期，丢弃:', svgPath)
+      return
+    }
     // 解析 viewBox 宽高，用于画布按真实图纸比例渲染，修复 xMidYMid 居中问题
     const vbMatch = result.match(/viewBox="([^"]*)"/)
     if (vbMatch) {
