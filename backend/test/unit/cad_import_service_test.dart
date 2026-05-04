@@ -725,6 +725,104 @@ void main() {
         completes,
       );
     });
+
+    test('hotspot JSON → 写入 floor_plan_coords 参数，不污染 ext_fields', () async {
+      // ── 准备文件 ──
+      final svgRel = 'cad/b-1/jobs/job-1/plan_F14.svg';
+      final svgAbs = File('${tmpDir.path}/$svgRel');
+      await svgAbs.parent.create(recursive: true);
+      await svgAbs.writeAsString('<svg/>');
+      await File('${tmpDir.path}/cad/b-1/jobs/job-1/plan_F14.json')
+          .writeAsString(jsonEncode({
+        'dxf_region': {'min_x': 0, 'min_y': 0, 'max_x': 100, 'max_y': 100},
+        'viewport': {'width': 1000, 'height': 1000},
+        'units': [
+          {
+            'unit_id': '14-01',
+            'room_name': '研发工位',
+            'area_m2': 45.0,
+            // annotate_hotzone.py 输出的圆心坐标
+            'hotspot': {
+              'type': 'circle',
+              'cx': 150.0,
+              'cy': 250.0,
+              'r': 20.0,
+            },
+          },
+        ],
+      }));
+
+      // SQL 序列：共 13 步（与 plan_F11 用例相同结构）
+      // 11 步对应 UnitRepository.create → 捕获 floorPlanCoords + extFields 参数
+      Map<String, dynamic>? capturedCreateParams;
+      var idx = 0;
+      pool.executeHandler = (q, p) {
+        idx++;
+        switch (idx) {
+          case 1:
+            return makeResult(_kJobCols, [
+              _jobRow(status: 'done', unmatchedSvgs: [
+                {'label': 'F14', 'tmp_path': svgRel},
+              ])
+            ]);
+          case 2:
+            return makeResult(kFloorCols,
+                [floorRow(id: 'f-14', buildingId: 'b-1', floorNumber: 14)]);
+          case 3:
+            return makeResult(kFloorPlanCols,
+                [floorPlanRow(id: 'fp-14', floorId: 'f-14', isCurrent: false)]);
+          case 4:
+            return setPlanSelect('f-14', 'floors/b-1/f-14.svg');
+          case 5:
+          case 6:
+          case 7:
+            return makeResult([], []);
+          case 8:
+            return makeResult(kFloorPlanCols,
+                [floorPlanRow(id: 'fp-14', floorId: 'f-14', isCurrent: true)]);
+          case 9:
+            return makeResult(kBuildingCols, [buildingRow()]);
+          case 10:
+            // findExistingUnitNumbers：'14-01' 不存在
+            return makeResult(['unit_number'], []);
+          case 11:
+            // UnitRepository.create → 捕获全部参数用于断言
+            capturedCreateParams = p as Map<String, dynamic>?;
+            return makeResult(kUnitCols,
+                [unitRow(buildingId: 'b-1', floorId: 'f-14', unitNumber: '14-01')]);
+          case 12:
+            return makeResult([], []);
+          default:
+            return makeResult(_kJobCols,
+                [_jobRow(status: 'done', matchedCount: 1, unmatchedSvgs: [])]);
+        }
+      };
+
+      await svc.assignUnmatched('job-1', svgLabel: 'F14', floorId: 'f-14');
+
+      // ── 断言 UnitRepository.create 的参数 ──
+      expect(capturedCreateParams, isNotNull,
+          reason: 'step 11 应触发 UnitRepository.create，捕获到参数');
+
+      // hotspot 必须写入 floorPlanCoords 参数（正式列）
+      final rawCoords = capturedCreateParams!['floorPlanCoords'];
+      expect(rawCoords, isNotNull,
+          reason: 'hotspot 数据应通过 floorPlanCoords 参数传入，不得为 null');
+      final coords = jsonDecode(rawCoords as String) as Map<String, dynamic>;
+      expect(coords['cx'], 150.0,
+          reason: 'cx 应与 JSON 中 hotspot.cx 一致');
+      expect(coords['cy'], 250.0,
+          reason: 'cy 应与 JSON 中 hotspot.cy 一致');
+
+      // extFields 参数不得含 hotspot 键（已废弃的旧写法回归检测）
+      final rawExtFields = capturedCreateParams!['extFields'];
+      if (rawExtFields != null) {
+        final extFields =
+            jsonDecode(rawExtFields as String) as Map<String, dynamic>;
+        expect(extFields.containsKey('hotspot'), isFalse,
+            reason: 'hotspot 不应写入 ext_fields，应写入 floor_plan_coords 正式列');
+      }
+    });
   });
 
   // ─── 序列化健康度 ───────────────────────────────────────────────────────
