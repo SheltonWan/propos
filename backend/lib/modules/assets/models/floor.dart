@@ -138,7 +138,9 @@ class HeatmapUnit {
     final rawArea = map['area_sqm'];
     final double? areaSqm = rawArea == null
         ? null
-        : (rawArea as num).toDouble();
+        : rawArea is num
+            ? rawArea.toDouble()
+            : double.parse(rawArea.toString());
     return HeatmapUnit(
       unitId: map['unit_id'] as String,
       unitNumber: map['unit_number'] as String,
