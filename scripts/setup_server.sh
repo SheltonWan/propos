@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
-# PropOS 服务器首次初始化脚本
-# 执行时机：仅在首次部署时执行一次
+# PropOS 服务器初始化脚本
+#
+# 用途：配置免密 SSH + 初始化服务器（Docker 网络、PostgreSQL、目录结构、数据库迁移）
 # 执行位置：本地开发机，在项目根目录运行
-# 用途：配置免密 SSH + 初始化服务器（Docker 网络、PostgreSQL、目录结构）
+#
+# 用法：
+#   bash scripts/setup_server.sh              # 首次初始化（幂等，已执行的迁移自动跳过）
+#   bash scripts/setup_server.sh --reset-db   # 清库重建（DROP SCHEMA + 重跑所有迁移）
+#
+# 参数：
+#   --reset-db    清空数据库后重新执行全部迁移（000_consolidated_schema.sql 起）
+#                 ⚠ 数据不可恢复！生产环境需输入 CONFIRM_RESET 二次确认
+#
+# 前置条件：
+#   1. .deploy.env 已填写 SERVER_HOST / ADMIN_EMAIL / ADMIN_PASSWORD_HASH / COMPANY_NAME
+#      （可参考 .deploy.env.example）
+#   2. 本机已安装 rsync、openssl；可选安装 sshpass 实现全自动推送公钥
 
 set -euo pipefail
 
@@ -273,8 +286,8 @@ REMOTE_MIGRATIONS="${REMOTE_BASE}/migrations"
 # 确保远端目录存在
 ssh "${SSH_ALIAS}" "mkdir -p ${REMOTE_MIGRATIONS}"
 
-# 仅上传 .sql 文件（忽略 .gitkeep 等）
-rsync -az --include='*.sql' --exclude='*' "${MIGRATIONS_DIR}/" "${SSH_ALIAS}:${REMOTE_MIGRATIONS}/"
+# 仅上传 .sql 文件（忽略 .gitkeep 等）；--delete 同步删除远端多余文件（如废弃的旧迁移）
+rsync -az --delete --include='*.sql' --exclude='*' "${MIGRATIONS_DIR}/" "${SSH_ALIAS}:${REMOTE_MIGRATIONS}/"
 success "迁移文件已上传至 ${REMOTE_MIGRATIONS}"
 
 # 读取超管账号凭据（migration 020 需要通过 psql -v 注入，不得硬编码在 SQL 文件中）
