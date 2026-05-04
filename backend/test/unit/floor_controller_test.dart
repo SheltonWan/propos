@@ -209,15 +209,33 @@ void main() {
       expect((json['error'] as Map)['code'], 'FLOOR_NOT_FOUND');
     });
 
-    test('楼层存在 → 200 data 含 units 数组', () async {
+    test('楼层存在 → 200 data 含 units 数组，area_sqm 和 contract_id 序列化', () async {
       svc.heatmapResult = FloorHeatmap(
-          floorId: 'f-1', svgPath: null, units: []);
+        floorId: 'f-1',
+        svgPath: null,
+        units: [
+          HeatmapUnit(
+            unitId: 'u-1',
+            unitNumber: '101',
+            currentStatus: 'leased',
+            propertyType: 'office',
+            tenantName: '测试租户',
+            contractEndDate: '2027-06-30',
+            areaSqm: 95.0,
+            contractId: 'c-1',
+          ),
+        ],
+      );
 
       final resp = await floorHandler(makeReq('GET', '/floors/f-1/heatmap'));
       final json = await readJson(resp);
 
       expect(resp.statusCode, 200);
-      expect((json['data'] as Map).containsKey('units'), isTrue);
+      final units = (json['data'] as Map)['units'] as List;
+      expect(units, hasLength(1));
+      final unit = units.first as Map;
+      expect(unit['area_sqm'], 95.0);
+      expect(unit['contract_id'], 'c-1');
     });
   });
 

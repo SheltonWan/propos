@@ -833,6 +833,8 @@
 | `property_type` | string(enum) | 业态 |
 | `tenant_name` | string? | 当前租户名称（已租时返回） |
 | `contract_end_date` | string(date)? | 合同到期日（已租时返回） |
+| `area_sqm` | number? | 建筑面积（m²），来自 units.gross_area |
+| `contract_id` | string(uuid)? | 当前生效合同 ID，已租/即将到期时返回 |
 
 ---
 

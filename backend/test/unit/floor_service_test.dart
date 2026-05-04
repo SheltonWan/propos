@@ -132,6 +132,43 @@ void main() {
       expect(heatmap.floorId, 'f-1');
       expect(heatmap.units, isEmpty);
     });
+
+    test('有房源时 → areaSqm 和 contractId 被正确解析', () async {
+      var callIdx = 0;
+      pool.executeHandler = (q, p) {
+        callIdx++;
+        if (callIdx == 1) {
+          return makeResult([
+            'floor_id',
+            'svg_path'
+          ], [
+            ['f-1', 'floors/b-1/f-1.svg']
+          ]);
+        }
+        // 第2次: 返回一个已租单元（含 area_sqm 和 contract_id）
+        return makeResult(
+          kHeatmapUnitCols,
+          [
+            heatmapUnitRow(
+              unitId: 'u-1',
+              currentStatus: 'leased',
+              tenantName: '字节跳动',
+              contractEndDate: '2027-12-31',
+              areaSqm: 88.5,
+              contractId: 'c-1',
+            ),
+          ],
+        );
+      };
+      final heatmap = await svc.getHeatmap('f-1');
+      expect(heatmap.svgPath, 'floors/b-1/f-1.svg');
+      expect(heatmap.units, hasLength(1));
+      final unit = heatmap.units.first;
+      expect(unit.currentStatus, 'leased');
+      expect(unit.tenantName, '字节跳动');
+      expect(unit.areaSqm, 88.5);
+      expect(unit.contractId, 'c-1');
+    });
   });
 
   // ─── listPlans ───────────────────────────────────────────────────────────

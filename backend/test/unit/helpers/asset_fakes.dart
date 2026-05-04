@@ -169,6 +169,39 @@ List<Object?> buildingRow({
       _t
     ];
 
+/// heatmap 单元查询的列名（与 FloorRepository.getHeatmap SQL 保持一致）
+const kHeatmapUnitCols = [
+  'unit_id',
+  'unit_number',
+  'current_status',
+  'property_type',
+  'tenant_name',
+  'contract_end_date',
+  'area_sqm',
+  'contract_id',
+];
+
+List<Object?> heatmapUnitRow({
+  String unitId = 'u-1',
+  String unitNumber = '101',
+  String currentStatus = 'vacant',
+  String propertyType = 'office',
+  String? tenantName,
+  String? contractEndDate,
+  double? areaSqm = 120.5,
+  String? contractId,
+}) =>
+    [
+      unitId,
+      unitNumber,
+      currentStatus,
+      propertyType,
+      tenantName,
+      contractEndDate,
+      areaSqm,
+      contractId
+    ];
+
 /// floors 表查询的列名（与 FloorRepository SQL 保持一致）
 const kFloorCols = [
   'id', 'building_id', 'building_name', 'floor_number',

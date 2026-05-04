@@ -195,8 +195,10 @@ class FloorRepository {
           u.unit_number,
           u.current_status::TEXT AS current_status,
           u.property_type::TEXT  AS property_type,
-          t.name              AS tenant_name,
-          c.end_date             AS contract_end_date
+          t.name                 AS tenant_name,
+          c.end_date             AS contract_end_date,
+          u.gross_area           AS area_sqm,
+          c.id::TEXT             AS contract_id
         FROM units u
         LEFT JOIN contracts c ON c.id = u.current_contract_id
             AND c.status IN ('active','expiring_soon')
