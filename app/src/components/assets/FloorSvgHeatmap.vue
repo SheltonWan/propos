@@ -9,8 +9,11 @@
        因此一律走字符串 + v-html 的方式注入。
   -->
   <view class="svg-heatmap" :style="containerStyle">
+    <!-- SVG 加载旋转指示器（对齐 Flutter CupertinoActivityIndicator：居中菊花） -->
+    <view v-if="useRealSvg && realSvgLoading" class="svg-heatmap__spinner" />
     <!-- SVG 渲染容器（v-html 注入；DOM 操作通过 .svg-heatmap__canvas 选择器定位） -->
     <view
+      v-show="!realSvgLoading"
       class="svg-heatmap__canvas"
       :class="useRealSvg ? 'svg-heatmap__canvas--real' : 'svg-heatmap__canvas--fallback'"
       :style="canvasStyle"
@@ -562,6 +565,8 @@ const svgHtml = computed(() => {
 
 /** fetch 拿到的真实 SVG 字符串（含 <svg> 根标签，可直接 v-html 注入） */
 const realSvgText = ref<string | null>(null)
+/** 真实 SVG 正在加载中（fetch 发起 → 成功/失败） */
+const realSvgLoading = ref(false)
 /** 真实 SVG 加载失败标记，置位后自动回退手绘 */
 const realSvgError = ref(false)
 /**
@@ -606,6 +611,7 @@ async function loadRealSvg(svgPath: string): Promise<void> {
   realSvgVbW.value = null
   realSvgVbH.value = null
   realSvgError.value = false
+  realSvgLoading.value = true
   const url = buildFileProxyUrl(svgPath)
   const token = uni.getStorageSync('access_token') || ''
   console.info('[FloorSvgHeatmap] 开始加载真实 SVG:', url)
@@ -642,6 +648,7 @@ async function loadRealSvg(svgPath: string): Promise<void> {
       }
     }
     realSvgText.value = result
+    realSvgLoading.value = false
     console.info('[FloorSvgHeatmap] 真实 SVG 加载成功，长度:', result.length, '| viewBox:', realSvgVbW.value, 'x', realSvgVbH.value)
     await nextTick()
     applyUnitStatesAndClicks()
@@ -650,6 +657,7 @@ async function loadRealSvg(svgPath: string): Promise<void> {
     realSvgText.value = null
     realSvgVbW.value = null
     realSvgVbH.value = null
+    realSvgLoading.value = false
     realSvgError.value = true
   }
   // #endif
@@ -761,6 +769,7 @@ watch(
       realSvgText.value = null
       realSvgVbW.value = null
       realSvgVbH.value = null
+      realSvgLoading.value = false
       realSvgError.value = false
       unbindHandlers.forEach((fn) => fn())
       unbindHandlers = []
@@ -801,6 +810,27 @@ onBeforeUnmount(() => {
   display: block;
   position: relative;
   align-self: flex-start; // 防止在 flex 父容器（scroll-view wrapper / heatmap-area）中被居中
+}
+
+// SVG 加载旋转指示器（对齐 Flutter CupertinoActivityIndicator，App-Plus WebView 安全写法）
+// transform: rotate 在 App-Plus WebView 中可用；border 环形圆弧模拟 iOS 菊花
+.svg-heatmap__spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  margin-top: -14px;
+  margin-left: -14px;
+  border-radius: 50%;
+  // iOS 灰色底环 + 深色起始段（对齐 CupertinoActivityIndicator 默认样式）
+  border: 2.5px solid #c7c7cc;
+  border-top-color: #636366;
+  animation: svg-spin 0.75s linear infinite;
+}
+
+@keyframes svg-spin {
+  to { transform: rotate(360deg); }
 }
 
 .svg-heatmap__canvas {
