@@ -54,3 +54,20 @@ export const METER_READINGS = '/api/meter-readings'
 
 // ─── 商铺营业额 ──────────────────────────────────────────────────────────
 export const TURNOVER_REPORTS = '/api/turnover-reports'
+
+// ─── 文件代理 ─────────────────────────────────────────────────────────────
+/** 后端文件代理根路径 */
+export const FILES = '/api/files'
+
+/**
+ * 构造文件代理完整 URL（用于 SVG / PDF 等需要带 token 直接拉取的资源）
+ *
+ * @param storagePath 后端返回的相对路径（如 `floors/{building_id}/{floor_id}.svg`）
+ * @returns 完整 URL（如 `http://host:port/api/files/floors/.../xxx.svg`）
+ */
+export function buildFileProxyUrl(storagePath: string): string {
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
+  // 去掉 storagePath 前导斜杠，避免双斜杠
+  const path = storagePath.startsWith('/') ? storagePath.slice(1) : storagePath
+  return `${baseUrl}${FILES}/${path}`
+}

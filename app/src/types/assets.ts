@@ -70,6 +70,9 @@ export interface FloorHeatmap {
   units: FloorHeatmapUnit[]
 }
 
+/** 楼层热区图图层模式 */
+export type LayerMode = 'status' | 'expiry'
+
 export interface FloorPlan {
   id: string
   floor_id: string
