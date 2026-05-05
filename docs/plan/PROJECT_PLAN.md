@@ -399,14 +399,15 @@
 > 实现热区点击交互和 `UnitDetailPage`。点击 SVG 多边形通过 GestureDetector + 坐标命中判断识别 unitId，命中后通过 `context.push('/assets/unit-detail/$unitId')` 跳转。`UnitDetailPage` 中当前合同摘要区域目前为占位组件（`ContractSummaryPlaceholder`），待 M2 联动后回填。三业态差异化字段用 Dart 3 `switch` pattern matching 条件渲染（admin 端同理）。
 > 附：`@file:docs/ARCH.md`（前端路由）`@file:.github/copilot-instructions.md`
 
-#### Day 21 · 5月6日（周三）— Excel 导入前端 + 资产台账导出
+#### Day 21 · 5月6日（周三）— Admin 单元列表视图 + 资产台账导出
 
-- Flutter `ImportPage`：业态选择 Tabs + `file_picker` 选择 Excel + 上传进度 + 结果报告（成功条数 / 失败行明细）
+> **注**：批量导入为 Admin 专属功能，Flutter/uni-app 不支持（见 PAGE_SPEC_FLUTTER_v1.9 §5.5、平台能力矩阵）。
+
 - admin `UnitListView`（Element Plus Table，列：单元号 / 业态 / 面积 / 状态 / 当前租客，支持筛选 + 翻页）
 - 导出按钮 → `GET /api/units/export`（后端生成 Excel，前端下载保存）
 
-> 💬 **Copilot 提示语**（模板：`/flutter-feature` + `/admin-view`）：
-> 实现 `ImportPage`（Flutter）和 `UnitListView`（admin）。上传进度用 `dio` 的 `onSendProgress` 回调驱动 `LinearProgressIndicator`（Flutter）或 `el-progress`（admin）；错误行用表格展示（列：行号/字段/错误原因）。翻页大小使用 `defaultPageSize`（来自 `ui_constants.dart` / `ui_constants.ts`），禁止硬编码 `20`；状态列颜色用 ThemeExtension（Flutter）或 Element Plus Tag type（admin）；筛选条件变化通过 Cubit/Store action 触发，不在组件中做业务判断。
+> 💬 **Copilot 提示语**（模板：`/admin-view`）：
+> 实现 `UnitListView`（admin）。错误行用表格展示（列：行号/字段/错误原因）。翻页大小使用 `defaultPageSize`（来自 `ui_constants.ts`），禁止硬编码 `20`；状态列颜色用 Element Plus Tag type；筛选条件变化通过 Store action 触发，不在组件中做业务判断。
 > 附：`@file:.github/copilot-instructions.md`（常量管理规则、UI色彩规范）
 
 #### Day 22 · 5月7日（周四）— M1 前后端联调
