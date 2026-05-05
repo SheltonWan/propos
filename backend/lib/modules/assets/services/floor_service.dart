@@ -44,12 +44,17 @@ class FloorService {
     required int floorNumber,
     String? floorName,
     double? nla,
+    String? propertyType,
   }) async {
     // 校验楼栋存在
     final building = await BuildingRepository(_db).findById(buildingId);
     if (building == null) {
       throw const NotFoundException('BUILDING_NOT_FOUND', '楼栋不存在');
     }
+    // 非混合体楼栋：忽略传入的 propertyType，自动继承楼栋业态
+    // 混合体楼栋：使用传入值（可为 null，代表待定）
+    final resolvedPropertyType =
+        building.propertyType != 'mixed' ? building.propertyType : propertyType;
     // 校验同楼栋楼层号唯一
     final exists = await FloorRepository(_db)
         .existsByBuildingAndNumber(buildingId, floorNumber);
@@ -62,7 +67,58 @@ class FloorService {
       floorNumber: floorNumber,
       floorName: floorName,
       nla: nla,
+      propertyType: resolvedPropertyType,
     );
+  }
+
+  /// 更新楼层属性；若 propertyType 有变化则同事务级联更新该楼层所有未归档单元。
+  /// 返回 ({floor, updatedUnitCount})。
+  Future<({Floor floor, int updatedUnitCount})> patchFloor(
+    String id, {
+    String? propertyType,
+    String? floorName,
+    double? nla,
+  }) async {
+    final repo = FloorRepository(_db);
+    final existing = await repo.findById(id);
+    if (existing == null) {
+      throw const NotFoundException('FLOOR_NOT_FOUND', '楼层不存在');
+    }
+
+    // 校验业态值合法
+    const validPropertyTypes = {'office', 'retail', 'apartment'};
+    if (propertyType != null && !validPropertyTypes.contains(propertyType)) {
+      throw const ValidationException(
+          'INVALID_PROPERTY_TYPE', '业态必须为 office / retail / apartment');
+    }
+
+    var updatedUnitCount = 0;
+
+    // 若业态有变化，在同一事务内级联更新楼层 + 单元
+    if (propertyType != null && propertyType != existing.propertyType) {
+      updatedUnitCount = await _db.runTx<int>((tx) async {
+        final txRepo = FloorRepository(tx);
+        await txRepo.updatePropertyType(id, propertyType);
+        return txRepo.cascadePropertyTypeToUnits(id, propertyType);
+      });
+    }
+
+    // 更新 floor_name / nla（若有传入）
+    if (floorName != null || nla != null) {
+      await _db.execute(
+        Sql.named('''
+          UPDATE floors SET
+            floor_name = COALESCE(@floorName, floor_name),
+            nla        = COALESCE(@nla,       nla),
+            updated_at = NOW()
+          WHERE id = @id
+        '''),
+        parameters: {'id': id, 'floorName': floorName, 'nla': nla},
+      );
+    }
+
+    final updated = await repo.findById(id);
+    return (floor: updated!, updatedUnitCount: updatedUnitCount);
   }
 
   // ─── 热区 ─────────────────────────────────────────────────────────────────

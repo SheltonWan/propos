@@ -61,6 +61,32 @@
           <template #default="{ row }">{{ row.floor_name ?? `${row.floor_number}F` }}</template>
         </el-table-column>
         <el-table-column prop="floor_number" label="楼层号" width="100" align="right" />
+        <el-table-column label="业态" width="160">
+          <template #default="{ row }">
+            <!-- 混合体楼栋显示行内编辑下拉；其他楼栋仅显示标签 -->
+            <template v-if="store.item?.property_type === 'mixed'">
+              <el-select
+                :model-value="row.property_type"
+                size="small"
+                placeholder="待定"
+                clearable
+                style="width: 110px"
+                @change="(val: string) => onFloorPropertyTypeChange(row, val)"
+                @click.stop
+              >
+                <el-option label="写字楼" value="office" />
+                <el-option label="商铺" value="retail" />
+                <el-option label="公寓" value="apartment" />
+              </el-select>
+            </template>
+            <el-tag
+              v-else-if="row.property_type"
+              :type="propertyTypeTag(row.property_type)"
+              size="small"
+            >{{ floorPropertyTypeLabel(row.property_type) }}</el-tag>
+            <span v-else style="color: var(--el-text-color-placeholder)">—</span>
+          </template>
+        </el-table-column>
         <el-table-column label="总单元数" width="110" align="right">
           <template #default="{ row }">{{ store.floorOccupancy[row.id]?.total ?? 0 }}</template>
         </el-table-column>
@@ -124,8 +150,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useBuildingDetailStore } from '@/stores'
-import type { Floor, BuildingPropertyType } from '@/types/asset'
+import type { Floor, BuildingPropertyType, PropertyType } from '@/types/asset'
+import { patchFloor } from '@/api/modules/assets'
 import CadImportDialog from './components/CadImportDialog.vue'
 
 const store = useBuildingDetailStore()
@@ -173,8 +201,23 @@ function goStructures(row: Floor): void {
 function propertyTypeLabel(t: BuildingPropertyType): string {
   return ({ office: '写字楼', retail: '商铺', apartment: '公寓', mixed: '综合体' } as const)[t]
 }
-function propertyTypeTag(t: BuildingPropertyType): 'primary' | 'success' | 'warning' | 'info' {
-  return ({ office: 'primary', retail: 'success', apartment: 'warning', mixed: 'info' } as const)[t]
+function propertyTypeTag(t: BuildingPropertyType | PropertyType): 'primary' | 'success' | 'warning' | 'info' {
+  return ({ office: 'primary', retail: 'success', apartment: 'warning', mixed: 'info' } as const)[t as BuildingPropertyType] ?? 'info'
+}
+function floorPropertyTypeLabel(t: PropertyType): string {
+  return ({ office: '写字楼', retail: '商铺', apartment: '公寓' } as const)[t] ?? t
+}
+async function onFloorPropertyTypeChange(floor: Floor, val: string): Promise<void> {
+  try {
+    const updated = await patchFloor(floor.id, { property_type: val as PropertyType })
+    // 就地更新 store.floors 中对应楼层，避免重担请求
+    const idx = store.floors.findIndex((f) => f.id === floor.id)
+    if (idx !== -1) store.floors.splice(idx, 1, { ...store.floors[idx], property_type: updated.property_type })
+    const n = updated.updated_unit_count ?? 0
+    ElMessage.success(`楼层业态已更新，共更新了 ${n} 个单元`)
+  } catch {
+    ElMessage.error('业态更新失败，请重试')
+  }
 }
 function formatArea(v: number | null): string {
   if (v == null) return '—'

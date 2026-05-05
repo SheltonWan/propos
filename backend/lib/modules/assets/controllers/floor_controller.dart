@@ -11,13 +11,14 @@ import '../services/floor_service.dart';
 /// FloorController — 楼层与图纸上传路由处理器。
 ///
 /// 端点：
-///   GET  /api/floors                          — 楼层列表（可按 building_id 过滤）
-///   POST /api/floors                          — 新建楼层
-///   GET  /api/floors/:id                      — 楼层详情
-///   POST /api/floors/:id/cad                  — 上传 CAD 文件
-///   GET  /api/floors/:id/heatmap              — 楼层热区状态图（含 svg_path + units[]）
-///   GET  /api/floors/:id/units                — 楼层单元状态列表（热区绑定专用，无分页）
-///   GET  /api/floors/:id/plans                — 图纸版本列表
+///   GET   /api/floors                          — 楼层列表（可按 building_id 过滤）
+///   POST  /api/floors                          — 新建楼层
+///   GET   /api/floors/:id                      — 楼层详情
+///   PATCH /api/floors/:id                      — 更新楼层属性（业态/楼层名/NLA）
+///   POST  /api/floors/:id/cad                  — 上传 CAD 文件
+///   GET   /api/floors/:id/heatmap              — 楼层热区状态图（含 svg_path + units[]）
+///   GET   /api/floors/:id/units                — 楼层单元状态列表（热区绑定专用，无分页）
+///   GET   /api/floors/:id/plans                — 图纸版本列表
 ///
 /// 所有端点受 RBAC 中间件保护，Controller 不做角色判断。
 class FloorController {
@@ -30,6 +31,7 @@ class FloorController {
     r.get('/floors', _list);
     r.post('/floors', _create);
     r.get('/floors/<id>', _getOne);
+    r.patch('/floors/<id>', _patch);
     r.post('/floors/<id>/cad', _uploadCad);
     r.get('/floors/<id>/heatmap', _heatmap);
     r.get('/floors/<id>/units', _unitsByFloor);
@@ -65,7 +67,7 @@ class FloorController {
   }
 
   /// POST /api/floors
-  /// Body: { building_id, floor_number, floor_name?, nla? }
+  /// Body: { building_id, floor_number, floor_name?, nla?, property_type? }
   Future<Response> _create(Request request) async {
     final body = await _parseBody(request);
     final floor = await _service.createFloor(
@@ -73,8 +75,31 @@ class FloorController {
       floorNumber: _requireInt(body, 'floor_number'),
       floorName: body['floor_name'] as String?,
       nla: (body['nla'] as num?)?.toDouble(),
+      propertyType: body['property_type'] as String?,
     );
     return _jsonResponse(201, {'data': floor.toJson()});
+  }
+
+  /// PATCH /api/floors/:id
+  /// Body（均可选）: { property_type?, floor_name?, nla? }
+  /// 响应体额外包含 updated_unit_count，标明本次级联更新了多少个单元。
+  Future<Response> _patch(Request request, String id) async {
+    if (!_uuidRegex.hasMatch(id)) {
+      throw const ValidationException('VALIDATION_ERROR', 'id 必须是合法的 UUID 格式');
+    }
+    final body = await _parseBody(request);
+    final result = await _service.patchFloor(
+      id,
+      propertyType: body['property_type'] as String?,
+      floorName: body['floor_name'] as String?,
+      nla: (body['nla'] as num?)?.toDouble(),
+    );
+    return _jsonResponse(200, {
+      'data': {
+        ...result.floor.toJson(),
+        'updated_unit_count': result.updatedUnitCount,
+      },
+    });
   }
 
   /// GET /api/floors/:id

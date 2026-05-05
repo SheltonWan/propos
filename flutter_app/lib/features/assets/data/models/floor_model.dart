@@ -14,6 +14,8 @@ abstract class FloorModel with _$FloorModel {
     @JsonKey(name: 'building_name') required String buildingName,
     @JsonKey(name: 'floor_number') required int floorNumber,
     @JsonKey(name: 'floor_name') String? floorName,
+    /// 楼层业态（001 新增）
+    @JsonKey(name: 'property_type') String? propertyType,
     @JsonKey(name: 'svg_path') String? svgPath,
     @JsonKey(name: 'png_path') String? pngPath,
     double? nla,
@@ -32,6 +34,7 @@ extension FloorModelX on FloorModel {
         buildingName: buildingName,
         floorNumber: floorNumber,
         floorName: floorName,
+    propertyType: propertyType,
         svgPath: svgPath,
         pngPath: pngPath,
         nla: nla,

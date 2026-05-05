@@ -13,6 +13,10 @@ abstract class Floor with _$Floor {
     required String buildingName,
     required int floorNumber,
     String? floorName,
+    /// 楼层业态（001 新增）：office / retail / apartment；
+    /// 混合体楼栋需逐层指定，非混合体楼栋自动继承楼栋业态；
+    /// null 代表「待定」
+    String? propertyType,
     String? svgPath,
     String? pngPath,
     double? nla,

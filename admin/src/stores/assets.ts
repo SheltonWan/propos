@@ -20,6 +20,7 @@ import type {
   FloorHeatmap,
   FloorPlan,
   ImportBatchDetail,
+  PropertyType,
   RenovationCreateRequest,
   RenovationPhotoStage,
   RenovationRecord,
@@ -592,13 +593,14 @@ export const useCadImportStore = defineStore('cadImport', () => {
     }
   }
 
-  async function assign(svgLabel: string, floorId: string): Promise<boolean> {
+  async function assign(svgLabel: string, floorId: string, propertyType?: string): Promise<boolean> {
     if (job.value == null) return false
     error.value = null
     try {
       job.value = await apiAssignUnmatchedSvg(job.value.id, {
         svg_label: svgLabel,
         floor_id: floorId,
+        ...(propertyType ? { property_type: propertyType as PropertyType } : {}),
       })
       return true
     } catch (e) {

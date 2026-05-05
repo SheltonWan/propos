@@ -13,6 +13,7 @@ import '../repositories/building_repository.dart';
 import '../repositories/cad_import_job_repository.dart';
 import '../repositories/floor_repository.dart';
 import '../repositories/unit_repository.dart';
+import 'floor_service.dart';
 
 /// CadImportService — 楼栋级 DXF 上传 + 异步切分 + 楼层匹配的核心服务。
 ///
@@ -127,6 +128,7 @@ class CadImportService {
     String jobId, {
     required String svgLabel,
     required String floorId,
+    String? propertyType,
   }) async {
     final repo = CadImportJobRepository(_db);
     final job = await repo.findById(jobId);
@@ -157,6 +159,12 @@ class CadImportService {
           'UNMATCHED_SVG_NOT_FOUND', '指定的 SVG 文件不在未匹配列表中');
     }
     final svg = target.first;
+
+    // 若指定了有效的楼层业态，在关联 SVG 之前先更新业态（级联单元）
+    if (propertyType != null) {
+      await FloorService(_db, _fileStoragePath)
+          .patchFloor(floorId, propertyType: propertyType);
+    }
 
     // 复制 SVG 到正式路径并创建 floor_plan
     await _attachSvgToFloor(

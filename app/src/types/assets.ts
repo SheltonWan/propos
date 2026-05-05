@@ -47,6 +47,8 @@ export interface Floor {
   building_name: string
   floor_number: number
   floor_name: string
+  /** 楼层业态（001 新增）；混合体楼栋逐层指定，非混合体自动继承楼栋业态；null = 待定 */
+  property_type?: PropertyType | null
   svg_path: string | null
   png_path: string | null
   nla: number

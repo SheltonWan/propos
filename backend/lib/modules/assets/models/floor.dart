@@ -5,7 +5,7 @@ double? _pd(dynamic v) {
   return double.parse(v.toString());
 }
 
-/// Floor 楼层数据模型 — 对应 floors 表（migration 004 + 021）
+/// Floor 楼层数据模型 — 对应 floors 表（migration 004 + 021 + 001）
 /// building_name 为 JOIN 冗余字段，仅在列表/详情查询时填充
 class Floor {
   final String id;
@@ -16,6 +16,9 @@ class Floor {
   final int floorNumber;
   /// 展示名，如 "B1"、"1F"
   final String? floorName;
+  /// 楼层业态（001 新增）：混合体楼栋需逐层指定；非混合体楼栋自动继承楼栋业态；
+  /// null 代表「待定」
+  final String? propertyType;
   /// 当前生效 SVG 路径（floors/{building_id}/{floor_id}.svg）
   final String? svgPath;
   /// 当前生效 PNG 路径（备用）
@@ -37,6 +40,7 @@ class Floor {
     this.buildingName,
     required this.floorNumber,
     this.floorName,
+    this.propertyType,
     this.svgPath,
     this.pngPath,
     this.nla,
@@ -54,6 +58,7 @@ class Floor {
       buildingName: map['building_name'] as String?,
       floorNumber: map['floor_number'] as int,
       floorName: map['floor_name'] as String?,
+      propertyType: map['property_type'] as String?,
       svgPath: map['svg_path'] as String?,
       pngPath: map['png_path'] as String?,
       nla: _pd(map['nla']),
@@ -71,6 +76,7 @@ class Floor {
         'building_name': buildingName,
         'floor_number': floorNumber,
         'floor_name': floorName,
+        'property_type': propertyType,
         'svg_path': svgPath,
         'png_path': pngPath,
         'nla': nla,

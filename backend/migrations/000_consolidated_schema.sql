@@ -459,6 +459,9 @@ CREATE TABLE floors (
     nla                      NUMERIC(10,2),
     -- 楼层名称（021 由 label 重命名）
     floor_name               VARCHAR(20),
+    -- 楼层业态（001 新增）：混合体楼栋需逐层指定；非混合体楼栋由应用层继承楼栋业态
+    -- NULL 代表「待定」，不阻断楼层及单元的创建
+    property_type            property_type,
     -- CAD 转换产出路径（021 新增）
     svg_path                 TEXT,
     png_path                 TEXT,
@@ -475,6 +478,7 @@ CREATE TABLE floors (
 );
 
 CREATE INDEX idx_floors_building ON floors(building_id);
+CREATE INDEX idx_floors_property_type ON floors(property_type) WHERE property_type IS NOT NULL;
 
 -- 楼层图纸（最终状态：经 021 重构为单版本双路径）
 CREATE TABLE floor_plans (
