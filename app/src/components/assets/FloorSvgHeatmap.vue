@@ -751,22 +751,51 @@ function buildRealSvgTapZonesFromText(): void {
   const units = Array.isArray(props.units) ? props.units : []
   const byNum: Record<string, FloorHeatmapUnit> = {}
   const byNorm: Record<string, FloorHeatmapUnit> = {}
+  /** 取最后一个 `-` 之后的子串（覆盖楼层前缀位数差，如 `01-A101` ↔ `1-A101`） */
+  const lastSeg = (s: string): string => {
+    const idx = s.lastIndexOf('-')
+    return idx >= 0 ? s.slice(idx + 1) : s
+  }
+  const byLastSeg: Record<string, FloorHeatmapUnit> = {}
   for (const u of units) {
     if (!u.unit_number) continue
     byNum[u.unit_number] = u
     byNorm[u.unit_number.replace(/[-\s]/g, '')] = u
+    byLastSeg[lastSeg(u.unit_number)] = u
   }
 
-  // 匹配 hotspot 整段：<g ... data-unit-id="..." ...> ... <circle cx=".." cy=".." r=".."/> ... </g>
-  const groupRe = /<g\b[^>]*?data-unit-id="([^"]+)"[^>]*?(?:data-unit-number="([^"]*)")?[^>]*>([\s\S]*?)<\/g>/g
+  // 第一遍：仅匹配 class 含 unit-hotspot 的 <g>。强制 class 包含约束规避 lazy 正则
+  // 在嵌套结构 <g id="unit-hotspots"><g class="unit-hotspot">...</g>...</g> 中
+  // 把外层父容器误匹配成「父开标签 → 第一个内层 </g>」从而吞掉首个 hotspot 的问题。
+  // 注意：此正则要求 class 属性写在 data-unit-id 之前或之后均可，但属性串里必须出现
+  // 完整单词 "unit-hotspot"。annotate_hotzone.py 永远把 class 写为 "unit-hotspot unit-xxx"，
+  // 父容器 <g id="unit-hotspots"> 不带该 class，因此不会误命中。
+  const groupRe = /<g\b([^>]*\bunit-hotspot\b[^>]*)>([\s\S]*?)<\/g>/g
+  const attrIdRe = /\bdata-unit-id="([^"]+)"/
+  const attrNumRe = /\bdata-unit-number="([^"]*)"/
   const circleRe = /<circle\b[^>]*?\bcx="([\d.+-]+)"[^>]*?\bcy="([\d.+-]+)"[^>]*?\br="([\d.+-]+)"/
 
   const newZones: TapZone[] = []
+  // 按半径降序排列：annotate_hotzone.py HOTSPOT_RADIUS_FACTOR=3 导致相邻 hotspot 圆形热区
+  // 大面积重叠；同级 absolute 兄弟节点中，DOM 后写的盖在前面之上。若按 SVG 原始顺序渲染，
+  // 第一个 hotspot（常为 01 单元）会被周围所有邻居完全覆盖，导致点击无响应。
+  // 大圆排在前（底层）、小圆排在后（顶层），保证小圆不会被同级大圆完全遮挡。
+  const rawZones: Array<{ unitId: string; left: number; top: number; w: number; h: number; r: number }> = []
+  const unmatchedSvgIds: string[] = []
+  let totalHotspots = 0
   let m: RegExpExecArray | null
   while ((m = groupRe.exec(svgText)) !== null) {
-    const svgId = m[1]
-    const svgNum = m[2] ?? ''
-    const inner = m[3]
+    const attrs = m[1]
+    const inner = m[2]
+    // 仅处理热点分组（避免误匹配 <g id="unit-hotspots"> 父容器或其它分组）
+    if (!/\bunit-hotspot\b/.test(attrs)) continue
+    const idMatch = attrIdRe.exec(attrs)
+    if (!idMatch) continue
+    totalHotspots += 1
+    const svgId = idMatch[1]
+    const numMatch = attrNumRe.exec(attrs)
+    const svgNum = numMatch ? numMatch[1] : ''
+
     const cm = circleRe.exec(inner)
     if (!cm) continue
     const cx = parseFloat(cm[1])
@@ -775,30 +804,60 @@ function buildRealSvgTapZonesFromText(): void {
     if (!Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(r)) continue
 
     const normId = svgId.replace(/[-\s]/g, '')
+    const lastId = lastSeg(svgId)
     const matched: FloorHeatmapUnit | undefined =
       byNum[svgId]
         ?? byNorm[normId]
-        ?? (svgNum ? units.find((u) => u.unit_number.endsWith(svgNum) || u.unit_number === svgNum) : undefined)
-    if (!matched) continue
+        ?? (svgNum ? (byNum[svgNum] ?? byLastSeg[svgNum]) : undefined)
+        ?? byLastSeg[lastId]
+        ?? (svgNum ? units.find((u) => u.unit_number.endsWith(svgNum)) : undefined)
+    if (!matched) {
+      if (unmatchedSvgIds.length < 5) unmatchedSvgIds.push(svgId)
+      continue
+    }
 
-    const left = ((cx - r) / vbW) * 100
-    const top = ((cy - r) / vbH) * 100
-    const width = ((2 * r) / vbW) * 100
-    const height = ((2 * r) / vbH) * 100
-    newZones.push({
+    rawZones.push({
       unitId: matched.unit_id,
+      left: ((cx - r) / vbW) * 100,
+      top: ((cy - r) / vbH) * 100,
+      w: ((2 * r) / vbW) * 100,
+      h: ((2 * r) / vbH) * 100,
+      r,
+    })
+  }
+
+  // 大圆 → 小圆：DOM 顺序从前到后，渲染层级从下到上 → 小圆在顶层，不会被大圆完全覆盖
+  rawZones.sort((a, b) => b.r - a.r)
+  for (const z of rawZones) {
+    newZones.push({
+      unitId: z.unitId,
       style: {
         position: 'absolute',
-        left: `${left.toFixed(3)}%`,
-        top: `${top.toFixed(3)}%`,
-        width: `${width.toFixed(3)}%`,
-        height: `${height.toFixed(3)}%`,
+        left: `${z.left.toFixed(3)}%`,
+        top: `${z.top.toFixed(3)}%`,
+        width: `${z.w.toFixed(3)}%`,
+        height: `${z.h.toFixed(3)}%`,
         borderRadius: '50%',
       },
     })
   }
 
-  console.info('[FloorSvgHeatmap] App-plus 文本解析覆盖层 =', newZones.length)
+  console.info(
+    '[FloorSvgHeatmap] App-plus 文本解析覆盖层 =',
+    newZones.length,
+    '| hotspots =',
+    totalHotspots,
+    '| units =',
+    units.length,
+  )
+  if (newZones.length === 0 && totalHotspots > 0) {
+    console.warn(
+      '[FloorSvgHeatmap] 0 命中 — 未匹配 svgId 示例:',
+      unmatchedSvgIds,
+      '| unit_number 示例:',
+      units.slice(0, 3).map((u) => u.unit_number),
+    )
+  }
   realSvgTapZones.value = newZones
 }
 
