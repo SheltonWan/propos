@@ -66,6 +66,12 @@
           <text class="prelease-block__desc">正在进行租户洽谈，预计近期完成签约</text>
         </view>
 
+        <!-- 面积信息行 -->
+        <view v-if="unit.area_sqm != null" class="meta-row">
+          <text class="meta-row__label">建筑面积</text>
+          <text class="meta-row__value">{{ unit.area_sqm }} m²</text>
+        </view>
+
         <!-- 操作按钮 -->
         <view class="action-row">
           <view
@@ -75,6 +81,15 @@
             @tap="$emit('navigate-to-unit', unit.unit_id)"
           >
             <text class="action-btn__text">查看房源详情</text>
+          </view>
+          <view
+            v-if="unit.contract_id"
+            class="action-btn action-btn--outline"
+            hover-class="action-btn--hover"
+            :hover-stay-time="80"
+            @tap="$emit('navigate-to-contract', unit.contract_id!)"
+          >
+            <text class="action-btn__text action-btn__text--outline">查看合同</text>
           </view>
         </view>
       </scroll-view>
@@ -94,6 +109,7 @@ defineProps<{
 defineEmits<{
   (e: 'close'): void
   (e: 'navigate-to-unit', unitId: string): void
+  (e: 'navigate-to-contract', contractId: string): void
 }>()
 
 const STATUS_LABELS: Record<UnitStatus, string> = {
@@ -369,6 +385,11 @@ function formatDate(value: string | null): string {
   background: var(--color-primary);
 }
 
+.action-btn--outline {
+  background: transparent;
+  border: 2rpx solid var(--color-primary);
+}
+
 .action-btn--hover {
   opacity: 0.85;
 }
@@ -377,5 +398,30 @@ function formatDate(value: string | null): string {
   font-size: 28rpx;
   font-weight: 600;
   color: var(--color-primary-foreground);
+}
+
+.action-btn__text--outline {
+  color: var(--color-primary);
+}
+
+// ─── 面积行 ────────────────────────────────────────────────────────────────────────────
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid var(--color-border);
+}
+
+.meta-row__label {
+  font-size: 24rpx;
+  color: var(--color-muted-foreground);
+}
+
+.meta-row__value {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--color-foreground);
 }
 </style>

@@ -154,6 +154,8 @@ function buildHeatmap(floorId: string): FloorHeatmap {
       contract_end_date: u.current_status === 'expiring_soon'
         ? '2026-08-31'
         : u.current_status === 'leased' ? '2027-12-31' : null,
+      area_sqm: 80 + (i % 5) * 20,
+      contract_id: u.current_contract_id ?? null,
     })),
   }
 }

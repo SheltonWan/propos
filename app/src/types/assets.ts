@@ -62,6 +62,10 @@ export interface FloorHeatmapUnit {
   property_type: PropertyType
   tenant_name: string | null
   contract_end_date: string | null
+  /** 建筑面积（m²），来自 units.gross_area，可能为 null */
+  area_sqm: number | null
+  /** 当前生效合同 ID，已租/即将到期时有值 */
+  contract_id: string | null
 }
 
 export interface FloorHeatmap {
