@@ -1,19 +1,14 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart' show Factory;
 import 'package:flutter/gestures.dart' show ScaleGestureRecognizer;
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/api/api_paths.dart';
-import '../../../../core/config/app_config.dart';
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/custom_colors.dart';
 import '../../../../shared/widgets/status_tag.dart';
@@ -97,22 +92,18 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
                 ],
               ),
             ),
-          FloorMapStateLoaded(heatmap: final heatmap) =>
-            _buildContent(context, heatmap),
+          FloorMapStateLoaded loaded =>
+            _buildContent(context, loaded),
         },
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context, FloorHeatmap heatmap) {
-    // 获取楼层列表（用于标签栏）和当前楼层 ID。
-    final (floors, currentFloorId) = context
-        .select<FloorMapCubit, (List<Floor>, String)>((cubit) {
-          final s = cubit.state;
-          return s is FloorMapStateLoaded
-              ? (s.floors, s.floor.id)
-              : (<Floor>[], '');
-        });
+  Widget _buildContent(BuildContext context, FloorMapStateLoaded loaded) {
+    final heatmap = loaded.heatmap;
+    final floors = loaded.floors;
+    final currentFloorId = loaded.floor.id;
+    final switchingToFloorId = loaded.switchingToFloorId;
 
     return Column(
       children: [
@@ -121,6 +112,7 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
           _FloorTabBar(
             floors: floors,
             activeFloorId: currentFloorId,
+            switchingToFloorId: switchingToFloorId,
             onFloorSelected: (floorId) {
               setState(() => _selectedUnit = null);
               context.read<FloorMapCubit>().selectFloor(floorId);
@@ -134,7 +126,8 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
         Expanded(
           child: heatmap.svgPath != null
               ? _FloorImageViewer(
-                  imagePath: heatmap.svgPath!,
+                  svgPath: heatmap.svgPath!,
+                  svgContent: loaded.svgContent,
                   units: heatmap.units,
                   layer: _currentLayer,
                   onUnitTap: (unit) => setState(() {
@@ -278,10 +271,14 @@ class _FloorPlanPageState extends State<FloorPlanPage> {
 
 /// 楼层 SVG 平面图（WebView 渲染）。
 ///
-/// 加载完成后注入 JS，根据 API 返回的状态给 [data-unit-id] 元素追加 CSS class，
-/// 并绑定点击事件通过 FlutterChannel 回传 DB UUID。
+/// SVG 内容由 Cubit 层通过缓存服务获取后注入（`svgContent`），
+/// 本 widget 仅负责 HTML 模板构建与 WebView 生命周期管理。
 class _FloorImageViewer extends StatefulWidget {
-  final String imagePath;
+  /// 当前楼层 SVG 文件路径（来自热区数据），用于判断楼层是否切换。
+  final String svgPath;
+
+  /// SVG 文件内容（已在 Cubit 层获取，可能来自文件系统缓存或网络）。
+  final String svgContent;
 
   /// 热区单元列表（用于叠加点击层）。
   final List<HeatmapUnit> units;
@@ -293,7 +290,8 @@ class _FloorImageViewer extends StatefulWidget {
   final void Function(HeatmapUnit) onUnitTap;
 
   const _FloorImageViewer({
-    required this.imagePath,
+    required this.svgPath,
+    required this.svgContent,
     required this.units,
     required this.layer,
     required this.onUnitTap,
@@ -321,11 +319,27 @@ class _FloorImageViewerState extends State<_FloorImageViewer> {
   @override
   void didUpdateWidget(_FloorImageViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 图层切换时调用 HTML 内预定义的 FlutterSetLayer 函数，无需重新注入 JS。
-    if (oldWidget.layer != widget.layer && _controller != null && !_isLoading) {
-      _controller!
-          .runJavaScript('try{FlutterSetLayer("${widget.layer}");}catch(e){}')
-          .catchError((_) {});
+
+    if (oldWidget.svgPath != widget.svgPath) {
+      // SVG 路径变化（楼层切换）→ 全量重新加载 WebView
+      _initWebView();
+    } else if (oldWidget.units != widget.units) {
+      // 仅热区数据变化（同楼层刷新）→ 仅通过 JS 更新单元着色，不重建 WebView
+      if (_controller != null && !_isLoading) {
+        final newJson = _buildUnitsJson();
+        _controller!
+            .runJavaScript(
+              'try{FlutterUpdateUnits(${jsonEncode(newJson)});}catch(e){}',
+            )
+            .catchError((_) {});
+      }
+    } else if (oldWidget.layer != widget.layer) {
+      // 仅图层模式变化 → 仅调用 JS 切换着色，不重建 WebView
+      if (_controller != null && !_isLoading) {
+        _controller!
+            .runJavaScript('try{FlutterSetLayer("${widget.layer}");}catch(e){}')
+            .catchError((_) {});
+      }
     }
   }
 
@@ -347,46 +361,28 @@ class _FloorImageViewerState extends State<_FloorImageViewer> {
     }
   }
 
-  /// 初始化 WebView：用 dart:io HttpClient 携带 token 拉取 SVG 内容，
-  /// 将其内联到 HTML 模板后通过 loadHtmlString 加载。
+  /// 初始化 WebView：将 Cubit 层已获取的 SVG 内容内联到 HTML 模板后加载。
   ///
-  /// 这样避免了直接 loadRequest SVG 文件时 WebKit 进入 SVG 文档模式
-  /// （该模式下 CSS zoom/transform 行为异常，无法可靠缩放）。
+  /// SVG 内容由 [FloorMapCubit] 通过 [FloorMapCacheService] 提供，
+  /// widget 层无需再发 HTTP 请求，避免了 WebKit SVG 文档模式的兼容性问题。
   Future<void> _initWebView() async {
-    final storage = GetIt.instance<FlutterSecureStorage>();
-    final token = await storage.read(key: 'access_token');
-    final fullUrl = ApiPaths.fileProxyUrl(
-      AppConfig.apiBaseUrl,
-      widget.imagePath,
-    );
+    // 重置状态以触发 loading 指示器
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+        _controller = null;
+        _zoom = 1.0;
+      });
+    }
 
-    // ── Step 1：拉取 SVG 内容 ────────────────────────────────────────────────
-    String svgContent;
-    try {
-      final client = HttpClient();
-      final request = await client.getUrl(Uri.parse(fullUrl));
-      if (token != null) {
-        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-      }
-      final response = await request.close();
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw HttpException(
-          'HTTP ${response.statusCode}',
-          uri: Uri.parse(fullUrl),
-        );
-      }
-      svgContent = await response.transform(utf8.decoder).join();
-      client.close();
-    } catch (_) {
-      if (mounted)
-        setState(() {
-          _isLoading = false;
-          _hasError = true;
-        });
+    final svgContent = widget.svgContent;
+    if (svgContent.isEmpty) {
+      if (mounted) setState(() { _isLoading = false; _hasError = true; });
       return;
     }
 
-    // ── Step 2：构建 WebViewController 并加载 HTML ───────────────────────────
+    // 构建 WebViewController 并加载 HTML
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.white)
@@ -414,7 +410,8 @@ class _FloorImageViewerState extends State<_FloorImageViewer> {
           },
         ),
       )
-      ..loadHtmlString(_buildHtml(svgContent, _buildUnitsJson(), widget.layer),
+      ..loadHtmlString(
+        _buildHtml(svgContent, _buildUnitsJson(), widget.layer),
       );
 
     if (mounted) setState(() => _controller = controller);
@@ -540,6 +537,19 @@ html, body { background: #fff; overflow: auto; }
   window.FlutterSetLayer = function(newLayer) {
     _layer = newLayer;
     applyLayer(newLayer);
+  };
+
+  // Dart 侧调用：更新单元热区数据（同楼层热区刷新，不重建 WebView）。
+  window.FlutterUpdateUnits = function(jsonStr) {
+    try {
+      units = JSON.parse(jsonStr);
+      byNum = {}; byNorm = {};
+      units.forEach(function(u) {
+        byNum[u.num] = u;
+        byNorm[u.num.replace(/[-\\s]/g, '')] = u;
+      });
+      applyLayer(_layer);
+    } catch(e) {}
   };
 
   document.addEventListener('DOMContentLoaded', function() {
@@ -1028,14 +1038,18 @@ class _ZoomButtonState extends State<_ZoomButton> {
 /// 横向可滚动的楼层切换标签栏，对齐 uni-app FloorTabBar 组件。
 ///
 /// 当楼栋有多个楼层时，在图层切换按钮上方显示；点击某一楼层触发 [onFloorSelected]。
+/// [switchingToFloorId] 不为 null 时，对应楼层 Tab 显示加载动画（Hold & Replace 模式）。
 class _FloorTabBar extends StatefulWidget {
   final List<Floor> floors;
   final String activeFloorId;
+  /// 正在后台加载的目标楼层 ID（null 表示无切换进行中）。
+  final String? switchingToFloorId;
   final void Function(String floorId) onFloorSelected;
 
   const _FloorTabBar({
     required this.floors,
     required this.activeFloorId,
+    required this.switchingToFloorId,
     required this.onFloorSelected,
   });
 
@@ -1082,10 +1096,11 @@ class _FloorTabBarState extends State<_FloorTabBar> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: widget.floors.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final floor = widget.floors[index];
           final isActive = floor.id == widget.activeFloorId;
+          final isLoading = floor.id == widget.switchingToFloorId;
           return GestureDetector(
             onTap: () => widget.onFloorSelected(floor.id),
             child: AnimatedContainer(
@@ -1103,16 +1118,24 @@ class _FloorTabBarState extends State<_FloorTabBar> {
                 ),
               ),
               child: Center(
-                child: Text(
-                  floor.displayName,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: isActive
-                        ? CupertinoColors.white
-                        : CupertinoColors.label.resolveFrom(context),
-                  ),
-                ),
+                // 正在加载的目标楼层显示转圈动画，其余显示楼层名
+                child: isLoading
+                    ? CupertinoActivityIndicator(
+                        color: isActive
+                            ? CupertinoColors.white
+                            : CupertinoColors.secondaryLabel.resolveFrom(context),
+                        radius: 7,
+                      )
+                    : Text(
+                        floor.displayName,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: isActive
+                              ? CupertinoColors.white
+                              : CupertinoColors.label.resolveFrom(context),
+                        ),
+                      ),
               ),
             ),
           );

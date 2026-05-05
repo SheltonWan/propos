@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../../../../core/api/api_client.dart';
 import '../../../../core/api/api_paths.dart';
 import '../../domain/entities/asset_overview.dart';
@@ -22,7 +24,12 @@ import '../models/unit_model.dart';
 class AssetsRepositoryImpl implements AssetsRepository {
   final ApiClient _client;
 
-  const AssetsRepositoryImpl(this._client);
+  /// 管理 SVG 下载的取消标识。
+  ///
+  /// 每次新建请求前替换，确保旧请求被取消。
+  CancelToken? _svgCancelToken;
+
+  AssetsRepositoryImpl(this._client);
 
   @override
   Future<AssetOverview> fetchOverview() async {
@@ -83,6 +90,26 @@ class AssetsRepositoryImpl implements AssetsRepository {
           FloorHeatmapModel.fromJson(json as Map<String, dynamic>),
     );
     return model.toEntity();
+  }
+
+  @override
+  Future<String> fetchFloorSvg(String svgPath) async {
+    // 每次调用前先取消上一次下载，再创建新 token。
+    _svgCancelToken?.cancel();
+    final token = CancelToken();
+    _svgCancelToken = token;
+
+    // Dio 会自动拼接 baseUrl，使用相对路径避免 Repository 依赖 AppConfig。
+    return await _client.apiGetRaw(
+      '${ApiPaths.files}/$svgPath',
+      cancelToken: token,
+    );
+  }
+
+  @override
+  void cancelFloorSvgDownload() {
+    _svgCancelToken?.cancel();
+    _svgCancelToken = null;
   }
 
   @override

@@ -113,6 +113,36 @@ class ApiClient {
     }
   }
 
+  /// 获取原始响应字符串（用于 SVG 文件下载等非 JSON 内容）。
+  ///
+  /// 不解包 JSON 信封，直接返回响应体字符串。
+  /// [cancelToken] 由调用方管理生命周期；取消时抛出 [ApiException]（code: SVG_DOWNLOAD_CANCELLED）。
+  Future<String> apiGetRaw(
+    String path, {
+    Map<String, dynamic>? queryParams,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final response = await _dio.get<String>(
+        path,
+        queryParameters: queryParams,
+        cancelToken: cancelToken,
+        options: Options(responseType: ResponseType.plain),
+      );
+      return response.data ?? '';
+    } on DioException catch (e) {
+      // 取消请求时抛出语义明确的 ApiException，调用方可针对性处理。
+      if (e.type == DioExceptionType.cancel) {
+        throw const ApiException(
+          code: 'SVG_DOWNLOAD_CANCELLED',
+          message: 'SVG 下载已取消',
+          statusCode: 0,
+        );
+      }
+      throw _unwrapDioError(e);
+    }
+  }
+
   /// 发送 multipart/form-data 上传请求，文件字段名为 `file`。
   ///
   /// 返回解析后的响应 `data` 字段（JSON Map），由调用方自行映射。

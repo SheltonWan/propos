@@ -52,6 +52,9 @@ dependencies:
   # WebView（楼层平面图 SVG 渲染，完整 CSS 支持）
   webview_flutter: ^4.0.0
 
+  # 文件系统路径（SVG 本地缓存）
+  path_provider: ^2.1.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -26,4 +26,12 @@ abstract final class BusinessRules {
 
   // ── Deposit ──
   static const depositNotCountedInNoi = true;
+
+  // ── SVG Floor Map Cache ──
+  /// 热区数据内存缓存 TTL（分钟）。TTL 到期后下次访问重新 fetch。
+  static const heatmapCacheTtlMinutes = 5;
+  /// 文件系统 SVG 缓存最大条目数（LRU 淘汰最旧文件）。
+  static const svgCacheMaxEntries = 20;
+  /// 预加载相邻楼层数量（当前楼层两侧各加载 N 层）。
+  static const svgPreloadAdjacentCount = 2;
 }

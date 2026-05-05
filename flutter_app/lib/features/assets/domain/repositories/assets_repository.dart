@@ -29,6 +29,18 @@ abstract interface class AssetsRepository {
   /// 获取楼层热区数据（GET /api/floors/:id/heatmap）
   Future<FloorHeatmap> fetchFloorHeatmap(String floorId);
 
+  /// 下载 SVG 文件原始内容（GET /api/files/{svgPath}）。
+  ///
+  /// [svgPath] 为相对路径（如 `floors/{bid}/{fid}.svg`）。
+  /// 当正在进行的 SVG 下载被 [cancelFloorSvgDownload] 取消时，抛出
+  /// `ApiException(code: 'SVG_DOWNLOAD_CANCELLED')`。
+  Future<String> fetchFloorSvg(String svgPath);
+
+  /// 取消当前正在进行的 SVG 下载请求。
+  ///
+  /// 在用户快速切换楼层时调用，避免旧楼层 SVG 下载占用带宽。
+  void cancelFloorSvgDownload();
+
   /// 获取房源详情（GET /api/units/:id）
   Future<UnitDetail> fetchUnit(String id);
 

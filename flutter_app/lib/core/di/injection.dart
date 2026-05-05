@@ -8,6 +8,7 @@ import '../api/mock/mock_interceptor.dart';
 import '../config/app_config.dart';
 import '../logging/app_logger.dart';
 import '../../features/assets/data/repositories/assets_repository_impl.dart';
+import '../../features/assets/data/services/floor_map_cache_service.dart';
 import '../../features/assets/domain/repositories/assets_repository.dart';
 import '../../features/assets/presentation/bloc/asset_overview_cubit.dart';
 import '../../features/assets/presentation/bloc/building_detail_cubit.dart';
@@ -72,6 +73,10 @@ void configureDependencies() {
   getIt.registerLazySingleton<AssetsRepository>(
     () => AssetsRepositoryImpl(getIt<ApiClient>()),
   );
+  // SVG 文件系统缓存 + 热区内存缓存服务（单例，跨楼层共享）
+  getIt.registerLazySingleton<FloorMapCacheService>(
+    () => FloorMapCacheService(),
+  );
 
   // ── Cubits / BLoCs ──
   // AuthCubit must be a singleton — shared by BlocProvider and router auth guard.
@@ -86,7 +91,7 @@ void configureDependencies() {
     () => BuildingDetailCubit(getIt<AssetsRepository>()),
   );
   getIt.registerFactory<FloorMapCubit>(
-    () => FloorMapCubit(getIt<AssetsRepository>()),
+    () => FloorMapCubit(getIt<AssetsRepository>(), getIt<FloorMapCacheService>()),
   );
   getIt.registerFactory<UnitDetailCubit>(
     () => UnitDetailCubit(getIt<AssetsRepository>()),

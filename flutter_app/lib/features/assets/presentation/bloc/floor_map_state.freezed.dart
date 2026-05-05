@@ -125,12 +125,12 @@ return error(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  initial,TResult Function()?  loading,TResult Function( Floor floor,  FloorHeatmap heatmap,  List<Floor> floors)?  loaded,TResult Function( String message)?  error,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  initial,TResult Function()?  loading,TResult Function( Floor floor,  FloorHeatmap heatmap,  String svgContent,  List<Floor> floors,  bool isSwitching,  String? switchingToFloorId)?  loaded,TResult Function( String message)?  error,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case FloorMapStateInitial() when initial != null:
 return initial();case FloorMapStateLoading() when loading != null:
 return loading();case FloorMapStateLoaded() when loaded != null:
-return loaded(_that.floor,_that.heatmap,_that.floors);case FloorMapStateError() when error != null:
+return loaded(_that.floor,_that.heatmap,_that.svgContent,_that.floors,_that.isSwitching,_that.switchingToFloorId);case FloorMapStateError() when error != null:
 return error(_that.message);case _:
   return orElse();
 
@@ -149,12 +149,12 @@ return error(_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  initial,required TResult Function()  loading,required TResult Function( Floor floor,  FloorHeatmap heatmap,  List<Floor> floors)  loaded,required TResult Function( String message)  error,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  initial,required TResult Function()  loading,required TResult Function( Floor floor,  FloorHeatmap heatmap,  String svgContent,  List<Floor> floors,  bool isSwitching,  String? switchingToFloorId)  loaded,required TResult Function( String message)  error,}) {final _that = this;
 switch (_that) {
 case FloorMapStateInitial():
 return initial();case FloorMapStateLoading():
 return loading();case FloorMapStateLoaded():
-return loaded(_that.floor,_that.heatmap,_that.floors);case FloorMapStateError():
+return loaded(_that.floor,_that.heatmap,_that.svgContent,_that.floors,_that.isSwitching,_that.switchingToFloorId);case FloorMapStateError():
 return error(_that.message);}
 }
 /// A variant of `when` that fallback to returning `null`
@@ -169,12 +169,12 @@ return error(_that.message);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  initial,TResult? Function()?  loading,TResult? Function( Floor floor,  FloorHeatmap heatmap,  List<Floor> floors)?  loaded,TResult? Function( String message)?  error,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  initial,TResult? Function()?  loading,TResult? Function( Floor floor,  FloorHeatmap heatmap,  String svgContent,  List<Floor> floors,  bool isSwitching,  String? switchingToFloorId)?  loaded,TResult? Function( String message)?  error,}) {final _that = this;
 switch (_that) {
 case FloorMapStateInitial() when initial != null:
 return initial();case FloorMapStateLoading() when loading != null:
 return loading();case FloorMapStateLoaded() when loaded != null:
-return loaded(_that.floor,_that.heatmap,_that.floors);case FloorMapStateError() when error != null:
+return loaded(_that.floor,_that.heatmap,_that.svgContent,_that.floors,_that.isSwitching,_that.switchingToFloorId);case FloorMapStateError() when error != null:
 return error(_that.message);case _:
   return null;
 
@@ -251,11 +251,13 @@ String toString() {
 
 
 class FloorMapStateLoaded implements FloorMapState {
-  const FloorMapStateLoaded({required this.floor, required this.heatmap, final  List<Floor> floors = const []}): _floors = floors;
+  const FloorMapStateLoaded({required this.floor, required this.heatmap, this.svgContent = '', final  List<Floor> floors = const [], this.isSwitching = false, this.switchingToFloorId}): _floors = floors;
   
 
  final  Floor floor;
  final  FloorHeatmap heatmap;
+/// SVG 文件内容（已从 Repository 获取，widget 层直接使用，无需再发 HTTP 请求）。
+@JsonKey() final  String svgContent;
 /// 同楼栋下所有楼层列表，用于楼层切换标签栏。
  final  List<Floor> _floors;
 /// 同楼栋下所有楼层列表，用于楼层切换标签栏。
@@ -265,6 +267,13 @@ class FloorMapStateLoaded implements FloorMapState {
   return EqualUnmodifiableListView(_floors);
 }
 
+/// 是否正在切换楼层（Hold & Replace 模式）。
+///
+/// `true` 时 UI 保留当前楼层图，在目标楼层 Tab 上显示加载动画，
+/// 新楼层数据就绪后平滑替换。
+@JsonKey() final  bool isSwitching;
+/// 正在加载的目标楼层 ID（[isSwitching] 为 `true` 时有效）。
+ final  String? switchingToFloorId;
 
 /// Create a copy of FloorMapState
 /// with the given fields replaced by the non-null parameter values.
@@ -276,16 +285,16 @@ $FloorMapStateLoadedCopyWith<FloorMapStateLoaded> get copyWith => _$FloorMapStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is FloorMapStateLoaded&&(identical(other.floor, floor) || other.floor == floor)&&(identical(other.heatmap, heatmap) || other.heatmap == heatmap)&&const DeepCollectionEquality().equals(other._floors, _floors));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FloorMapStateLoaded&&(identical(other.floor, floor) || other.floor == floor)&&(identical(other.heatmap, heatmap) || other.heatmap == heatmap)&&(identical(other.svgContent, svgContent) || other.svgContent == svgContent)&&const DeepCollectionEquality().equals(other._floors, _floors)&&(identical(other.isSwitching, isSwitching) || other.isSwitching == isSwitching)&&(identical(other.switchingToFloorId, switchingToFloorId) || other.switchingToFloorId == switchingToFloorId));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,floor,heatmap,const DeepCollectionEquality().hash(_floors));
+int get hashCode => Object.hash(runtimeType,floor,heatmap,svgContent,const DeepCollectionEquality().hash(_floors),isSwitching,switchingToFloorId);
 
 @override
 String toString() {
-  return 'FloorMapState.loaded(floor: $floor, heatmap: $heatmap, floors: $floors)';
+  return 'FloorMapState.loaded(floor: $floor, heatmap: $heatmap, svgContent: $svgContent, floors: $floors, isSwitching: $isSwitching, switchingToFloorId: $switchingToFloorId)';
 }
 
 
@@ -296,7 +305,7 @@ abstract mixin class $FloorMapStateLoadedCopyWith<$Res> implements $FloorMapStat
   factory $FloorMapStateLoadedCopyWith(FloorMapStateLoaded value, $Res Function(FloorMapStateLoaded) _then) = _$FloorMapStateLoadedCopyWithImpl;
 @useResult
 $Res call({
- Floor floor, FloorHeatmap heatmap, List<Floor> floors
+ Floor floor, FloorHeatmap heatmap, String svgContent, List<Floor> floors, bool isSwitching, String? switchingToFloorId
 });
 
 
@@ -313,12 +322,15 @@ class _$FloorMapStateLoadedCopyWithImpl<$Res>
 
 /// Create a copy of FloorMapState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? floor = null,Object? heatmap = null,Object? floors = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? floor = null,Object? heatmap = null,Object? svgContent = null,Object? floors = null,Object? isSwitching = null,Object? switchingToFloorId = freezed,}) {
   return _then(FloorMapStateLoaded(
 floor: null == floor ? _self.floor : floor // ignore: cast_nullable_to_non_nullable
 as Floor,heatmap: null == heatmap ? _self.heatmap : heatmap // ignore: cast_nullable_to_non_nullable
-as FloorHeatmap,floors: null == floors ? _self._floors : floors // ignore: cast_nullable_to_non_nullable
-as List<Floor>,
+as FloorHeatmap,svgContent: null == svgContent ? _self.svgContent : svgContent // ignore: cast_nullable_to_non_nullable
+as String,floors: null == floors ? _self._floors : floors // ignore: cast_nullable_to_non_nullable
+as List<Floor>,isSwitching: null == isSwitching ? _self.isSwitching : isSwitching // ignore: cast_nullable_to_non_nullable
+as bool,switchingToFloorId: freezed == switchingToFloorId ? _self.switchingToFloorId : switchingToFloorId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
