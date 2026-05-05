@@ -3,27 +3,42 @@
     楼层 SVG 热区图
     渲染策略（与 flutter_app/_FloorImageViewer 对齐）：
       • props.svgPath 非空（H5 / App-plus）：fetch 真实 CAD-SVG → v-html 注入 →
-        DOM querySelectorAll('[data-unit-id]') 加 CSS class + 绑 click → emit unitId
+        BoundingClientRect 生成 @tap 覆盖层 → emit unitId
       • 否则：使用前端按业态规则生成的手绘示意 SVG，叠加透明覆盖层捕获点击
+    两种模式均使用相同的 @tap.stop 覆盖层方案，规避 scroll-view 在 App-Plus 中
+    拦截 addEventListener('click') 导致事件不可靠触发的问题。
     ⚠️ uni-app Vue 3 模板编译器不会给模板内 <svg> 子元素添加 SVG namespace，
        因此一律走字符串 + v-html 的方式注入。
   -->
-  <view class="svg-heatmap" :style="containerStyle">
+  <view ref="heatmapRootRef" :data-heatmap-instance="instanceId" class="svg-heatmap" :style="containerStyle">
     <!-- SVG 加载旋转指示器（对齐 Flutter CupertinoActivityIndicator：居中菊花） -->
     <view v-if="useRealSvg && realSvgLoading" class="svg-heatmap__spinner" />
-    <!-- SVG 渲染容器（v-html 注入；DOM 操作通过 .svg-heatmap__canvas 选择器定位） -->
+    <!-- SVG 渲染容器（v-html 注入；实例唯一 ID 供 applyUnitStatesAndClicks 精确查找） -->
     <view
       v-show="!realSvgLoading"
       class="svg-heatmap__canvas"
       :class="useRealSvg ? 'svg-heatmap__canvas--real' : 'svg-heatmap__canvas--fallback'"
       :style="canvasStyle"
       v-html="svgHtml"
+      @click="onCanvasClick"
     />
+    <!-- 真实 SVG 触摸覆盖层（applyUnitStatesAndClicks 根据 BoundingClientRect 生成） -->
+    <!-- 与手绘覆盖层使用相同 @tap.stop 方案，兼容 App-Plus scroll-view 事件机制 -->
+    <view v-if="useRealSvg && realSvgTapZones.length > 0" class="svg-heatmap__overlay">
+      <view
+        v-for="zone in realSvgTapZones"
+        :key="zone.unitId"
+        class="svg-heatmap__room-tap"
+        :style="zone.style"
+        @tap.stop="onRoomTap(zone.unitId)"
+      />
+    </view>
     <!-- 透明点击覆盖层：仅手绘模式启用，按百分比对齐房间矩形 -->
     <view v-if="!useRealSvg" class="svg-heatmap__overlay">
       <view
         v-for="room in roomRects"
         :key="room.unitId"
+        class="svg-heatmap__room-tap"
         :style="tapZoneStyle(room)"
         @tap.stop="onRoomTap(room.unitId)"
       />
@@ -32,9 +47,31 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { fetchSvgWithCache } from '@/composables/useFloorSvgCache'
 import type { FloorHeatmapUnit, LayerMode, PropertyType, UnitStatus } from '@/types/assets'
+
+// ── 实例唯一标识（仅用于调试日志） ─────────────────────────────────────────
+const instanceId = Math.random().toString(36).slice(2, 8)
+let hasMounted = false
+const heatmapRootRef = ref<HTMLElement | { $el?: HTMLElement } | null>(null)
+let syncRetryTimer: ReturnType<typeof setTimeout> | null = null
+const MAX_SYNC_RETRIES = 8
+
+// ── 真实 SVG 触摸区域（由 applyUnitStatesAndClicks 填充） ────────────────────
+
+interface TapZone {
+  unitId: string
+  style: Record<string, string>
+}
+
+const realSvgTapZones = ref<TapZone[]>([])
+
+/**
+ * App-plus 下 v-html 注入的真实 SVG DOM 不可靠获取，无法走 querySelector 路径生成点击覆盖层；
+ * 改为从 SVG 文本直接正则解析 hotspot 圆点生成覆盖层（见 buildRealSvgTapZonesFromText）。
+ */
+let supportsInteractiveRealSvg = true
 
 // ── Props & Emits ───────────────────────────────────────────────────────────
 
@@ -523,10 +560,11 @@ function genRoomRects(rects: RoomRect[], selectedId: string | null): string {
 
 /**
  * 是否启用真实 CAD-SVG 模式：
+ *   • 当前运行端支持真实 SVG 交互（H5）
  *   • props.svgPath 非空
  *   • 且尚未发生加载错误（失败时自动回退手绘）
  */
-const useRealSvg = computed(() => !!props.svgPath && !realSvgError.value)
+const useRealSvg = computed(() => supportsInteractiveRealSvg && !!props.svgPath && !realSvgError.value)
 
 const svgHtml = computed(() => {
   // 真实 SVG 模式：注入 preserveAspectRatio="xMinYMin meet" 防止默认 xMidYMid 居中
@@ -594,8 +632,7 @@ const ALL_UNIT_CLASSES = [
   'unit-non-leasable',
 ]
 
-/** 当前已绑定的事件解绑函数集合（切换 SVG 时清理，防止内存泄漏） */
-let unbindHandlers: Array<() => void> = []
+
 
 /**
  * 加载真实 SVG 文本（优先命中 session 内存缓存，未命中时发起网络请求）。
@@ -615,6 +652,7 @@ async function loadRealSvg(svgPath: string): Promise<void> {
   realSvgVbH.value = null
   realSvgError.value = false
   realSvgLoading.value = true
+  realSvgTapZones.value = []
   const token = uni.getStorageSync('access_token') || ''
   console.info('[FloorSvgHeatmap] 请求 SVG（缓存优先）:', svgPath)
   try {
@@ -636,8 +674,7 @@ async function loadRealSvg(svgPath: string): Promise<void> {
     realSvgText.value = result
     realSvgLoading.value = false
     console.info('[FloorSvgHeatmap] SVG 就绪，长度:', result.length, '| viewBox:', realSvgVbW.value, 'x', realSvgVbH.value)
-    await nextTick()
-    applyUnitStatesAndClicks()
+    scheduleRealSvgSync()
   } catch (e) {
     console.warn('[FloorSvgHeatmap] SVG 加载失败，回退手绘示意:', e)
     realSvgText.value = null
@@ -645,8 +682,159 @@ async function loadRealSvg(svgPath: string): Promise<void> {
     realSvgVbH.value = null
     realSvgLoading.value = false
     realSvgError.value = true
+    realSvgTapZones.value = []
   }
   // #endif
+}
+
+/**
+ * 仅在组件已挂载后同步真实 SVG 的状态色与触摸覆盖层。
+ *
+ * H5 走 DOM 路径：v-html 注入完成后 querySelectorAll('[data-unit-id]') + getBoundingClientRect。
+ * App-plus 走文本解析路径：v-html 在 App-plus 注入后 SVG DOM 不可稳定 query，
+ * 因此从 realSvgText 中正则解析 hotspot 圆点，按 viewBox 比例生成百分比覆盖层。
+ *
+ * 触发背景：svgPath 的 immediate watch 会在 setup 阶段先执行；若此时 SVG 命中内存缓存，
+ * `fetchSvgWithCache()` 会很快 resolve，导致旧逻辑在 DOM 尚未挂载时就调用
+ * `applyUnitStatesAndClicks()`，从而出现「canvas 容器未找到」。
+ */
+function scheduleRealSvgSync(retryCount = 0): void {
+  // #ifdef APP-PLUS
+  // App-plus：直接从 SVG 文本解析 hotspot，不依赖 DOM
+  if (!hasMounted || !useRealSvg.value || !realSvgText.value) return
+  buildRealSvgTapZonesFromText()
+  return
+  // #endif
+  // #ifdef H5
+  if (!supportsInteractiveRealSvg || !hasMounted || !useRealSvg.value || !realSvgText.value) return
+  nextTick(() => {
+    const root = resolveCanvasRoot()
+    if (!root) {
+      if (retryCount >= MAX_SYNC_RETRIES) {
+        console.warn('[FloorSvgHeatmap] scheduleRealSvgSync: 超过重试上限，instanceId =', instanceId)
+        return
+      }
+      if (syncRetryTimer) clearTimeout(syncRetryTimer)
+      syncRetryTimer = setTimeout(() => {
+        syncRetryTimer = null
+        scheduleRealSvgSync(retryCount + 1)
+      }, 16)
+      return
+    }
+    applyUnitStatesAndClicks(root)
+    refreshSelectedHighlight(root)
+  })
+  // #endif
+}
+
+/**
+ * App-plus 专用：直接从 realSvgText 字符串解析 [data-unit-id] 的 hotspot 圆点，
+ * 转成百分比覆盖层项写入 realSvgTapZones。
+ *
+ * 真实 SVG 中 hotspot 的结构（见 scripts/annotate_hotzone.py）：
+ *   <g class="unit-hotspot ..." data-unit-id="01-A101" data-unit-number="01">
+ *     <circle cx="..." cy="..." r="..." class="unit-dot"/>
+ *     <title>...</title>
+ *   </g>
+ *
+ * 半径 r 已经是房间级别的 SVG 单位（最小 2000，r * 3 倍），足以覆盖整个房间。
+ */
+function buildRealSvgTapZonesFromText(): void {
+  const svgText = realSvgText.value
+  const vbW = realSvgVbW.value
+  const vbH = realSvgVbH.value
+  if (!svgText || !vbW || !vbH || vbW <= 0 || vbH <= 0) {
+    realSvgTapZones.value = []
+    return
+  }
+
+  const units = Array.isArray(props.units) ? props.units : []
+  const byNum: Record<string, FloorHeatmapUnit> = {}
+  const byNorm: Record<string, FloorHeatmapUnit> = {}
+  for (const u of units) {
+    if (!u.unit_number) continue
+    byNum[u.unit_number] = u
+    byNorm[u.unit_number.replace(/[-\s]/g, '')] = u
+  }
+
+  // 匹配 hotspot 整段：<g ... data-unit-id="..." ...> ... <circle cx=".." cy=".." r=".."/> ... </g>
+  const groupRe = /<g\b[^>]*?data-unit-id="([^"]+)"[^>]*?(?:data-unit-number="([^"]*)")?[^>]*>([\s\S]*?)<\/g>/g
+  const circleRe = /<circle\b[^>]*?\bcx="([\d.+-]+)"[^>]*?\bcy="([\d.+-]+)"[^>]*?\br="([\d.+-]+)"/
+
+  const newZones: TapZone[] = []
+  let m: RegExpExecArray | null
+  while ((m = groupRe.exec(svgText)) !== null) {
+    const svgId = m[1]
+    const svgNum = m[2] ?? ''
+    const inner = m[3]
+    const cm = circleRe.exec(inner)
+    if (!cm) continue
+    const cx = parseFloat(cm[1])
+    const cy = parseFloat(cm[2])
+    const r = parseFloat(cm[3])
+    if (!Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(r)) continue
+
+    const normId = svgId.replace(/[-\s]/g, '')
+    const matched: FloorHeatmapUnit | undefined =
+      byNum[svgId]
+        ?? byNorm[normId]
+        ?? (svgNum ? units.find((u) => u.unit_number.endsWith(svgNum) || u.unit_number === svgNum) : undefined)
+    if (!matched) continue
+
+    const left = ((cx - r) / vbW) * 100
+    const top = ((cy - r) / vbH) * 100
+    const width = ((2 * r) / vbW) * 100
+    const height = ((2 * r) / vbH) * 100
+    newZones.push({
+      unitId: matched.unit_id,
+      style: {
+        position: 'absolute',
+        left: `${left.toFixed(3)}%`,
+        top: `${top.toFixed(3)}%`,
+        width: `${width.toFixed(3)}%`,
+        height: `${height.toFixed(3)}%`,
+        borderRadius: '50%',
+      },
+    })
+  }
+
+  console.info('[FloorSvgHeatmap] App-plus 文本解析覆盖层 =', newZones.length)
+  realSvgTapZones.value = newZones
+}
+
+function isHtmlElement(value: unknown): value is HTMLElement {
+  return typeof HTMLElement !== 'undefined' && value instanceof HTMLElement
+}
+
+/**
+ * 解析当前组件的宿主元素。
+ *
+ * uni-app 在不同运行端对模板 ref 的返回值不完全一致：
+ *   • H5: 通常直接返回 HTMLElement
+ *   • 部分运行端: 可能返回带 `$el` 的包装对象
+ */
+function resolveHostElement(): HTMLElement | null {
+  const raw = heatmapRootRef.value as unknown
+  if (isHtmlElement(raw)) return raw
+  const maybeEl = (raw as { $el?: unknown } | null)?.$el
+  return isHtmlElement(maybeEl) ? maybeEl : null
+}
+
+/**
+ * 在当前组件自己的 DOM 子树中解析画布容器，避免依赖全局 `document.getElementById()`。
+ */
+function resolveCanvasRoot(): HTMLElement | null {
+  if (typeof document !== 'undefined') {
+    const hostByData = document.querySelector(`[data-heatmap-instance="${instanceId}"]`)
+    if (isHtmlElement(hostByData)) {
+      const canvasByData = hostByData.querySelector('.svg-heatmap__canvas')
+      if (isHtmlElement(canvasByData)) return canvasByData
+    }
+  }
+  const host = resolveHostElement()
+  if (!host) return null
+  const canvas = host.querySelector('.svg-heatmap__canvas')
+  return isHtmlElement(canvas) ? canvas : null
 }
 
 /**
@@ -657,20 +845,15 @@ async function loadRealSvg(svgPath: string): Promise<void> {
  *   2. 规范化匹配（去掉连字符/空格后比较）；
  *   3. `data-unit-number` 后缀匹配。
  *
- * 同时把已知 unit 的 `data-unit-id` 直接覆盖为 DB 的 unit_id（UUID），
- * 后续点击 handler 直接读 attribute 即可拿到 UUID 回传给父组件。
+ * 点击事件已改由覆盖层 @tap.stop 统一处理，此函数仅负责 CSS 状态同步 + 生成真实 SVG 覆盖层触摸区域。
  */
-function applyUnitStatesAndClicks(): void {
+function applyUnitStatesAndClicks(rootArg?: HTMLElement): void {
   // #ifdef H5 || APP-PLUS
-  // 先清理旧 handler
-  unbindHandlers.forEach((fn) => fn())
-  unbindHandlers = []
-
-  // 容器层只在真实模式时存在 .svg-heatmap__canvas--real
-  const root = typeof document !== 'undefined'
-    ? document.querySelector('.svg-heatmap__canvas--real')
-    : null
-  if (!root) return
+  const root = rootArg ?? resolveCanvasRoot()
+  if (!root) {
+    console.warn('[FloorSvgHeatmap] applyUnitStates: canvas 容器未找到，instanceId =', instanceId, '| host =', !!resolveHostElement())
+    return
+  }
 
   const units = Array.isArray(props.units) ? props.units : []
   const byNum: Record<string, FloorHeatmapUnit> = {}
@@ -682,6 +865,12 @@ function applyUnitStatesAndClicks(): void {
   }
 
   const elements = root.querySelectorAll<Element>('[data-unit-id]')
+  console.info('[FloorSvgHeatmap] applyUnitStates: SVG 元素数 =', elements.length, '| units =', units.length)
+
+  // BoundingClientRect 基准（元素定位均相对于 canvas 容器）
+  const containerRect = root.getBoundingClientRect()
+  const newZones: TapZone[] = []
+
   elements.forEach((el) => {
     const svgId = el.getAttribute('data-unit-id') ?? ''
     const svgNum = el.getAttribute('data-unit-number') ?? ''
@@ -700,26 +889,79 @@ function applyUnitStatesAndClicks(): void {
       el.classList.add('unit-selected')
     }
 
-    // 绑定点击：通过 click 事件直接 emit DB UUID
-    const handler = (ev: Event) => {
-      ev.stopPropagation()
-      emit('unit-tap', matched.unit_id)
-    }
-    el.addEventListener('click', handler)
-    unbindHandlers.push(() => el.removeEventListener('click', handler))
     // 鼠标手势提示
     if (el instanceof HTMLElement || (el as SVGElement).style) {
       ;(el as SVGElement & { style: CSSStyleDeclaration }).style.cursor = 'pointer'
     }
+
+    // 生成覆盖层触摸区域（BoundingClientRect 相对于 canvas 容器，与手绘覆盖层对齐）
+    if (containerRect.width > 0 && containerRect.height > 0) {
+      const r = el.getBoundingClientRect()
+      newZones.push({
+        unitId: matched.unit_id,
+        style: {
+          position: 'absolute',
+          left: `${(((r.left - containerRect.left) / containerRect.width) * 100).toFixed(3)}%`,
+          top: `${(((r.top - containerRect.top) / containerRect.height) * 100).toFixed(3)}%`,
+          width: `${((r.width / containerRect.width) * 100).toFixed(3)}%`,
+          height: `${((r.height / containerRect.height) * 100).toFixed(3)}%`,
+        },
+      })
+    }
   })
+
+  realSvgTapZones.value = newZones
+  console.info('[FloorSvgHeatmap] applyUnitStates: 生成覆盖层 =', newZones.length)
+  // #endif
+}
+
+/**
+ * 画布点击事件委托（真实 SVG 与手绘回退模式均适用）。
+ *
+ * 取代逐元素 addEventListener，规避以下已知问题：
+ *   • scroll-view（scroll-x + scroll-y 同时开启）在 App-Plus WebView 中接管 touchstart
+ *     后，子元素 addEventListener('click') 可能不可靠触发。
+ *   • document.querySelector 全局选择在多实例场景下可能命中错误元素。
+ *
+ * 匹配策略（与 applyUnitStatesAndClicks 对齐）：
+ *   1. UUID 直接匹配  — 手绘模式 genRoomRects 已写入 unit_id；
+ *   2. unit_number 精确匹配 — 真实 CAD-SVG data-unit-id 为房间标注编号；
+ *   3. 规范化匹配   — 去掉连字符/空格后比较。
+ */
+function onCanvasClick(ev: Event): void {
+  // #ifdef H5 || APP-PLUS
+  let target = ev.target as Element | null
+  while (target) {
+    // 到达画布容器自身时停止向上查找
+    if (target.classList?.contains('svg-heatmap__canvas')) break
+    const attrId = (target as Element).getAttribute?.('data-unit-id')
+    if (attrId) {
+      const units = Array.isArray(props.units) ? props.units : []
+      // 方式 1：UUID 直接匹配（手绘模式 / applyUnitStatesAndClicks 已覆写的情况）
+      let matched = units.find(u => u.unit_id === attrId)
+      if (!matched) {
+        // 方式 2/3：编号三级匹配（真实 CAD-SVG 原始标注）
+        const norm = attrId.replace(/[-\s]/g, '')
+        matched = units.find(u =>
+          u.unit_number === attrId ||
+          u.unit_number.replace(/[-\s]/g, '') === norm,
+        )
+      }
+      if (matched) {
+        ev.stopPropagation()
+        emit('unit-tap', matched.unit_id)
+      }
+      return
+    }
+    target = (target as HTMLElement).parentElement ?? null
+  }
   // #endif
 }
 
 /** 仅刷新选中态 class（不重绑事件，性能更好） */
-function refreshSelectedHighlight(): void {
+function refreshSelectedHighlight(rootArg?: HTMLElement): void {
   // #ifdef H5 || APP-PLUS
-  if (typeof document === 'undefined') return
-  const root = document.querySelector('.svg-heatmap__canvas--real')
+  const root = rootArg ?? resolveCanvasRoot()
   if (!root) return
   root.querySelectorAll<Element>('[data-unit-id].unit-selected').forEach((el) => {
     el.classList.remove('unit-selected')
@@ -749,27 +991,42 @@ watch(
   () => props.svgPath,
   (path) => {
     console.info('[FloorSvgHeatmap] svgPath 变化:', path)
-    if (path) {
+    if (path && supportsInteractiveRealSvg) {
       loadRealSvg(path)
     } else {
+      if (path && !supportsInteractiveRealSvg) {
+        console.info('[FloorSvgHeatmap] APP-PLUS 不支持真实 SVG 交互，回退手绘热区:', path)
+      }
       realSvgText.value = null
       realSvgVbW.value = null
       realSvgVbH.value = null
       realSvgLoading.value = false
       realSvgError.value = false
-      unbindHandlers.forEach((fn) => fn())
-      unbindHandlers = []
+      realSvgTapZones.value = []
     }
   },
   { immediate: true },
 )
+
+onMounted(() => {
+  hasMounted = true
+  scheduleRealSvgSync()
+})
+
+onBeforeUnmount(() => {
+  if (syncRetryTimer) {
+    clearTimeout(syncRetryTimer)
+    syncRetryTimer = null
+  }
+})
 
 // 监听 units 变化：状态色块需要重绑（仅真实 SVG 模式）
 watch(
   () => props.units,
   () => {
     if (useRealSvg.value && realSvgText.value) {
-      nextTick(() => applyUnitStatesAndClicks())
+      realSvgTapZones.value = [] // 先清空，等 nextTick 重新计算
+      scheduleRealSvgSync()
     }
   },
 )
@@ -779,15 +1036,12 @@ watch(
   () => props.selectedId,
   () => {
     if (useRealSvg.value && realSvgText.value) {
-      nextTick(() => refreshSelectedHighlight())
+      scheduleRealSvgSync()
     }
   },
 )
 
-onBeforeUnmount(() => {
-  unbindHandlers.forEach((fn) => fn())
-  unbindHandlers = []
-})
+
 </script>
 
 <style lang="scss" scoped>
@@ -832,12 +1086,12 @@ onBeforeUnmount(() => {
 .svg-heatmap__overlay {
   position: absolute;
   inset: 0;
-  // 容器本身不拦截点击，子 view 通过 @tap 处理
+  // 容器本身不拦截点击，子节点通过 @tap 处理
   pointer-events: none;
 }
 
-// 单个房间点击区域
-.svg-heatmap__overlay > view {
+// 单个房间点击区域（手绘模式 + 真实 SVG 模式共用）
+.svg-heatmap__room-tap {
   position: absolute;
   pointer-events: auto;
 }

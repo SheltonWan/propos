@@ -61,8 +61,8 @@
           <text class="heatmap-area__status-text">该楼层暂无单元数据</text>
         </view>
 
-        <!-- SVG 热区图（H5 / App）：横向可滚动，支持放大/缩小/适配 -->
-        <!-- #ifdef H5 || APP-PLUS -->
+        <!-- SVG 热区图（H5）：横向可滚动，支持放大/缩小/适配 -->
+        <!-- #ifdef H5 -->
         <scroll-view
           v-else
           scroll-x
@@ -70,6 +70,28 @@
           class="heatmap-scroll"
         >
           <!-- wrap-view：确保 scroll-view 内部内容在 App-Plus 中靠左对齐 -->
+          <view class="heatmap-canvas-wrap">
+            <FloorSvgHeatmap
+              :units="heatmapUnits"
+              :property-type="floorPropertyType"
+              :layer="currentLayer"
+              :selected-id="selectedUnitId"
+              :svg-path="floorSvgPath"
+              :scale="zoom"
+              @unit-tap="onSvgUnitTap"
+            />
+          </view>
+        </scroll-view>
+        <!-- #endif -->
+
+        <!-- App-plus：与 H5 共用 FloorSvgHeatmap（内部已对 App-plus 自动回退到手绘 + 透明 @tap 覆盖层） -->
+        <!-- #ifdef APP-PLUS -->
+        <scroll-view
+          v-else
+          scroll-x
+          scroll-y
+          class="heatmap-scroll"
+        >
           <view class="heatmap-canvas-wrap">
             <FloorSvgHeatmap
               :units="heatmapUnits"
@@ -145,12 +167,13 @@
     </view>
   </AppShell>
 
-  <!-- 房间详情抽屉（全局遮罩层） -->
+  <!-- 房间详情抽屉 -->
   <FloorUnitDrawer
     :unit="selectedUnit"
     :open="drawerOpen"
     @close="closeDrawer"
     @navigate-to-unit="onNavigateToUnit"
+    @navigate-to-contract="onNavigateToContract"
   />
 </template>
 
@@ -216,6 +239,11 @@ function onUnitGridTap(unitId: string) {
 function onNavigateToUnit(unitId: string) {
   selectedUnitId.value = null
   uni.navigateTo({ url: `/pages/assets/unit-detail?id=${unitId}` })
+}
+
+function onNavigateToContract(contractId: string) {
+  selectedUnitId.value = null
+  uni.navigateTo({ url: `/pages/contracts/detail?id=${contractId}` })
 }
 
 // ── 统计数据 ─────────────────────────────────────────────────────────────────
