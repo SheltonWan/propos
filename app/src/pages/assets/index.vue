@@ -12,9 +12,6 @@
       <PageHeader title="资产台账" :sticky="true" :back="false" :animated="false">
         <template #actions>
           <view class="header-actions">
-            <view class="header-btn" @tap="showImportSheet = true">
-              <text class="header-btn__text">导入记录</text>
-            </view>
             <view class="header-btn header-btn--primary" @tap="showExportSheet = true">
               <text class="header-btn__text header-btn__text--primary">导出</text>
             </view>
@@ -115,19 +112,6 @@
       </view>
     </view>
 
-    <!-- 导入记录抽屉 -->
-    <BottomSheet
-      v-model="showImportSheet"
-      title="导入批次历史"
-      height="70vh"
-    >
-      <view class="import-sheet">
-        <view class="import-sheet__empty">
-          <text class="import-sheet__empty-text">导入功能由管理后台操作，移动端仅支持查看</text>
-        </view>
-      </view>
-    </BottomSheet>
-
     <!-- 导出抽屉 -->
     <BottomSheet
       v-model="showExportSheet"
@@ -181,7 +165,6 @@ const store = useAssetOverviewStore()
 // ── 本地 UI 状态 ─────────────────────────────────────────────────────────────
 const search = ref('')
 const activeTab = ref('全部')
-const showImportSheet = ref(false)
 const showExportSheet = ref(false)
 const exportTypes = ref<Record<string, boolean>>({ office: true, retail: true, apartment: true })
 
@@ -452,20 +435,6 @@ onMounted(() => {
 }
 
 .assets__empty-text {
-  @include text-caption;
-}
-
-/* 导入抽屉 */
-.import-sheet {
-  padding: 0 $space-page-x $space-page-y;
-}
-
-.import-sheet__empty {
-  padding: 60rpx 0;
-  text-align: center;
-}
-
-.import-sheet__empty-text {
   @include text-caption;
 }
 
