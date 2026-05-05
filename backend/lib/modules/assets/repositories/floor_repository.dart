@@ -22,6 +22,7 @@ class FloorRepository {
         SELECT f.id::TEXT, f.building_id::TEXT,
                b.name AS building_name,
                f.floor_number, f.floor_name,
+               f.property_type::TEXT AS property_type,
                f.svg_path, f.png_path, f.nla,
                f.render_mode, f.floor_map_schema_version, f.floor_map_updated_at,
                f.created_at, f.updated_at
@@ -42,6 +43,7 @@ class FloorRepository {
         SELECT f.id::TEXT, f.building_id::TEXT,
                b.name AS building_name,
                f.floor_number, f.floor_name,
+               f.property_type::TEXT AS property_type,
                f.svg_path, f.png_path, f.nla,
                f.render_mode, f.floor_map_schema_version, f.floor_map_updated_at,
                f.created_at, f.updated_at
@@ -76,17 +78,20 @@ class FloorRepository {
     required int floorNumber,
     String? floorName,
     double? nla,
+    String? propertyType,
   }) async {
     final result = await _db.execute(
       Sql.named('''
         WITH inserted AS (
-          INSERT INTO floors (building_id, floor_number, floor_name, nla)
-          VALUES (@buildingId::UUID, @floorNumber, @floorName, @nla)
+          INSERT INTO floors (building_id, floor_number, floor_name, nla, property_type)
+          VALUES (@buildingId::UUID, @floorNumber, @floorName, @nla,
+                  @propertyType::property_type)
           RETURNING *
         )
         SELECT i.id::TEXT, i.building_id::TEXT,
                b.name AS building_name,
                i.floor_number, i.floor_name,
+               i.property_type::TEXT AS property_type,
                i.svg_path, i.png_path, i.nla,
                i.render_mode, i.floor_map_schema_version, i.floor_map_updated_at,
                i.created_at, i.updated_at
@@ -98,9 +103,47 @@ class FloorRepository {
         'floorNumber': floorNumber,
         'floorName': floorName,
         'nla': nla,
+        'propertyType': propertyType,
       },
     );
     return Floor.fromColumnMap(result.first.toColumnMap());
+  }
+
+  /// 仅更新楼层自身的业态（不含单元级联）。
+  /// 事务由调用方管理（通常来自 FloorService.patchFloor 的 runTx 回调）。
+  Future<void> updatePropertyType(
+    String floorId,
+    String propertyType,
+  ) async {
+    await _db.execute(
+      Sql.named('''
+        UPDATE floors SET
+          property_type = @propertyType::property_type,
+          updated_at    = NOW()
+        WHERE id = @floorId
+      '''),
+      parameters: {'floorId': floorId, 'propertyType': propertyType},
+    );
+  }
+
+  /// 级联更新楼层下所有未归档单元的业态。
+  /// 返回实际更新的单元数量。
+  /// 事务由调用方管理（通常来自 FloorService.patchFloor 的 runTx 回调）。
+  Future<int> cascadePropertyTypeToUnits(
+    String floorId,
+    String propertyType,
+  ) async {
+    final result = await _db.execute(
+      Sql.named('''
+        UPDATE units SET
+          property_type = @propertyType::property_type,
+          updated_at    = NOW()
+        WHERE floor_id   = @floorId
+          AND archived_at IS NULL
+      '''),
+      parameters: {'floorId': floorId, 'propertyType': propertyType},
+    );
+    return result.affectedRows;
   }
 
   /// 更新楼层的 svg_path / png_path（CAD 转换完成后调用）

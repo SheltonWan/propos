@@ -99,15 +99,15 @@
 
         <el-table :data="store.job.unmatched_svgs" stripe size="default">
           <el-table-column label="SVG 标识" prop="label" width="180" />
-          <el-table-column label="临时路径" min-width="260">
+          <el-table-column label="临时路径" min-width="220">
             <template #default="{ row }">
               <span class="path">{{ row.tmp_path }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="目标楼层" width="180">
+          <el-table-column label="目标楼层" width="160">
             <template #default="{ row }">
               <el-select
-                v-model="floorSelections[row.label]"
+                v-model="floorSelections[row.label].floorId"
                 placeholder="选择楼层"
                 size="small"
                 style="width: 100%"
@@ -121,13 +121,28 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" align="center">
+          <el-table-column label="楼层业态" width="150">
+            <template #default="{ row }">
+              <el-select
+                v-model="floorSelections[row.label].propertyType"
+                placeholder="选择业态（可选）"
+                size="small"
+                clearable
+                style="width: 100%"
+              >
+                <el-option label="写字楼" value="office" />
+                <el-option label="商铺" value="retail" />
+                <el-option label="公寓" value="apartment" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" align="center">
             <template #default="{ row }">
               <el-button
                 type="primary"
                 size="small"
                 :loading="assigningLabel === row.label"
-                :disabled="!floorSelections[row.label]"
+                :disabled="!floorSelections[row.label]?.floorId"
                 @click="onAssign(row.label)"
               >
                 指派
@@ -190,8 +205,8 @@ watch(visible, (v) => emit('update:modelValue', v))
 const selectedFile = ref<File | null>(null)
 const fileList = ref<UploadUserFile[]>([])
 
-/** 楼层 -> 选中目标 floor_id 的映射（key 为 svg label） */
-const floorSelections = reactive<Record<string, string>>({})
+/** 每个 SVG 的指派选择：目标楼层 + 可选的楼层业态 */
+const floorSelections = reactive<Record<string, { floorId: string; propertyType?: string }>>({});
 
 /** 当前正在指派的 SVG label（用于按钮 loading） */
 const assigningLabel = ref<string | null>(null)
@@ -240,10 +255,10 @@ async function onUpload(): Promise<void> {
 }
 
 async function onAssign(label: string): Promise<void> {
-  const floorId = floorSelections[label]
-  if (!floorId) return
+  const sel = floorSelections[label]
+  if (!sel?.floorId) return
   assigningLabel.value = label
-  const ok = await store.assign(label, floorId)
+  const ok = await store.assign(label, sel.floorId, sel.propertyType || undefined)
   assigningLabel.value = null
   if (ok) {
     ElMessage.success(`已指派 ${label} 到目标楼层`)
@@ -263,7 +278,7 @@ function handleClosed(): void {
     store.reset()
     selectedFile.value = null
     fileList.value = []
-    for (const k of Object.keys(floorSelections)) delete floorSelections[k]
+    for (const k of Object.keys(floorSelections)) delete floorSelections[k as keyof typeof floorSelections]
   }
 }
 </script>

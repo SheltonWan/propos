@@ -49,6 +49,8 @@ export interface Floor {
   building_name: string | null
   floor_number: number
   floor_name: string | null
+  /** 楼层业态（001 新增）：混合体楼栋逐层指定；非混合体楼栋自动继承楼栋业态；null = 待定 */
+  property_type?: PropertyType | null
   svg_path: string | null
   png_path: string | null
   nla: number | null
@@ -60,6 +62,8 @@ export interface Floor {
   floor_map_updated_at?: string | null
   created_at: string
   updated_at: string
+  /** PATCH /floors/:id 响应专用字段：本次级联更新的单元数 */
+  updated_unit_count?: number
 }
 
 // ─── 楼层热区 ──────────────────────────────────────────

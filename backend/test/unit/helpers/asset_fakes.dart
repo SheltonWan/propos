@@ -412,6 +412,7 @@ class FakeFloorService extends FloorService {
     required int floorNumber,
     String? floorName,
     double? nla,
+    String? propertyType,
   }) async {
     if (shouldThrow != null) throw shouldThrow!;
     return itemResult!;

@@ -16,6 +16,7 @@ import type {
   FloorHeatmap,
   FloorPlan,
   ImportBatchDetail,
+  PropertyType,
   RenovationCreateRequest,
   RenovationListParams,
   RenovationPhotoStage,
@@ -115,6 +116,25 @@ export async function fetchFloors(buildingId?: string): Promise<Floor[]> {
 /** GET /api/floors/:id — 楼层详情 */
 export async function fetchFloor(id: string): Promise<Floor> {
   return apiGet<Floor>(`${API_FLOORS}/${id}`)
+}
+
+/** POST /api/floors — 新建楼层 */
+export async function createFloor(payload: {
+  building_id: string
+  floor_number: number
+  floor_name?: string
+  nla?: number
+  property_type?: PropertyType
+}): Promise<Floor> {
+  return apiPost<Floor>(API_FLOORS, payload)
+}
+
+/** PATCH /api/floors/:id — 更新楼层属性（业态/楼层名/NLA）；响应含 updated_unit_count */
+export async function patchFloor(
+  id: string,
+  payload: { property_type?: PropertyType; floor_name?: string; nla?: number },
+): Promise<Floor> {
+  return apiPatch<Floor>(`${API_FLOORS}/${id}`, payload)
 }
 
 /** GET /api/floors/:id/heatmap — 楼层热区状态图 */
@@ -258,10 +278,10 @@ export async function fetchCadImportJob(jobId: string): Promise<CadImportJob> {
   return apiGet<CadImportJob>(`${API_CAD_IMPORT_JOBS}/${jobId}`)
 }
 
-/** PATCH /api/cad-import-jobs/:id/assign — 手动指派未匹配 SVG 到楼层 */
+/** PATCH /api/cad-import-jobs/:id/assign — 手动指派未匹配 SVG 到楼层（可同时设置楼层业态） */
 export async function assignUnmatchedSvg(
   jobId: string,
-  payload: { svg_label: string; floor_id: string },
+  payload: { svg_label: string; floor_id: string; property_type?: PropertyType },
 ): Promise<CadImportJob> {
   return apiPatch<CadImportJob>(`${API_CAD_IMPORT_JOBS}/${jobId}/assign`, payload)
 }

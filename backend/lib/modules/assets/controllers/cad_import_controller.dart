@@ -62,6 +62,7 @@ class CadImportController {
       id,
       svgLabel: _requireString(body, 'svg_label'),
       floorId: _requireString(body, 'floor_id'),
+      propertyType: body['property_type'] as String?,
     );
     return _jsonResponse(200, {'data': job.toJson()});
   }

@@ -22,20 +22,31 @@ class UnitImportService {
   /// 解析 Excel 文件并批量导入单元。
   ///
   /// 列映射（与 unit_import_template.ts 的 TEMPLATE 严格对齐）：
+  ///
+  /// 【新模板 v2（含楼层业态列，15 列）】
   ///   0: 楼栋名称   → 通过 buildings.name 解析为 building_id
   ///   1: 楼层名称   → 通过 floors.floor_name + building_id 解析为 floor_id
-  ///   2: 单元编号   → unit_number
-  ///   3: 业态       → property_type（office/retail/apartment 或中文：写字楼/商铺/公寓）
-  ///                   为空时继承楼栋的 property_type（兼容单一业态楼栋旧模板）
+  ///   2: 楼层业态   → 更新 floors.property_type 并级联单元（写字楼/商铺/公寓）
+  ///   3: 单元编号   → unit_number
   ///   4: 建筑面积   → gross_area
   ///   5: 套内面积   → net_area
-  ///   6: 朝向       → orientation（东/南/西/北 → east/south/west/north）
+  ///   6: 朝向       → orientation
   ///   7: 层高       → ceiling_height
-  ///   8: 装修状态   → decoration_status（精装/简装/毛坯/原始）
-  ///   9: 是否可租   → is_leasable（是→true）
+  ///   8: 装修状态   → decoration_status
+  ///   9: 是否可租   → is_leasable
   ///  10: 参考租金   → market_rent_reference
-  ///  11-13: 业态专属 ext_fields（写字楼: 工位数/分隔间数；商铺: 门面宽/是否临街/商铺层高；
-  ///          公寓: 卧室数/独立卫生间）
+  ///  11-13: 业态专属 ext_fields
+  ///
+  /// 【旧模板 v1-b（含单元业态列，14 列）】
+  ///   0-1: 同上
+  ///   2: 单元编号   → unit_number
+  ///   3: 单元业态   → property_type（兜底时继承楼栋业态）
+  ///   4-13: 同上
+  ///
+  /// 【旧模板 v1-a（无业态列，13 列）】
+  ///   0-1: 同上
+  ///   2: 单元编号   → unit_number
+  ///   3-12: 同 v1-b 的 4-13
   ///
   /// 行为契约：
   ///   - `dryRun=true`：仅校验，不入库；写入一条 `is_dry_run=true` 的批次记录，
@@ -84,19 +95,46 @@ class UnitImportService {
     // 跳过表头行（rawRows[0]）
     final rows = rawRows;
 
-    // ── 表头自适应：检测 col3 是否为「业态」列（新模板 14 列 / 旧模板 13 列）
-    // 旧模板：col3 = 建筑面积，col4 = 套内面积 ... col9 = 参考租金，col10-12 = ext_fields
-    // 新模板：col3 = 业态，col4 = 建筑面积 ... col10 = 参考租金，col11-13 = ext_fields
+    // ── 表头自适应：三种模板兼容 ────────────────────────────────────────
+    // v2 新模板（Col 2 = 楼层业态）：col2 header 含「楼层」和「业态」
+    // v1-b 旧模板（Col 3 = 单元业态）：col3 header 含「业态」
+    // v1-a 旧模板（无业态列）：默认
     final headerRow = rows.isNotEmpty ? rows[0] : const <dynamic>[];
+    final headerCol2 =
+        headerRow.length > 2 ? (headerRow[2]?.toString().trim() ?? '') : '';
     final headerCol3 = headerRow.length > 3
         ? (headerRow[3]?.toString().trim() ?? '')
         : '';
-    final hasPropertyTypeCol = headerCol3.contains('业态');
-    final colOffset = hasPropertyTypeCol ? 1 : 0;
+    // hasFloorPropertyTypeCol: v2 模板，Col 2 是楼层业态
+    final hasFloorPropertyTypeCol =
+        headerCol2.contains('楼层') && headerCol2.contains('业态');
+    // hasUnitPropertyTypeCol: v1-b 模板，Col 3 是单元业态
+    final hasUnitPropertyTypeCol =
+        !hasFloorPropertyTypeCol && headerCol3.contains('业态');
+    // colOffset: 在 v2/v1-b 中，数值列整体右移 1 位
+    // v2:  unit_number=Col3, data起始=Col4
+    // v1-b: unit_number=Col2, data起始=Col3（但业态在Col3，数值从Col4开始，offset=1）
+    // v1-a: unit_number=Col2, data起始=Col3，offset=0
+    final int unitNumberCol;
+    final int colOffset;
+    if (hasFloorPropertyTypeCol) {
+      unitNumberCol = 3; // v2: 单元编号在 Col 3
+      colOffset = 1; // 数值列从 Col 4 开始（相对 v1-a 的 Col 3 右移 1）
+    } else if (hasUnitPropertyTypeCol) {
+      unitNumberCol = 2; // v1-b: 单元编号仍在 Col 2
+      colOffset = 1; // 数值列从 Col 4 开始
+    } else {
+      unitNumberCol = 2; // v1-a: 单元编号在 Col 2
+      colOffset = 0; // 数值列从 Col 3 开始
+    }
 
     // ── ② 行级校验（含楼栋/楼层名称解析，跳过注释行和空行）───────────────
     final errorDetails = <Map<String, dynamic>>[];
     final validRows = <Map<String, dynamic>>[];
+
+    // 楼层业态更新缓存：避免同一楼层重复调用 patchFloor
+    // key = floorId，value = 解析后的 property_type
+    final floorPropertyTypeUpdates = <String, String>{};
 
     // 楼栋/楼层名称解析缓存；避免同名重复查询
     final buildingCache = <String, Map<String, String>?>{}; // 楼栋名→{id,property_type}
@@ -131,7 +169,7 @@ class UnitImportService {
         continue;
       }
 
-      final unitNumber = _cellStr(row, 2);
+      final unitNumber = _cellStr(row, unitNumberCol);
       if (unitNumber == null) {
         errorDetails.add(_err(rowNum, '单元编号', '单元编号不能为空'));
         continue;
@@ -192,15 +230,33 @@ class UnitImportService {
         continue;
       }
 
-      // ── 行级业态（仅新模板才有 col3 业态列；旧模板回退到楼栋业态）─────
+      // ── 行级楼层业态（v2 新模板：Col 2 = 楼层业态）──────────────────────
+      // v1-b 旧模板：Col 3 = 单元业态（直接继承到单元，不更新楼层）
+      // v1-a 旧模板：继承楼栋业态
       String? rawPt;
-      if (hasPropertyTypeCol) {
+      if (hasFloorPropertyTypeCol) {
+        // v2：Col 2 为楼层业态，写入楼层并让单元继承
+        rawPt = _cellStr(row, 2);
+        // 记录本楼层本次导入应设置的业态（同一楼层多行取最后一行，实践中同楼层应一致）
+        if (rawPt != null && rawPt.isNotEmpty) {
+          final parsedPt = _parsePropertyType(rawPt);
+          if (parsedPt == null) {
+            errorDetails.add(_err(rowNum, '楼层业态',
+                '无效业态值: $rawPt（合法值: 写字楼/商铺/公寓 或 office/retail/apartment）'));
+            continue;
+          }
+          floorPropertyTypeUpdates[floorId] = parsedPt;
+        }
+      } else if (hasUnitPropertyTypeCol) {
+        // v1-b：Col 3 为单元业态
         rawPt = _cellStr(row, 3);
       }
       final propertyType = _parsePropertyType(rawPt) ?? buildingPropertyType;
       if (rawPt != null &&
           rawPt.isNotEmpty &&
-          _parsePropertyType(rawPt) == null) {
+          _parsePropertyType(rawPt) == null &&
+          !hasFloorPropertyTypeCol) {
+        // v2 模板的错误已在上方处理；此处只需处理 v1-b 的单元业态错误
         errorDetails.add(_err(rowNum, '业态',
             '无效业态值: $rawPt（合法值: 写字楼/商铺/公寓 或 office/retail/apartment）'));
         continue;
@@ -308,6 +364,28 @@ class UnitImportService {
     // 全部行校验通过 → 在事务中插入；冲突行 ON CONFLICT DO NOTHING 后真实写入数可能 < validRows
     late Map<String, dynamic> record;
     await _db.runTx((tx) async {
+      // v2 新模板：将本次解析出的楼层业态统一更新（含级联单元），在同一事务内完成
+      for (final entry in floorPropertyTypeUpdates.entries) {
+        await tx.execute(
+          Sql.named('''
+            UPDATE floors SET
+              property_type = @pt::property_type,
+              updated_at    = NOW()
+            WHERE id = @fid
+          '''),
+          parameters: {'fid': entry.key, 'pt': entry.value},
+        );
+        await tx.execute(
+          Sql.named('''
+            UPDATE units SET
+              property_type = @pt::property_type,
+              updated_at    = NOW()
+            WHERE floor_id   = @fid
+              AND archived_at IS NULL
+          '''),
+          parameters: {'fid': entry.key, 'pt': entry.value},
+        );
+      }
       final inserted = await UnitRepository(tx).bulkCreate(validRows, tx: tx);
       record = await ImportBatchRepository(tx).create(
         batchName: batchName,
