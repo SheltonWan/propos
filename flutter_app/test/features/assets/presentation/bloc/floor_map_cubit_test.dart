@@ -2,6 +2,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:propos_app/core/api/api_exception.dart';
+import 'package:propos_app/features/assets/data/services/floor_map_cache_service.dart';
 import 'package:propos_app/features/assets/domain/entities/floor.dart';
 import 'package:propos_app/features/assets/domain/entities/heatmap.dart';
 import 'package:propos_app/features/assets/domain/entities/property_type.dart';
@@ -12,8 +13,11 @@ import 'package:propos_app/features/assets/presentation/bloc/floor_map_state.dar
 
 class MockAssetsRepository extends Mock implements AssetsRepository {}
 
+class MockFloorMapCacheService extends Mock implements FloorMapCacheService {}
+
 void main() {
   late MockAssetsRepository mockRepository;
+  late MockFloorMapCacheService mockCache;
 
   final testNow = DateTime(2026, 4, 20);
 
@@ -52,11 +56,12 @@ void main() {
   // FloorMapCubit 单元测试：验证 fetch(floorId) 的状态流转
   setUp(() {
     mockRepository = MockAssetsRepository();
+    mockCache = MockFloorMapCacheService();
   });
 
   group('FloorMapCubit', () {
     test('initial state is FloorMapState.initial', () {
-      final cubit = FloorMapCubit(mockRepository);
+      final cubit = FloorMapCubit(mockRepository, mockCache);
       expect(cubit.state, const FloorMapState.initial());
       cubit.close();
     });
@@ -67,11 +72,14 @@ void main() {
     blocTest<FloorMapCubit, FloorMapState>(
       'fetch emits [loading, loaded] when both futures succeed',
       build: () {
+        when(() => mockCache.getHeatmap('flr-001')).thenReturn(null);
         when(() => mockRepository.fetchFloor('flr-001'))
             .thenAnswer((_) async => testFloor);
         when(() => mockRepository.fetchFloorHeatmap('flr-001'))
             .thenAnswer((_) async => testHeatmap);
-        return FloorMapCubit(mockRepository);
+        when(() => mockRepository.fetchFloors('bld-001'))
+            .thenAnswer((_) async => []);
+        return FloorMapCubit(mockRepository, mockCache);
       },
       act: (cubit) => cubit.fetch('flr-001'),
       expect: () => [
@@ -88,6 +96,7 @@ void main() {
     blocTest<FloorMapCubit, FloorMapState>(
       'fetch emits [loading, error] when fetchFloor throws ApiException',
       build: () {
+        when(() => mockCache.getHeatmap('flr-999')).thenReturn(null);
         when(() => mockRepository.fetchFloor('flr-999')).thenThrow(
           const ApiException(code: 'FLOOR_NOT_FOUND', message: '楼层不存在', statusCode: 404),
         );
@@ -96,7 +105,7 @@ void main() {
                   floorId: 'flr-999',
                   units: [],
                 ));
-        return FloorMapCubit(mockRepository);
+        return FloorMapCubit(mockRepository, mockCache);
       },
       act: (cubit) => cubit.fetch('flr-999'),
       expect: () => [
@@ -109,6 +118,7 @@ void main() {
     blocTest<FloorMapCubit, FloorMapState>(
       'fetch emits [loading, error] with fallback message on unknown exception',
       build: () {
+        when(() => mockCache.getHeatmap('flr-001')).thenReturn(null);
         when(() => mockRepository.fetchFloor('flr-001'))
             .thenThrow(Exception('timeout'));
         when(() => mockRepository.fetchFloorHeatmap('flr-001'))
@@ -116,7 +126,7 @@ void main() {
                   floorId: 'flr-001',
                   units: [],
                 ));
-        return FloorMapCubit(mockRepository);
+        return FloorMapCubit(mockRepository, mockCache);
       },
       act: (cubit) => cubit.fetch('flr-001'),
       expect: () => [
